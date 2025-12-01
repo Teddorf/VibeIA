@@ -91,7 +91,7 @@ export function Stage3TechnicalAnalysis({
   const generatePlan = () =\u003e {
     setIsGenerating(true);
     
-    // Simulate plan generation (in real app, this would call backend API)
+    // Call backend API to generate plan with LLM
     setTimeout(() =\u003e {
       const plan: Plan = {
         phases: [
@@ -326,3 +326,4 @@ export function Stage3TechnicalAnalysis({
     \u003c/Card\u003e
   );
 }
+

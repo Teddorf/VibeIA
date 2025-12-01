@@ -2,10 +2,14 @@
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PlansModule } from './modules/plans/plans.module';
+import { LlmModule } from './modules/llm/llm.module';
 
 @Module({
   imports: [
     MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/vibecoding'),
+    PlansModule,
+    LlmModule,
   ],
   controllers: [AppController],
   providers: [AppService],
