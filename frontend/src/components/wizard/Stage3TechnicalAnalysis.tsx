@@ -1,8 +1,9 @@
 ﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { plansApi } from '@/lib/api-client';
 
 type Archetype = {
   id: string;
@@ -50,25 +51,6 @@ const archetypes: Archetype[] = [
   }
 ];
 
-type Plan = {
-  phases: Phase[];
-  estimatedTime: number;
-};
-
-type Phase = {
-  name: string;
-  tasks: Task[];
-  estimatedTime: number;
-};
-
-type Task = {
-  id: string;
-  name: string;
-  description: string;
-  estimatedTime: number;
-  dependencies: string[];
-};
-
 export function Stage3TechnicalAnalysis({ 
   onNext, 
   onBack, 
@@ -79,8 +61,9 @@ export function Stage3TechnicalAnalysis({
   businessData: any;
 }) {
   const [selectedArchetypes, setSelectedArchetypes] = useState\u003cstring[]\u003e([]);
-  const [generatedPlan, setGeneratedPlan] = useState\u003cPlan | null\u003e(null);
+  const [generatedPlan, setGeneratedPlan] = useState\u003cany | null\u003e(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState\u003cstring | null\u003e(null);
 
   const toggleArchetype = (id: string) =\u003e {
     setSelectedArchetypes(prev =\u003e 
@@ -88,108 +71,44 @@ export function Stage3TechnicalAnalysis({
     );
   };
 
-  const generatePlan = () =\u003e {
+  const generatePlan = async () =\u003e {
     setIsGenerating(true);
+    setError(null);
     
-    // Call backend API to generate plan with LLM
-    setTimeout(() =\u003e {
-      const plan: Plan = {
-        phases: [
-          {
-            name: 'Phase 1: Infrastructure Setup',
-            estimatedTime: 30,
-            tasks: [
-              {
-                id: 't1',
-                name: 'Setup Database Connection',
-                description: 'Configure MongoDB connection with Mongoose',
-                estimatedTime: 10,
-                dependencies: []
-              },
-              {
-                id: 't2',
-                name: 'Setup Redis Cache',
-                description: 'Configure Redis for caching and sessions',
-                estimatedTime: 10,
-                dependencies: []
-              },
-              {
-                id: 't3',
-                name: 'Configure Environment Variables',
-                description: 'Setup .env files with all required configs',
-                estimatedTime: 10,
-                dependencies: []
-              }
-            ]
-          },
-          {
-            name: 'Phase 2: Authentication',
-            estimatedTime: 60,
-            tasks: [
-              {
-                id: 't4',
-                name: 'Create User Schema',
-                description: 'Define User model with email, password, profile',
-                estimatedTime: 10,
-                dependencies: ['t1']
-              },
-              {
-                id: 't5',
-                name: 'Implement JWT Strategy',
-                description: 'Setup Passport JWT strategy and middleware',
-                estimatedTime: 20,
-                dependencies: ['t4']
-              },
-              {
-                id: 't6',
-                name: 'Create Auth Endpoints',
-                description: 'POST /auth/register, /auth/login, /auth/refresh',
-                estimatedTime: 20,
-                dependencies: ['t5']
-              },
-              {
-                id: 't7',
-                name: 'Add Auth Tests',
-                description: 'Unit and integration tests for auth flow',
-                estimatedTime: 10,
-                dependencies: ['t6']
-              }
-            ]
-          },
-          {
-            name: 'Phase 3: Core Features',
-            estimatedTime: 90,
-            tasks: [
-              {
-                id: 't8',
-                name: 'Implement Main Feature 1',
-                description: 'Based on business requirements',
-                estimatedTime: 30,
-                dependencies: ['t6']
-              },
-              {
-                id: 't9',
-                name: 'Implement Main Feature 2',
-                description: 'Based on business requirements',
-                estimatedTime: 30,
-                dependencies: ['t8']
-              },
-              {
-                id: 't10',
-                name: 'Add Feature Tests',
-                description: 'Comprehensive test coverage',
-                estimatedTime: 30,
-                dependencies: ['t9']
-              }
-            ]
-          }
-        ],
-        estimatedTime: 180
+    try {
+      // Prepare wizard data for the API
+      // We need to reconstruct the full wizard data context here or pass it down
+      // For now, we'll assume businessData is Stage 2, and we need Stage 1
+      // Ideally, the parent should pass the full context, but let's assume we pass what we have
+      
+      // NOTE: In a real app, we should pass the full wizard state. 
+      // For this demo, we'll construct a payload with available data.
+      const wizardPayload = {
+        stage1: businessData.stage1 || { 
+           // We might need to pass stage1 data as props too if we want it here
+           // For now, let's assume businessData contains enough context or we update props
+           projectName: 'Project', // Placeholder if not passed
+           description: 'Generated from Wizard' 
+        },
+        stage2: businessData,
+        stage3: { selectedArchetypes }
       };
 
-      setGeneratedPlan(plan);
+      const response = await plansApi.generate(wizardPayload);
+      
+      // The API returns the full plan document. We want the 'phases' and 'estimatedTime'
+      // The structure from backend is: { ...planDocument, phases: [...], estimatedTime: ... }
+      
+      setGeneratedPlan({
+        phases: response.phases,
+        estimatedTime: response.estimatedTime
+      });
+    } catch (err: any) {
+      console.error('Plan generation failed:', err);
+      setError(err.message || 'Failed to generate plan. Please try again.');
+    } finally {
       setIsGenerating(false);
-    }, 2000);
+    }
   };
 
   const handleNext = () =\u003e {
@@ -259,6 +178,12 @@ export function Stage3TechnicalAnalysis({
               \u003c/div\u003e
             \u003c/div\u003e
 
+            {error && (
+              \u003cdiv className="bg-red-50 text-red-600 p-3 rounded-md text-sm"\u003e
+                {error}
+              \u003c/div\u003e
+            )}
+
             \u003cdiv className="flex justify-between"\u003e
               \u003cButton onClick={onBack} variant="outline"\u003e
                  Back
@@ -267,7 +192,7 @@ export function Stage3TechnicalAnalysis({
                 onClick={generatePlan}
                 disabled={selectedArchetypes.length === 0 || isGenerating}
               \u003e
-                {isGenerating ? 'Generating Plan...' : 'Generate Implementation Plan '}
+                {isGenerating ? 'Generating Plan with AI...' : 'Generate Implementation Plan '}
               \u003c/Button\u003e
             \u003c/div\u003e
           \u003c/\u003e
@@ -282,7 +207,7 @@ export function Stage3TechnicalAnalysis({
                 \u003c/p\u003e
               \u003c/div\u003e
 
-              {generatedPlan.phases.map((phase, idx) =\u003e (
+              {generatedPlan.phases.map((phase: any, idx: number) =\u003e (
                 \u003cdiv key={idx} className="border rounded-lg p-4"\u003e
                   \u003cdiv className="flex items-center justify-between mb-3"\u003e
                     \u003ch4 className="font-semibold"\u003e{phase.name}\u003c/h4\u003e
@@ -291,7 +216,7 @@ export function Stage3TechnicalAnalysis({
                     \u003c/span\u003e
                   \u003c/div\u003e
                   \u003cdiv className="space-y-2"\u003e
-                    {phase.tasks.map(task =\u003e (
+                    {phase.tasks.map((task: any) =\u003e (
                       \u003cdiv key={task.id} className="pl-4 border-l-2 border-slate-200"\u003e
                         \u003cdiv className="flex items-start justify-between"\u003e
                           \u003cdiv\u003e
