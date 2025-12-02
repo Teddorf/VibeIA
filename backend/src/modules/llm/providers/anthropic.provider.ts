@@ -15,8 +15,8 @@ export class AnthropicProvider implements LLMProvider {
     const prompt = this.buildPrompt(wizardData);
 
     const message = await this.client.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 4096,
+      model: 'claude-sonnet-4-20250514', // Claude 4.5 Sonnet (latest)
+      max_tokens: 8192,
       messages: [
         {
           role: 'user',
@@ -84,7 +84,7 @@ Generate the plan now:`;
   }
 
   private calculateCost(inputTokens: number, outputTokens: number): number {
-    // Claude 3.5 Sonnet pricing (as of 2024)
+    // Claude 4.5 Sonnet pricing
     const inputCost = (inputTokens / 1000000) * 3; // $3 per million input tokens
     const outputCost = (outputTokens / 1000000) * 15; // $15 per million output tokens
     return inputCost + outputCost;
