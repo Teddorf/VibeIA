@@ -1,4 +1,4 @@
-﻿import { Test, TestingModule } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PlansService } from './plans.service';
@@ -6,9 +6,9 @@ import { Plan, PlanDocument } from '../../schemas/plan.schema';
 import { LlmService } from '../llm/llm.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 
-describe('PlansService', () =\u003e {
+describe('PlansService', () => {
   let service: PlansService;
-  let planModel: Model\u003cPlanDocument\u003e;
+  let planModel: Model<PlanDocument>;
   let llmService: LlmService;
 
   const mockPlan = {
@@ -36,7 +36,7 @@ describe('PlansService', () =\u003e {
     cost: 0.003,
   };
 
-  beforeEach(async () =\u003e {
+  beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PlansService,
@@ -61,13 +61,13 @@ describe('PlansService', () =\u003e {
       ],
     }).compile();
 
-    service = module.get\u003cPlansService\u003e(PlansService);
-    planModel = module.get\u003cModel\u003cPlanDocument\u003e\u003e(getModelToken(Plan.name));
-    llmService = module.get\u003cLlmService\u003e(LlmService);
+    service = module.get<PlansService>(PlansService);
+    planModel = module.get<Model<PlanDocument>>(getModelToken(Plan.name));
+    llmService = module.get<LlmService>(LlmService);
   });
 
-  describe('generatePlan', () =\u003e {
-    it('should generate and save a plan', async () =\u003e {
+  describe('generatePlan', () => {
+    it('should call LLM service to generate plan', async () => {
       const createPlanDto: CreatePlanDto = {
         projectId: 'proj123',
         userId: 'user123',
@@ -78,19 +78,14 @@ describe('PlansService', () =\u003e {
         },
       };
 
-      const saveSpy = jest.fn().mockResolvedValue(mockPlan);
-      jest.spyOn(planModel, 'prototype' as any).mockImplementation(() =\u003e ({
-        save: saveSpy,
-      }));
-
       await service.generatePlan(createPlanDto);
 
       expect(llmService.generatePlan).toHaveBeenCalledWith(createPlanDto.wizardData);
     });
   });
 
-  describe('findAll', () =\u003e {
-    it('should return all plans for a user', async () =\u003e {
+  describe('findAll', () => {
+    it('should return all plans for a user', async () => {
       const mockPlans = [mockPlan, mockPlan];
       jest.spyOn(planModel, 'find').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockPlans),
@@ -103,8 +98,8 @@ describe('PlansService', () =\u003e {
     });
   });
 
-  describe('findOne', () =\u003e {
-    it('should return a plan by id', async () =\u003e {
+  describe('findOne', () => {
+    it('should return a plan by id', async () => {
       jest.spyOn(planModel, 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockPlan),
       } as any);
@@ -116,8 +111,8 @@ describe('PlansService', () =\u003e {
     });
   });
 
-  describe('updateStatus', () =\u003e {
-    it('should update plan status', async () =\u003e {
+  describe('updateStatus', () => {
+    it('should update plan status', async () => {
       const updatedPlan = { ...mockPlan, status: 'in_progress' };
       jest.spyOn(planModel, 'findByIdAndUpdate').mockReturnValue({
         exec: jest.fn().mockResolvedValue(updatedPlan),

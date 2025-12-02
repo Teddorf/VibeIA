@@ -1,9 +1,9 @@
-﻿import { Test, TestingModule } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { PlansController } from './plans.controller';
 import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 
-describe('PlansController', () =\u003e {
+describe('PlansController', () => {
   let controller: PlansController;
   let service: PlansService;
 
@@ -16,7 +16,7 @@ describe('PlansController', () =\u003e {
     status: 'pending',
   };
 
-  beforeEach(async () =\u003e {
+  beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PlansController],
       providers: [
@@ -32,12 +32,12 @@ describe('PlansController', () =\u003e {
       ],
     }).compile();
 
-    controller = module.get\u003cPlansController\u003e(PlansController);
-    service = module.get\u003cPlansService\u003e(PlansService);
+    controller = module.get<PlansController>(PlansController);
+    service = module.get<PlansService>(PlansService);
   });
 
-  describe('generate', () =\u003e {
-    it('should generate a new plan', async () =\u003e {
+  describe('generate', () => {
+    it('should generate a new plan', async () => {
       const createPlanDto: CreatePlanDto = {
         projectId: 'proj123',
         userId: 'user123',
@@ -55,8 +55,8 @@ describe('PlansController', () =\u003e {
     });
   });
 
-  describe('findAll', () =\u003e {
-    it('should return all plans for a user', async () =\u003e {
+  describe('findAll', () => {
+    it('should return all plans for a user', async () => {
       const result = await controller.findAll('user123');
 
       expect(service.findAll).toHaveBeenCalledWith('user123');
@@ -64,8 +64,8 @@ describe('PlansController', () =\u003e {
     });
   });
 
-  describe('findOne', () =\u003e {
-    it('should return a plan by id', async () =\u003e {
+  describe('findOne', () => {
+    it('should return a plan by id', async () => {
       const result = await controller.findOne('plan123');
 
       expect(service.findOne).toHaveBeenCalledWith('plan123');
@@ -73,8 +73,8 @@ describe('PlansController', () =\u003e {
     });
   });
 
-  describe('updateStatus', () =\u003e {
-    it('should update plan status', async () =\u003e {
+  describe('updateStatus', () => {
+    it('should update plan status', async () => {
       const result = await controller.updateStatus('plan123', 'completed');
 
       expect(service.updateStatus).toHaveBeenCalledWith('plan123', 'completed');
