@@ -1,6 +1,6 @@
-﻿export interface LLMProvider {
+export interface LLMProvider {
   name: string;
-  generatePlan(wizardData: any): Promise\u003cany\u003e;
+  generatePlan(wizardData: any): Promise<any>;
   estimateCost(prompt: string): number;
 }
 
