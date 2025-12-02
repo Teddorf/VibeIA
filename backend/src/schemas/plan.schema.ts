@@ -30,7 +30,7 @@ export class Plan {
   @Prop({ type: Object, required: true })
   wizardData: {
     stage1: { projectName: string; description: string };
-    stage2: Record\u003cstring, string\u003e;
+    stage2: Record<string, string>;
     stage3: { selectedArchetypes: string[]; plan: any };
   };
 
@@ -44,7 +44,7 @@ export class Plan {
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
 
   @Prop({ type: Object })
-  metadata?: Record\u003cstring, any\u003e;
+  metadata?: Record<string, any>;
 }
 
 export const PlanSchema = SchemaFactory.createForClass(Plan);
