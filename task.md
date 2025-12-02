@@ -30,3 +30,18 @@
 
 
 
+
+## Phase 3: Testing & Quality (Complete)
+- [x] Unit Tests <!-- id: 24 -->
+    - [x] Backend: LLM Service <!-- id: 25 -->
+    - [x] Backend: Plans Service <!-- id: 26 -->
+    - [x] Backend: Plans Controller <!-- id: 27 -->
+    - [x] Frontend: Stage1 Component <!-- id: 28 -->
+    - [x] Frontend: WizardContainer <!-- id: 29 -->
+    - [x] Frontend: API Client <!-- id: 30 -->
+- [x] Integration Tests <!-- id: 31 -->
+    - [x] Plans API E2E <!-- id: 32 -->
+- [x] Test Configuration <!-- id: 33 -->
+    - [x] Jest setup (Backend) <!-- id: 34 -->
+    - [x] Jest + RTL setup (Frontend) <!-- id: 35 -->
+    - [x] Test scripts in package.json <!-- id: 36 -->
