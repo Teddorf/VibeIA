@@ -47,3 +47,11 @@
     - [x] Test scripts in package.json <!-- id: 36 -->
 
 
+
+
+## Phase 2.3: Execution Engine (In Progress)
+- [x] Execution Module Structure <!-- id: 37 -->
+- [x] LLM Code Generation (generateCode) <!-- id: 38 -->
+- [x] Execution Service (Orchestration) <!-- id: 39 -->
+- [x] Execution Controller <!-- id: 40 -->
+- [x] Unit Tests for Execution Service <!-- id: 41 -->

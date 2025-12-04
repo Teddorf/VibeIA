@@ -50,4 +50,29 @@ export class PlansService {
       .findByIdAndUpdate(id, { status }, { new: true })
       .exec();
   }
+
+  async updateTaskStatus(planId: string, phaseIndex: number, taskId: string, status: string): Promise<Plan | null> {
+    const plan = await this.planModel.findById(planId);
+    if (!plan) return null;
+
+    const phase = plan.phases[phaseIndex];
+    const taskIndex = phase.tasks.findIndex((t) => t.id === taskId);
+
+    if (taskIndex === -1) return null;
+
+    phase.tasks[taskIndex].status = status as any;
+
+    // Check if phase is complete
+    const allTasksComplete = phase.tasks.every((t) => t.status === 'completed');
+    if (allTasksComplete) {
+      phase.status = 'completed';
+    } else if (phase.tasks.some((t) => t.status === 'in_progress' || t.status === 'completed')) {
+      phase.status = 'in_progress';
+    }
+
+    // Update plan with modified phases
+    return this.planModel
+      .findByIdAndUpdate(planId, { phases: plan.phases }, { new: true })
+      .exec();
+  }
 }

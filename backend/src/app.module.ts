@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { PlansModule } from './modules/plans/plans.module';
 import { GitModule } from './modules/git/git.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { ExecutionModule } from './modules/execution/execution.module';
 import { LlmModule } from './modules/llm/llm.module';
 
 @Module({
@@ -13,11 +14,13 @@ import { LlmModule } from './modules/llm/llm.module';
     PlansModule,
     GitModule,
     ProjectsModule,
+    ExecutionModule,
     LlmModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
+
 
 

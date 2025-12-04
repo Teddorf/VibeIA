@@ -9,7 +9,7 @@ export class ProjectsService {
   constructor(
     @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
     private gitService: GitService,
-  ) {}
+  ) { }
 
   async createProject(userId: string, name: string, description: string) {
     // 1. Create GitHub Repository
@@ -30,5 +30,9 @@ export class ProjectsService {
 
   async findAll(userId: string) {
     return this.projectModel.find({ ownerId: userId }).exec();
+  }
+
+  async findOne(id: string) {
+    return this.projectModel.findById(id).exec();
   }
 }

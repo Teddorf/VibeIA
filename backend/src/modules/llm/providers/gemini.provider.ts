@@ -12,7 +12,7 @@ export class GeminiProvider implements LLMProvider {
   async generatePlan(wizardData: any): Promise<LLMResponse> {
     const prompt = this.buildPrompt(wizardData);
 
-    const model = this.client.getGenerativeModel({ 
+    const model = this.client.getGenerativeModel({
       model: 'gemini-2.0-flash-exp', // Gemini 2.0 Flash (latest experimental)
       generationConfig: {
         temperature: 0.7,
@@ -24,7 +24,7 @@ export class GeminiProvider implements LLMProvider {
     const result = await model.generateContent(prompt);
     const response = result.response;
     const planText = response.text();
-    
+
     // Parse the JSON response from Gemini
     const plan = JSON.parse(planText);
 
@@ -37,6 +37,51 @@ export class GeminiProvider implements LLMProvider {
       tokensUsed: estimatedTokens,
       cost: this.calculateCost(estimatedTokens),
     };
+  }
+
+  async generateCode(task: any, context: any): Promise<{ files: { path: string; content: string }[] }> {
+    const prompt = this.buildCodePrompt(task, context);
+
+    const model = this.client.getGenerativeModel({
+      model: 'gemini-2.0-flash-exp',
+      generationConfig: {
+        temperature: 0.2, // Lower temperature for code
+        maxOutputTokens: 8192,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const responseText = response.text();
+
+    try {
+      return JSON.parse(responseText);
+    } catch (error) {
+      console.error('Failed to parse LLM code generation response:', error);
+      throw new Error('LLM response was not valid JSON');
+    }
+  }
+
+  private buildCodePrompt(task: any, context: any): string {
+    return `You are an expert senior software engineer. Implement the following task.
+
+TASK: ${task.name}
+DESCRIPTION: ${task.description}
+
+PROJECT CONTEXT:
+- Project: ${context.projectName}
+- Tech Stack: ${context.technologies.join(', ')}
+
+OUTPUT JSON ONLY:
+{
+  "files": [
+    {
+      "path": "src/path/to/file.ts",
+      "content": "full code content"
+    }
+  ]
+}`;
   }
 
   private buildPrompt(wizardData: any): string {

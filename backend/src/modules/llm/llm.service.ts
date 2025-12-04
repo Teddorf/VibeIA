@@ -34,7 +34,7 @@ export class LlmService {
       return await provider.generatePlan(wizardData);
     } catch (error) {
       console.error(`Primary provider (${this.primaryProvider}) failed:`, error);
-      
+
       // Try fallback provider
       try {
         console.log(`Falling back to ${this.fallbackProvider}...`);
@@ -45,7 +45,7 @@ export class LlmService {
         return await fallback.generatePlan(wizardData);
       } catch (fallbackError) {
         console.error(`Fallback provider (${this.fallbackProvider}) failed:`, fallbackError);
-        
+
         // Try tertiary provider
         console.log(`Trying tertiary provider ${this.tertiaryProvider}...`);
         const tertiary = this.providers.get(this.tertiaryProvider);
@@ -53,6 +53,37 @@ export class LlmService {
           throw new Error('No tertiary provider available');
         }
         return await tertiary.generatePlan(wizardData);
+      }
+    }
+  }
+
+  async generateCode(task: any, context: any): Promise<{ files: { path: string; content: string }[] }> {
+    // Try primary provider
+    try {
+      const provider = this.providers.get(this.primaryProvider);
+      if (!provider) throw new Error(`Provider ${this.primaryProvider} not found`);
+
+      console.log(`Generating code with ${this.primaryProvider}...`);
+      return await provider.generateCode(task, context);
+    } catch (error) {
+      console.error(`Primary provider (${this.primaryProvider}) failed code gen:`, error);
+
+      // Try fallback
+      try {
+        const fallback = this.providers.get(this.fallbackProvider);
+        if (!fallback) throw new Error('No fallback provider available');
+
+        console.log(`Falling back to ${this.fallbackProvider} for code gen...`);
+        return await fallback.generateCode(task, context);
+      } catch (fallbackError) {
+        console.error(`Fallback provider (${this.fallbackProvider}) failed code gen:`, fallbackError);
+
+        // Try tertiary
+        const tertiary = this.providers.get(this.tertiaryProvider);
+        if (!tertiary) throw new Error('No tertiary provider available');
+
+        console.log(`Trying tertiary provider ${this.tertiaryProvider} for code gen...`);
+        return await tertiary.generateCode(task, context);
       }
     }
   }
