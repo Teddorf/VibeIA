@@ -7,6 +7,8 @@ import { GitModule } from './modules/git/git.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { ExecutionModule } from './modules/execution/execution.module';
 import { LlmModule } from './modules/llm/llm.module';
+import { QualityGatesModule } from './modules/quality-gates/quality-gates.module';
+import { ManualTasksModule } from './modules/manual-tasks/manual-tasks.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { LlmModule } from './modules/llm/llm.module';
     ProjectsModule,
     ExecutionModule,
     LlmModule,
+    QualityGatesModule,
+    ManualTasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

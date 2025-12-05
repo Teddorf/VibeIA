@@ -5,6 +5,8 @@ import { PlansModule } from '../plans/plans.module';
 import { ProjectsModule } from '../projects/projects.module';
 import { GitModule } from '../git/git.module';
 import { LlmModule } from '../llm/llm.module';
+import { QualityGatesModule } from '../quality-gates/quality-gates.module';
+import { ManualTasksModule } from '../manual-tasks/manual-tasks.module';
 
 @Module({
   imports: [
@@ -12,6 +14,8 @@ import { LlmModule } from '../llm/llm.module';
     ProjectsModule,
     GitModule,
     LlmModule,
+    QualityGatesModule,
+    ManualTasksModule,
   ],
   controllers: [ExecutionController],
   providers: [ExecutionService],

@@ -1,4 +1,4 @@
-import { Controller, Post, Param } from '@nestjs/common';
+import { Controller, Post, Get, Param } from '@nestjs/common';
 import { ExecutionService } from './execution.service';
 
 @Controller('api/execution')
@@ -11,7 +11,27 @@ export class ExecutionController {
     this.executionService.executePlan(planId).catch(err => {
       console.error('Background execution failed:', err);
     });
-    
+
     return { message: 'Execution started', planId };
+  }
+
+  @Get(':planId/status')
+  async getExecutionStatus(@Param('planId') planId: string) {
+    return this.executionService.getExecutionStatus(planId);
+  }
+
+  @Post(':planId/pause')
+  async pauseExecution(@Param('planId') planId: string) {
+    return this.executionService.pauseExecution(planId);
+  }
+
+  @Post(':planId/resume')
+  async resumeExecution(@Param('planId') planId: string) {
+    // Resume in background
+    this.executionService.resumeExecution(planId).catch(err => {
+      console.error('Resume execution failed:', err);
+    });
+
+    return { message: 'Execution resumed', planId };
   }
 }
