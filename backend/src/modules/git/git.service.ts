@@ -78,7 +78,7 @@ export class GitService {
       const baseTreeSha = commitData.tree.sha;
 
       // 3. Create blobs for each file
-      const treeItems = [];
+      const treeItems: { path: string; mode: '100644'; type: 'blob'; sha: string }[] = [];
       for (const file of files) {
         const { data: blobData } = await this.octokit.git.createBlob({
           owner,
@@ -86,11 +86,11 @@ export class GitService {
           content: file.content,
           encoding: 'utf-8',
         });
-        
+
         treeItems.push({
           path: file.path,
-          mode: '100644' as const, // File mode
-          type: 'blob' as const,
+          mode: '100644',
+          type: 'blob',
           sha: blobData.sha,
         });
       }

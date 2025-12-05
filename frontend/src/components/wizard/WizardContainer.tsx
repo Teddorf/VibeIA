@@ -73,7 +73,7 @@ export function WizardContainer() {
         <Stage2BusinessAnalysis 
           onNext={handleStageComplete} 
           onBack={handleBack}
-          previousData={wizardData.stage2}
+          initialData={wizardData.stage2}
         />
       )}
 
@@ -81,8 +81,7 @@ export function WizardContainer() {
         <Stage3TechnicalAnalysis 
           onNext={handleStageComplete} 
           onBack={handleBack}
-          previousData={wizardData.stage3}
-          wizardData={wizardData}
+          businessData={wizardData}
         />
       )}
 

@@ -32,11 +32,10 @@ export function Stage4ExecutionPreview({
     setError(null);
 
     try {
-      // 1. Create Project
+      // 1. Create Project (userId is now taken from auth token on backend)
       const project = await projectsApi.create(
         stage1.projectName,
-        stage1.description,
-        'user-1' // TODO: Get from auth context
+        stage1.description
       );
 
       // 2. Start Execution

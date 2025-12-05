@@ -1,12 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PlansService } from '../plans/plans.service';
 import { ProjectsService } from '../projects/projects.service';
 import { GitService } from '../git/git.service';
 import { LlmService } from '../llm/llm.service';
 import { QualityGatesService } from '../quality-gates/quality-gates.service';
 import { ManualTasksService } from '../manual-tasks/manual-tasks.service';
+import { EventsGateway } from '../events/events.gateway';
 
-interface ExecutionState {
+export interface ExecutionState {
   planId: string;
   status: 'running' | 'paused' | 'completed' | 'failed';
   currentPhaseIndex: number;
@@ -26,6 +27,7 @@ export class ExecutionService {
     private llmService: LlmService,
     private qualityGatesService: QualityGatesService,
     private manualTasksService: ManualTasksService,
+    @Optional() private eventsGateway?: EventsGateway,
   ) {}
 
   async executePlan(planId: string) {
@@ -36,6 +38,7 @@ export class ExecutionService {
     if (!project) throw new Error('Project not found');
 
     console.log(`Starting execution for plan: ${planId} (Project: ${project.name})`);
+    this.emitLog(planId, `Starting execution for project: ${project.name}`);
 
     // Initialize execution state
     this.executionStates.set(planId, {
@@ -46,17 +49,24 @@ export class ExecutionService {
     });
 
     await this.plansService.updateStatus(planId, 'in_progress');
+    this.emitStatusUpdate(planId, 'running', 0);
+
+    const totalTasks = plan.phases.reduce((sum, phase) => sum + phase.tasks.length, 0);
+    let completedTasks = 0;
+    let failedTasks = 0;
 
     // Iterate phases
     for (let i = 0; i < plan.phases.length; i++) {
       const state = this.executionStates.get(planId);
       if (state?.status === 'paused') {
         console.log(`Execution paused at phase ${i}`);
+        this.emitLog(planId, `Execution paused at phase ${i + 1}`, 'warn');
         return;
       }
 
       const phase = plan.phases[i];
       console.log(`Executing Phase: ${phase.name}`);
+      this.emitLog(planId, `Starting phase: ${phase.name}`);
 
       // Update state
       this.updateExecutionState(planId, { currentPhaseIndex: i, currentTaskIndex: 0 });
@@ -73,17 +83,37 @@ export class ExecutionService {
         this.updateExecutionState(planId, { currentTaskIndex: j });
 
         if (task.status === 'pending' || task.status === 'paused') {
-          const shouldContinue = await this.executeTask(planId, i, task, project, plan.wizardData);
-          if (!shouldContinue) {
+          const result = await this.executeTask(planId, i, task, project, plan.wizardData);
+          if (!result.shouldContinue) {
             return; // Execution paused for manual task or error
           }
+          if (result.completed) {
+            completedTasks++;
+          } else if (result.failed) {
+            failedTasks++;
+          }
+
+          const progress = Math.round(((completedTasks + failedTasks) / totalTasks) * 100);
+          this.emitStatusUpdate(planId, 'running', progress);
         }
       }
+
+      // Emit phase completed
+      this.eventsGateway?.emitPhaseCompleted(planId, i, phase.name);
     }
 
     await this.plansService.updateStatus(planId, 'completed');
     this.updateExecutionState(planId, { status: 'completed' });
+
+    // Emit execution completed
+    this.eventsGateway?.emitExecutionCompleted(planId, {
+      totalTasks,
+      completedTasks,
+      failedTasks,
+    });
+
     console.log(`Plan execution completed: ${planId}`);
+    this.emitLog(planId, `Execution completed! ${completedTasks}/${totalTasks} tasks successful`);
   }
 
   private async executeTask(
@@ -92,7 +122,7 @@ export class ExecutionService {
     task: any,
     project: any,
     wizardData: any
-  ): Promise<boolean> {
+  ): Promise<{ shouldContinue: boolean; completed?: boolean; failed?: boolean }> {
     console.log(`  > Executing Task: ${task.name}`);
 
     // Check for manual task
@@ -104,17 +134,22 @@ export class ExecutionService {
 
     if (manualTask) {
       console.log(`  > Manual task detected: ${manualTask.title}`);
+      this.emitLog(planId, `Manual task required: ${manualTask.title}`, 'warn');
+
       await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'paused');
       this.updateExecutionState(planId, {
         status: 'paused',
         pauseReason: `Manual task required: ${manualTask.title}`,
         manualTaskPending: true,
       });
-      return false; // Stop execution for manual task
+      this.emitStatusUpdate(planId, 'paused', 0);
+      return { shouldContinue: false };
     }
 
     // Update status to in_progress
     await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'in_progress');
+    this.eventsGateway?.emitTaskStarted(planId, phaseIndex, task.id, task.name);
+    this.emitLog(planId, `Starting task: ${task.name}`);
 
     try {
       // Generate Code
@@ -128,14 +163,18 @@ export class ExecutionService {
 
       if (!generated.files || generated.files.length === 0) {
         console.warn(`    No files generated for task: ${task.name}`);
+        this.emitLog(planId, `No files generated for task: ${task.name}`, 'warn');
         await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'completed');
-        return true;
+        this.eventsGateway?.emitTaskCompleted(planId, phaseIndex, task.id, task.name, 0);
+        return { shouldContinue: true, completed: true };
       }
 
       // Run Quality Gates
       console.log(`    Running quality gates on ${generated.files.length} files...`);
+      this.emitLog(planId, `Running quality gates on ${generated.files.length} files...`);
+
       const qualityResult = await this.qualityGatesService.runAllChecks(generated.files, {
-        skipTests: true, // Skip test checks for now since we don't have the test files yet
+        skipTests: true,
       });
 
       console.log(this.qualityGatesService.generateReport(qualityResult));
@@ -144,14 +183,18 @@ export class ExecutionService {
         console.error(`    Quality gate failed for task: ${task.name}`);
         console.log(`    Blockers: ${qualityResult.blockers.map(b => b.message).join(', ')}`);
 
-        // Try to fix issues with LLM (optional enhancement)
-        // For now, mark as failed and continue
+        const errorMsg = `Quality gate failed: ${qualityResult.blockers.map(b => b.message).join(', ')}`;
+        this.emitLog(planId, errorMsg, 'error');
+
         await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'failed');
-        return true; // Continue with next task
+        this.eventsGateway?.emitTaskFailed(planId, phaseIndex, task.id, task.name, errorMsg);
+        return { shouldContinue: true, failed: true };
       }
 
       // Commit to Git
       console.log(`    Committing ${generated.files.length} files...`);
+      this.emitLog(planId, `Committing ${generated.files.length} files to git...`);
+
       try {
         await this.gitService.createCommit(
           project.ownerId,
@@ -162,18 +205,27 @@ export class ExecutionService {
         );
       } catch (gitError) {
         console.warn(`    Git commit failed (may be expected in dev):`, gitError);
-        // Don't fail the task if git commit fails - might not have repo set up
+        this.emitLog(planId, 'Git commit skipped (no repository configured)', 'warn');
       }
 
       // Update status to completed
       await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'completed');
+      this.eventsGateway?.emitTaskCompleted(planId, phaseIndex, task.id, task.name, generated.files.length);
+
       console.log(`    Task completed: ${task.name}`);
-      return true;
+      this.emitLog(planId, `Task completed: ${task.name} (${generated.files.length} files, quality: ${qualityResult.overallScore.toFixed(0)}/100)`);
+
+      return { shouldContinue: true, completed: true };
 
     } catch (error) {
       console.error(`    Task failed: ${task.name}`, error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+
+      this.emitLog(planId, `Task failed: ${task.name} - ${errorMsg}`, 'error');
+      this.eventsGateway?.emitTaskFailed(planId, phaseIndex, task.id, task.name, errorMsg);
+
       await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'failed');
-      return true; // Continue with next task instead of stopping
+      return { shouldContinue: true, failed: true };
     }
   }
 
@@ -201,6 +253,8 @@ export class ExecutionService {
       state.pauseReason = 'User requested pause';
     }
     await this.plansService.updateStatus(planId, 'paused');
+    this.emitStatusUpdate(planId, 'paused', 0);
+    this.emitLog(planId, 'Execution paused by user');
     return { message: 'Execution paused', planId };
   }
 
@@ -219,6 +273,8 @@ export class ExecutionService {
     if (!project) throw new Error('Project not found');
 
     await this.plansService.updateStatus(planId, 'in_progress');
+    this.emitStatusUpdate(planId, 'running', 0);
+    this.emitLog(planId, 'Execution resumed');
 
     // Resume from current position
     for (let i = state.currentPhaseIndex; i < plan.phases.length; i++) {
@@ -235,8 +291,8 @@ export class ExecutionService {
         this.updateExecutionState(planId, { currentPhaseIndex: i, currentTaskIndex: j });
 
         if (task.status === 'pending' || task.status === 'paused') {
-          const shouldContinue = await this.executeTask(planId, i, task, project, plan.wizardData);
-          if (!shouldContinue) {
+          const result = await this.executeTask(planId, i, task, project, plan.wizardData);
+          if (!result.shouldContinue) {
             return;
           }
         }
@@ -245,6 +301,7 @@ export class ExecutionService {
 
     await this.plansService.updateStatus(planId, 'completed');
     this.updateExecutionState(planId, { status: 'completed' });
+    this.emitLog(planId, 'Execution completed');
   }
 
   private updateExecutionState(planId: string, updates: Partial<ExecutionState>) {
@@ -252,5 +309,13 @@ export class ExecutionService {
     if (state) {
       Object.assign(state, updates);
     }
+  }
+
+  private emitStatusUpdate(planId: string, status: string, progress: number) {
+    this.eventsGateway?.emitStatusUpdate(planId, status, progress);
+  }
+
+  private emitLog(planId: string, message: string, level: 'info' | 'warn' | 'error' = 'info') {
+    this.eventsGateway?.emitLog(planId, message, level);
   }
 }

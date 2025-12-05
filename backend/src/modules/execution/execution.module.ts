@@ -7,6 +7,7 @@ import { GitModule } from '../git/git.module';
 import { LlmModule } from '../llm/llm.module';
 import { QualityGatesModule } from '../quality-gates/quality-gates.module';
 import { ManualTasksModule } from '../manual-tasks/manual-tasks.module';
+import { EventsModule } from '../events/events.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ManualTasksModule } from '../manual-tasks/manual-tasks.module';
     LlmModule,
     QualityGatesModule,
     ManualTasksModule,
+    EventsModule,
   ],
   controllers: [ExecutionController],
   providers: [ExecutionService],

@@ -35,10 +35,9 @@ export default apiClient;
 
 // API methods
 export const plansApi = {
-  generate: async (wizardData: any) => {
+  generate: async (wizardData: any, projectId?: string) => {
     const response = await apiClient.post('/api/plans/generate', {
-      projectId: 'temp-' + Date.now(),
-      userId: 'user-' + Date.now(),
+      projectId: projectId || 'temp-' + Date.now(),
       wizardData,
     });
     return response.data;
@@ -56,8 +55,18 @@ export const plansApi = {
 };
 
 export const projectsApi = {
-  create: async (name: string, description: string, userId: string) => {
-    const response = await apiClient.post('/api/projects', { name, description, userId });
+  create: async (name: string, description: string) => {
+    const response = await apiClient.post('/api/projects', { name, description });
+    return response.data;
+  },
+
+  getAll: async () => {
+    const response = await apiClient.get('/api/projects');
+    return response.data;
+  },
+
+  getById: async (id: string) => {
+    const response = await apiClient.get(`/api/projects/${id}`);
     return response.data;
   },
 };
@@ -119,6 +128,33 @@ export const qualityGatesApi = {
 
   security: async (files: { path: string; content: string }[]) => {
     const response = await apiClient.post('/api/quality-gates/security', { files });
+    return response.data;
+  },
+};
+
+export const authApi = {
+  login: async (email: string, password: string) => {
+    const response = await apiClient.post('/api/auth/login', { email, password });
+    return response.data;
+  },
+
+  register: async (email: string, password: string, name: string) => {
+    const response = await apiClient.post('/api/auth/register', { email, password, name });
+    return response.data;
+  },
+
+  logout: async () => {
+    const response = await apiClient.post('/api/auth/logout');
+    return response.data;
+  },
+
+  refresh: async (userId: string, refreshToken: string) => {
+    const response = await apiClient.post('/api/auth/refresh', { userId, refreshToken });
+    return response.data;
+  },
+
+  getProfile: async () => {
+    const response = await apiClient.get('/api/auth/me');
     return response.data;
   },
 };

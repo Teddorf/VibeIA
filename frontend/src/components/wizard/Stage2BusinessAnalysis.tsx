@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +23,7 @@ const businessQuestions: Question[] = [
 
 export function Stage2BusinessAnalysis({ onNext, onBack, initialData }: { onNext: (data: any) => void; onBack: () => void; initialData?: any }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState\u003cRecord\u003cstring, string\u003e\u003e(initialData || {});
+  const [answers, setAnswers] = useState<Record<string, string>>(initialData || {});
 
   const currentQuestion = businessQuestions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === businessQuestions.length - 1;
@@ -37,7 +37,7 @@ export function Stage2BusinessAnalysis({ onNext, onBack, initialData }: { onNext
   };
 
   const handleBack = () => {
-    if (currentQuestionIndex \u003e 0) {
+    if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     } else {
       onBack();
@@ -49,65 +49,65 @@ export function Stage2BusinessAnalysis({ onNext, onBack, initialData }: { onNext
   };
 
   return (
-    \u003cCard className="w-full max-w-3xl mx-auto"\u003e
-      \u003cCardHeader\u003e
-        \u003cCardTitle className="text-3xl"\u003eStage 2: Business Analysis\u003c/CardTitle\u003e
-        \u003cCardDescription\u003e
+    <Card className="w-full max-w-3xl mx-auto">
+      <CardHeader>
+        <CardTitle className="text-3xl">Stage 2: Business Analysis</CardTitle>
+        <CardDescription>
           Question {currentQuestionIndex + 1} of {businessQuestions.length}
-        \u003c/CardDescription\u003e
-      \u003c/CardHeader\u003e
-      \u003cCardContent className="space-y-6"\u003e
-        \u003cdiv className="space-y-4"\u003e
-          \u003clabel className="text-lg font-medium"\u003e
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <label className="text-lg font-medium">
             {currentQuestion.question}
-          \u003c/label\u003e
+          </label>
 
           {currentQuestion.type === 'textarea' && (
-            \u003cTextarea
+            <Textarea
               placeholder="Your answer..."
               rows={6}
               value={answers[currentQuestion.id] || ''}
-              onChange={(e) =\u003e handleAnswerChange(e.target.value)}
+              onChange={(e) => handleAnswerChange(e.target.value)}
               className="resize-none"
-            /\u003e
+            />
           )}
 
           {currentQuestion.type === 'text' && (
-            \u003cInput
+            <Input
               placeholder="Your answer..."
               value={answers[currentQuestion.id] || ''}
-              onChange={(e) =\u003e handleAnswerChange(e.target.value)}
-            /\u003e
+              onChange={(e) => handleAnswerChange(e.target.value)}
+            />
           )}
 
           {currentQuestion.type === 'select' && (
-            \u003cselect
+            <select
               className="w-full p-3 border rounded-md"
               value={answers[currentQuestion.id] || ''}
-              onChange={(e) =\u003e handleAnswerChange(e.target.value)}
-            \u003e
-              \u003coption value=""\u003eSelect an option...\u003c/option\u003e
-              {currentQuestion.options?.map((option) =\u003e (
-                \u003coption key={option} value={option}\u003e
+              onChange={(e) => handleAnswerChange(e.target.value)}
+            >
+              <option value="">Select an option...</option>
+              {currentQuestion.options?.map((option) => (
+                <option key={option} value={option}>
                   {option}
-                \u003c/option\u003e
+                </option>
               ))}
-            \u003c/select\u003e
+            </select>
           )}
-        \u003c/div\u003e
+        </div>
 
-        \u003cdiv className="flex justify-between"\u003e
-          \u003cButton onClick={handleBack} variant="outline"\u003e
+        <div className="flex justify-between">
+          <Button onClick={handleBack} variant="outline">
              Back
-          \u003c/Button\u003e
-          \u003cButton 
+          </Button>
+          <Button
             onClick={handleNext}
             disabled={!answers[currentQuestion.id]}
-          \u003e
+          >
             {isLastQuestion ? 'Next: Technical Analysis ' : 'Next Question '}
-          \u003c/Button\u003e
-        \u003c/div\u003e
-      \u003c/CardContent\u003e
-    \u003c/Card\u003e
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

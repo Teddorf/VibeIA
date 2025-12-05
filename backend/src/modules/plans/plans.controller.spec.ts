@@ -38,6 +38,7 @@ describe('PlansController', () => {
 
   describe('generate', () => {
     it('should generate a new plan', async () => {
+      const userId = 'user123';
       const createPlanDto: CreatePlanDto = {
         projectId: 'proj123',
         userId: 'user123',
@@ -48,9 +49,9 @@ describe('PlansController', () => {
         },
       };
 
-      const result = await controller.generate(createPlanDto);
+      const result = await controller.generate(userId, createPlanDto);
 
-      expect(service.generatePlan).toHaveBeenCalledWith(createPlanDto);
+      expect(service.generatePlan).toHaveBeenCalledWith({ ...createPlanDto, userId });
       expect(result).toEqual(mockPlan);
     });
   });
