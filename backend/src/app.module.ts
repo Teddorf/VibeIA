@@ -16,6 +16,9 @@ import { EventsModule } from './modules/events/events.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { DocumentationModule } from './modules/documentation/documentation.module';
 import { SetupModule } from './modules/setup/setup.module';
+import { ErrorHandlingModule } from './modules/error-handling/error-handling.module';
+import { SecurityModule } from './modules/security/security.module';
+import { BillingModule } from './modules/billing/billing.module';
 
 @Module({
   imports: [
@@ -37,6 +40,9 @@ import { SetupModule } from './modules/setup/setup.module';
     RecommendationsModule,
     DocumentationModule,
     SetupModule,
+    ErrorHandlingModule,
+    SecurityModule,
+    BillingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -270,6 +270,207 @@ Build a "Vibe Coding" platform that guides users to create ultra-granular prompt
 - Backend: 197 unit tests (added 24 setup service tests).
 - Frontend: 83 component tests.
 
+### Phase 9: Error Handling & Rollback System ✅ COMPLETED
+#### [DONE] Error Classification System
+- ErrorType enum (network, rate_limit, auth, validation, conflict, server, quota, timeout, unknown).
+- ErrorStrategy configuration per error type (retry, backoff, rollback behavior).
+- BackoffType enum (exponential, linear, none).
+- EnhancedError interface with classification metadata.
+
+#### [DONE] Retry Service
+- executeWithRetry with configurable strategy.
+- Exponential and linear backoff calculation.
+- Jitter for avoiding thundering herd.
+- Max delay limits to prevent excessive waits.
+- Error classification from exception messages.
+- Retryable vs non-retryable error detection.
+- Timeout wrapper for long-running operations.
+
+#### [DONE] Rollback Engine
+- LIFO (Last-In-First-Out) rollback stack.
+- Provider-specific rollback handlers (Neon, Vercel, Railway).
+- Rollback action registration and execution.
+- Timeout protection for rollback operations.
+- Cost avoidance calculation for cleaned resources.
+- Stack management (initialize, clear, get status).
+
+#### [DONE] Recovery Service
+- Failure analysis with confidence scoring.
+- Recovery strategy selection (partial_rollback, alternative, skip, manual, full_rollback).
+- Critical task detection for infrastructure components.
+- Suggested user actions based on error type.
+- Next steps generation for user guidance.
+- Partial and full rollback orchestration.
+
+#### [DONE] Error Handling API
+- POST /api/error-handling/rollback - Trigger rollback.
+- GET /api/error-handling/rollback/status/:setupId - Rollback progress.
+- POST /api/error-handling/recover - Attempt recovery.
+- POST /api/error-handling/analyze - Analyze error and get recommendations.
+- GET /api/error-handling/strategies - Get error strategies config.
+- GET /api/error-handling/health - Service health check.
+
+#### [DONE] Error Recovery UI Component
+- Error display with type-specific icons and colors.
+- Auto-retry with countdown timer.
+- Rollback progress visualization.
+- Cost avoided report after cleanup.
+- Suggested next steps display.
+- Retry/Cancel/Rollback action buttons.
+
+#### [DONE] Testing
+- Backend: 235 unit tests (added 38 error handling tests).
+- Frontend: 83 component tests.
+
+### Phase 10: Security & Isolation ✅ COMPLETED
+#### [DONE] Security DTOs and Types
+- WorkspaceConfig interface (base image, tools, resources, network, lifetime).
+- Workspace interface with status tracking and container management.
+- WorkspaceStatus enum (creating, running, paused, stopped, destroying, destroyed, error).
+- CredentialStore interface for secure token storage.
+- CredentialProvider enum (github, gitlab, bitbucket, neon, vercel, railway, openai, anthropic, google).
+- SECRET_PATTERNS array with regex patterns for secret detection.
+- Security scan result types and report interfaces.
+- Rate limit configuration and security headers types.
+- GitIgnoreEntry for sensitive file detection.
+
+#### [DONE] Security Scanner Service
+- Full file scanning for secrets and vulnerabilities.
+- Pattern-based secret detection (AWS keys, GitHub tokens, Stripe keys, database URLs, private keys, JWTs, API keys).
+- Vulnerability detection (eval usage, innerHTML XSS, SQL injection, command injection, hardcoded passwords, debug code).
+- Security header validation (CSP, HSTS, X-Frame-Options, X-Content-Type-Options).
+- Sensitive file detection (.env, .pem, .key, credentials.json).
+- Risk score calculation with severity weighting.
+- Recommendation generation for security improvements.
+- Secret masking for safe reporting.
+
+#### [DONE] Credential Manager Service
+- AES-256-GCM encryption for token storage.
+- Store, retrieve, list, delete credential operations.
+- Credential rotation with timestamp tracking.
+- Provider-specific token validation (GitHub, Neon, Vercel, Railway APIs).
+- Expiration tracking and rotation reminders (30-day threshold).
+- GitIgnore pattern generation for secret protection.
+
+#### [DONE] Workspace Service
+- Container lifecycle management (create, pause, resume, destroy).
+- Default configuration (Ubuntu 22.04, git/node/npm/python tools).
+- Resource allocation (CPU, memory, disk).
+- Network isolation modes (isolated, restricted, full).
+- Auto-destroy with configurable lifetime.
+- Workspace extension and activity tracking.
+- Command execution in isolated environment.
+- Workspace statistics and cleanup for expired containers.
+
+#### [DONE] Rate Limiter Service
+- Configurable rate limiters (global, auth, api, llm).
+- Window-based request tracking with automatic reset.
+- Token consumption for multi-unit operations.
+- Path-based skip rules for health endpoints.
+- Security headers generation with defaults.
+- CSP (Content Security Policy) generator with customizable directives.
+- Automatic cleanup of expired entries.
+
+#### [DONE] Security API Endpoints
+- POST /api/security/scan - Full security scan.
+- POST /api/security/scan/secrets - Secret-only scan.
+- POST /api/security/scan/vulnerabilities - Vulnerability-only scan.
+- POST /api/security/validate-headers - Validate security headers.
+- POST /api/security/detect-sensitive-files - Find sensitive files.
+- Credential CRUD: POST/GET/DELETE /api/security/credentials.
+- POST /api/security/credentials/:id/rotate - Rotate credentials.
+- POST /api/security/credentials/validate - Validate tokens.
+- Workspace CRUD: POST/GET/DELETE /api/security/workspaces.
+- POST /api/security/workspaces/:id/pause|resume|extend|exec - Workspace operations.
+- GET /api/security/rate-limits - Rate limit statistics.
+- POST /api/security/rate-limits/check|reset - Rate limit operations.
+- GET /api/security/headers - Get security headers.
+- POST /api/security/headers/csp - Generate CSP.
+- POST /api/security/gitignore - Generate gitignore content.
+- GET /api/security/health - Service health check.
+
+#### [DONE] Testing
+- Backend: 313 unit tests (added 78 security tests).
+- SecurityScannerService: 22 tests (secrets, vulnerabilities, headers, files).
+- CredentialManagerService: 19 tests (CRUD, encryption, rotation, validation).
+- WorkspaceService: 18 tests (lifecycle, execution, stats, cleanup).
+- RateLimiterService: 19 tests (limits, tokens, headers, CSP).
+
+### Phase 11: Business Model & Analytics ✅ COMPLETED
+#### [DONE] Subscription DTOs and Types
+- SubscriptionPlan enum (free, basic, pro, enterprise).
+- SubscriptionStatus enum (active, cancelled, past_due, trialing, expired).
+- BillingCycle enum (monthly, yearly).
+- PlanLimits interface (maxTasks, maxProjects, maxPlans, features).
+- PlanDefinition with pricing and feature lists.
+- PLAN_DEFINITIONS constant with all plan configurations.
+- Invoice and InvoiceItem interfaces.
+- UsageRecord and UsageSummary interfaces.
+- Analytics types (DailyMetrics, PlatformAnalytics, TimeSeriesData).
+- ROICalculation interface.
+
+#### [DONE] Subscription Service
+- Create subscription with trial period for paid plans.
+- Retrieve subscriptions by ID or user ID.
+- Update subscription (plan upgrade/downgrade, billing cycle).
+- Cancel subscription (immediately or at period end).
+- Reactivate scheduled cancellations.
+- Renew subscriptions with invoice generation.
+- Invoice creation and payment handling.
+- Feature access checking based on plan limits.
+- Usage limit retrieval per plan.
+- ROI calculator (84% cost reduction, 3800% ROI).
+
+#### [DONE] Usage Metering Service
+- Record usage by type (tasks, plans, projects, API calls, LLM tokens).
+- Get usage for current or specific periods.
+- Usage summary with percentage calculations.
+- Limit checking with allowed/remaining status.
+- Increment helpers (incrementTask, incrementPlan, incrementProject).
+- Usage history for trend analysis.
+- Top users by usage type.
+- Total usage aggregation.
+- Period-based reset functionality.
+
+#### [DONE] Analytics Service
+- User activity tracking (sessions, first/last seen).
+- Plan and task creation tracking.
+- Quality gate result tracking.
+- Revenue tracking.
+- Daily metrics aggregation.
+- Platform analytics (MAU, DAU, retention, MRR, ARR, churn, LTV, CAC).
+- Overview metrics with trend indicators.
+- Time series data for charts (users, plans, tasks, revenue).
+- Subscription breakdown by plan.
+- Top features usage ranking.
+- User-level analytics.
+- Date range metrics queries.
+
+#### [DONE] Billing API Endpoints
+- POST /api/billing/subscriptions - Create subscription.
+- GET /api/billing/subscriptions/me - Get current user subscription.
+- PATCH /api/billing/subscriptions/:id - Update subscription.
+- POST /api/billing/subscriptions/:id/cancel - Cancel subscription.
+- POST /api/billing/subscriptions/:id/reactivate - Reactivate subscription.
+- GET /api/billing/plans - List all plans.
+- GET /api/billing/invoices - Get user invoices.
+- POST /api/billing/invoices/:id/pay - Pay invoice.
+- GET /api/billing/usage/me - Get usage summary.
+- GET /api/billing/usage/check/:type - Check usage limit.
+- GET /api/billing/usage/history/:type - Get usage history.
+- GET /api/billing/analytics/overview - Get overview metrics.
+- GET /api/billing/analytics/platform - Get platform analytics.
+- GET /api/billing/analytics/timeseries/:metric - Get time series data.
+- POST /api/billing/track/* - Activity tracking endpoints.
+- POST /api/billing/roi/calculate - ROI calculator.
+- GET /api/billing/features/:feature - Check feature access.
+
+#### [DONE] Testing
+- Backend: 362 unit tests (added 49 billing tests).
+- SubscriptionService: 22 tests (CRUD, cancellation, invoices, ROI).
+- UsageService: 13 tests (recording, limits, history).
+- AnalyticsService: 14 tests (tracking, metrics, time series).
+
 ## Verification Plan
 ### Automated Tests
 - Unit tests for Backend services (NestJS).

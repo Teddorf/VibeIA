@@ -398,3 +398,417 @@ export const setupApi = {
     return response.data;
   },
 };
+
+export const securityApi = {
+  // Security Scanning
+  scanFiles: async (files: { path: string; content: string }[], options?: {
+    checkSecrets?: boolean;
+    checkVulnerabilities?: boolean;
+  }) => {
+    const response = await apiClient.post('/api/security/scan', { files, options });
+    return response.data;
+  },
+
+  scanSecrets: async (files: { path: string; content: string }[]) => {
+    const response = await apiClient.post('/api/security/scan/secrets', { files });
+    return response.data;
+  },
+
+  scanVulnerabilities: async (files: { path: string; content: string }[]) => {
+    const response = await apiClient.post('/api/security/scan/vulnerabilities', { files });
+    return response.data;
+  },
+
+  validateHeaders: async (headers: Record<string, string>) => {
+    const response = await apiClient.post('/api/security/validate-headers', { headers });
+    return response.data;
+  },
+
+  detectSensitiveFiles: async (files: string[]) => {
+    const response = await apiClient.post('/api/security/detect-sensitive-files', { files });
+    return response.data;
+  },
+
+  // Credential Management
+  storeCredential: async (dto: {
+    provider: string;
+    token: string;
+    tokenType?: string;
+    scope?: string[];
+  }) => {
+    const response = await apiClient.post('/api/security/credentials', dto);
+    return response.data;
+  },
+
+  listCredentials: async () => {
+    const response = await apiClient.get('/api/security/credentials');
+    return response.data;
+  },
+
+  getCredential: async (provider: string) => {
+    const response = await apiClient.get(`/api/security/credentials/${provider}`);
+    return response.data;
+  },
+
+  deleteCredential: async (id: string) => {
+    const response = await apiClient.delete(`/api/security/credentials/${id}`);
+    return response.data;
+  },
+
+  rotateCredential: async (id: string, newToken: string) => {
+    const response = await apiClient.post(`/api/security/credentials/${id}/rotate`, { newToken });
+    return response.data;
+  },
+
+  validateToken: async (provider: string, token: string) => {
+    const response = await apiClient.post('/api/security/credentials/validate', { provider, token });
+    return response.data;
+  },
+
+  shouldRotateCredential: async (id: string) => {
+    const response = await apiClient.get(`/api/security/credentials/${id}/should-rotate`);
+    return response.data;
+  },
+
+  // Workspace Management
+  createWorkspace: async (dto: {
+    projectId: string;
+    config?: {
+      base?: string;
+      tools?: string[];
+      resources?: { cpu: number; memory: string; disk: string };
+      network?: string;
+      lifetime?: string;
+      autoDestroy?: boolean;
+    };
+  }) => {
+    const response = await apiClient.post('/api/security/workspaces', dto);
+    return response.data;
+  },
+
+  getWorkspaces: async () => {
+    const response = await apiClient.get('/api/security/workspaces');
+    return response.data;
+  },
+
+  getWorkspace: async (id: string) => {
+    const response = await apiClient.get(`/api/security/workspaces/${id}`);
+    return response.data;
+  },
+
+  getWorkspaceStats: async () => {
+    const response = await apiClient.get('/api/security/workspaces/stats');
+    return response.data;
+  },
+
+  pauseWorkspace: async (id: string) => {
+    const response = await apiClient.post(`/api/security/workspaces/${id}/pause`);
+    return response.data;
+  },
+
+  resumeWorkspace: async (id: string) => {
+    const response = await apiClient.post(`/api/security/workspaces/${id}/resume`);
+    return response.data;
+  },
+
+  extendWorkspace: async (id: string, duration: string) => {
+    const response = await apiClient.post(`/api/security/workspaces/${id}/extend`, { duration });
+    return response.data;
+  },
+
+  destroyWorkspace: async (id: string) => {
+    const response = await apiClient.delete(`/api/security/workspaces/${id}`);
+    return response.data;
+  },
+
+  executeInWorkspace: async (id: string, command: string) => {
+    const response = await apiClient.post(`/api/security/workspaces/${id}/exec`, { command });
+    return response.data;
+  },
+
+  cleanupWorkspaces: async () => {
+    const response = await apiClient.post('/api/security/workspaces/cleanup');
+    return response.data;
+  },
+
+  // Rate Limiting
+  getRateLimitStats: async (name?: string) => {
+    const url = name ? `/api/security/rate-limits?name=${name}` : '/api/security/rate-limits';
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  checkRateLimit: async (limiter: string, key: string) => {
+    const response = await apiClient.post('/api/security/rate-limits/check', { limiter, key });
+    return response.data;
+  },
+
+  resetRateLimit: async (limiter: string, key: string) => {
+    const response = await apiClient.post('/api/security/rate-limits/reset', { limiter, key });
+    return response.data;
+  },
+
+  // Security Headers
+  getSecurityHeaders: async () => {
+    const response = await apiClient.get('/api/security/headers');
+    return response.data;
+  },
+
+  generateCSP: async (options: {
+    allowInlineStyles?: boolean;
+    allowInlineScripts?: boolean;
+    scriptSources?: string[];
+    styleSources?: string[];
+    imageSources?: string[];
+    connectSources?: string[];
+  }) => {
+    const response = await apiClient.post('/api/security/headers/csp', options);
+    return response.data;
+  },
+
+  // Gitignore
+  generateGitignore: async (projectPath: string, additionalSecrets?: string[]) => {
+    const response = await apiClient.post('/api/security/gitignore', { projectPath, additionalSecrets });
+    return response.data;
+  },
+
+  // Health
+  getHealth: async () => {
+    const response = await apiClient.get('/api/security/health');
+    return response.data;
+  },
+};
+
+export const errorHandlingApi = {
+  // Rollback resources
+  rollback: async (dto: {
+    setupId: string;
+    reason?: string;
+    force?: boolean;
+    tokens?: { neon?: string; vercel?: string; railway?: string };
+  }) => {
+    const response = await apiClient.post('/api/error-handling/rollback', dto);
+    return response.data;
+  },
+
+  // Get rollback status
+  getRollbackStatus: async (setupId: string) => {
+    const response = await apiClient.get(`/api/error-handling/rollback/status/${setupId}`);
+    return response.data;
+  },
+
+  // Attempt recovery
+  attemptRecovery: async (dto: {
+    setupId: string;
+    errorId: string;
+    strategy?: string;
+  }) => {
+    const response = await apiClient.post('/api/error-handling/recover', dto);
+    return response.data;
+  },
+
+  // Analyze error
+  analyzeError: async (dto: {
+    errorMessage: string;
+    errorCode?: string;
+    setupId?: string;
+    taskName?: string;
+  }) => {
+    const response = await apiClient.post('/api/error-handling/analyze', dto);
+    return response.data;
+  },
+
+  // Get error strategies
+  getStrategies: async () => {
+    const response = await apiClient.get('/api/error-handling/strategies');
+    return response.data;
+  },
+
+  // Get health status
+  getHealth: async () => {
+    const response = await apiClient.get('/api/error-handling/health');
+    return response.data;
+  },
+};
+
+export const billingApi = {
+  // Subscriptions
+  createSubscription: async (dto: {
+    userId: string;
+    plan: string;
+    billingCycle: string;
+    paymentMethodId?: string;
+  }) => {
+    const response = await apiClient.post('/api/billing/subscriptions', dto);
+    return response.data;
+  },
+
+  getMySubscription: async () => {
+    const response = await apiClient.get('/api/billing/subscriptions/me');
+    return response.data;
+  },
+
+  getSubscription: async (id: string) => {
+    const response = await apiClient.get(`/api/billing/subscriptions/${id}`);
+    return response.data;
+  },
+
+  updateSubscription: async (id: string, dto: {
+    plan?: string;
+    billingCycle?: string;
+    cancelAtPeriodEnd?: boolean;
+  }) => {
+    const response = await apiClient.patch(`/api/billing/subscriptions/${id}`, dto);
+    return response.data;
+  },
+
+  cancelSubscription: async (id: string, immediately = false) => {
+    const response = await apiClient.post(`/api/billing/subscriptions/${id}/cancel`, { immediately });
+    return response.data;
+  },
+
+  reactivateSubscription: async (id: string) => {
+    const response = await apiClient.post(`/api/billing/subscriptions/${id}/reactivate`);
+    return response.data;
+  },
+
+  // Plans
+  getPlans: async () => {
+    const response = await apiClient.get('/api/billing/plans');
+    return response.data;
+  },
+
+  getPlan: async (plan: string) => {
+    const response = await apiClient.get(`/api/billing/plans/${plan}`);
+    return response.data;
+  },
+
+  comparePlans: async (plans: string[]) => {
+    const response = await apiClient.post('/api/billing/plans/compare', { plans });
+    return response.data;
+  },
+
+  // Invoices
+  getInvoices: async () => {
+    const response = await apiClient.get('/api/billing/invoices');
+    return response.data;
+  },
+
+  payInvoice: async (id: string) => {
+    const response = await apiClient.post(`/api/billing/invoices/${id}/pay`);
+    return response.data;
+  },
+
+  // Usage
+  getMyUsage: async (period?: string) => {
+    const url = period ? `/api/billing/usage/me?period=${period}` : '/api/billing/usage/me';
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  checkLimit: async (type: string) => {
+    const response = await apiClient.get(`/api/billing/usage/check/${type}`);
+    return response.data;
+  },
+
+  getUsageHistory: async (type: string, months?: number) => {
+    const url = months
+      ? `/api/billing/usage/history/${type}?months=${months}`
+      : `/api/billing/usage/history/${type}`;
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  // Analytics
+  getOverviewMetrics: async () => {
+    const response = await apiClient.get('/api/billing/analytics/overview');
+    return response.data;
+  },
+
+  getPlatformAnalytics: async (period?: string) => {
+    const url = period
+      ? `/api/billing/analytics/platform?period=${period}`
+      : '/api/billing/analytics/platform';
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  getDailyMetrics: async (date?: string) => {
+    const url = date
+      ? `/api/billing/analytics/daily?date=${date}`
+      : '/api/billing/analytics/daily';
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  getMetricsRange: async (startDate: string, endDate: string, granularity?: string) => {
+    const response = await apiClient.post('/api/billing/analytics/range', {
+      startDate,
+      endDate,
+      granularity,
+    });
+    return response.data;
+  },
+
+  getUserAnalytics: async (userId: string) => {
+    const response = await apiClient.get(`/api/billing/analytics/user/${userId}`);
+    return response.data;
+  },
+
+  getTimeSeries: async (metric: string, days?: number) => {
+    const url = days
+      ? `/api/billing/analytics/timeseries/${metric}?days=${days}`
+      : `/api/billing/analytics/timeseries/${metric}`;
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  getSubscriptionBreakdown: async () => {
+    const response = await apiClient.get('/api/billing/analytics/subscriptions/breakdown');
+    return response.data;
+  },
+
+  getTopFeatures: async () => {
+    const response = await apiClient.get('/api/billing/analytics/features/top');
+    return response.data;
+  },
+
+  // Tracking
+  trackActivity: async () => {
+    const response = await apiClient.post('/api/billing/track/activity');
+    return response.data;
+  },
+
+  trackPlanCreated: async () => {
+    const response = await apiClient.post('/api/billing/track/plan-created');
+    return response.data;
+  },
+
+  trackTaskCompleted: async () => {
+    const response = await apiClient.post('/api/billing/track/task-completed');
+    return response.data;
+  },
+
+  // ROI Calculator
+  calculateROI: async (params?: {
+    hoursWithoutVibe?: number;
+    hoursWithVibe?: number;
+    hourlyRate?: number;
+    monthlyFeatures?: number;
+  }) => {
+    const response = await apiClient.post('/api/billing/roi/calculate', params || {});
+    return response.data;
+  },
+
+  // Feature Access
+  checkFeatureAccess: async (feature: string) => {
+    const response = await apiClient.get(`/api/billing/features/${feature}`);
+    return response.data;
+  },
+
+  // Health
+  getHealth: async () => {
+    const response = await apiClient.get('/api/billing/health');
+    return response.data;
+  },
+};
