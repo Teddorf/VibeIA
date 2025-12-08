@@ -329,3 +329,72 @@ export const documentationApi = {
     return response.data;
   },
 };
+
+export const setupApi = {
+  // Start setup process
+  startSetup: async (dto: {
+    projectId: string;
+    projectName: string;
+    enableNeon?: boolean;
+    enableVercel?: boolean;
+    enableRailway?: boolean;
+    neonConfig?: { projectName: string; region?: string };
+    vercelConfig?: { projectName: string; framework?: string };
+    railwayConfig?: { projectName: string; description?: string };
+    tokens?: { neon?: string; vercel?: string; railway?: string };
+    envVars?: Record<string, string>;
+  }) => {
+    const response = await apiClient.post('/api/setup/start', dto);
+    return response.data;
+  },
+
+  // Get setup status
+  getStatus: async (setupId: string) => {
+    const response = await apiClient.get(`/api/setup/status/${setupId}`);
+    return response.data;
+  },
+
+  // Validate tokens
+  validateTokens: async (tokens: {
+    neonToken?: string;
+    vercelToken?: string;
+    railwayToken?: string;
+  }) => {
+    const response = await apiClient.post('/api/setup/validate-tokens', tokens);
+    return response.data;
+  },
+
+  // Rollback setup
+  rollback: async (setupId: string, tokens?: { neon?: string; vercel?: string; railway?: string }) => {
+    const response = await apiClient.post(`/api/setup/rollback/${setupId}`, tokens);
+    return response.data;
+  },
+
+  // Get available providers
+  getProviders: async () => {
+    const response = await apiClient.get('/api/setup/providers');
+    return response.data;
+  },
+
+  // Get available regions
+  getRegions: async () => {
+    const response = await apiClient.get('/api/setup/regions');
+    return response.data;
+  },
+
+  // Validate individual provider token
+  validateNeonToken: async (token: string) => {
+    const response = await apiClient.post('/api/setup/neon/validate', { token });
+    return response.data;
+  },
+
+  validateVercelToken: async (token: string) => {
+    const response = await apiClient.post('/api/setup/vercel/validate', { token });
+    return response.data;
+  },
+
+  validateRailwayToken: async (token: string) => {
+    const response = await apiClient.post('/api/setup/railway/validate', { token });
+    return response.data;
+  },
+};

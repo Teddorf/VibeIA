@@ -15,6 +15,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { EventsModule } from './modules/events/events.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { DocumentationModule } from './modules/documentation/documentation.module';
+import { SetupModule } from './modules/setup/setup.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { DocumentationModule } from './modules/documentation/documentation.modul
     ManualTasksModule,
     RecommendationsModule,
     DocumentationModule,
+    SetupModule,
   ],
   controllers: [AppController],
   providers: [AppService],
