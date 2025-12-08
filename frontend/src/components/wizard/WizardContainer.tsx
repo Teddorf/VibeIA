@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Stage1IntentDeclaration } from './Stage1IntentDeclaration';
 import { Stage2BusinessAnalysis } from './Stage2BusinessAnalysis';
 import { Stage3TechnicalAnalysis } from './Stage3TechnicalAnalysis';
@@ -8,7 +9,12 @@ import { Stage4ExecutionPreview } from './Stage4ExecutionPreview';
 import { ExecutionDashboard } from '@/components/execution/ExecutionDashboard';
 import { Progress } from '@/components/ui/progress';
 
-export function WizardContainer() {
+interface WizardContainerProps {
+  existingProjectId?: string;
+}
+
+export function WizardContainer({ existingProjectId }: WizardContainerProps) {
+  const router = useRouter();
   const [stage, setStage] = useState(1);
   const [wizardData, setWizardData] = useState<any>({});
   const [executionInfo, setExecutionInfo] = useState<{ projectId: string; planId: string } | null>(null);
@@ -28,8 +34,12 @@ export function WizardContainer() {
   };
 
   const handleExecutionComplete = () => {
-    // Could navigate to a success page or show completion state
-    console.log('Execution completed!');
+    // Navigate to project page on completion
+    if (executionInfo?.projectId) {
+      router.push(`/projects/${executionInfo.projectId}`);
+    } else {
+      router.push('/dashboard');
+    }
   };
 
   const progress = (stage / 5) * 100;
@@ -45,10 +55,10 @@ export function WizardContainer() {
         />
         <div className="max-w-6xl mx-auto mt-6 text-center">
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => router.push('/dashboard')}
             className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
           >
-            Start New Project
+            Back to Dashboard
           </button>
         </div>
       </div>

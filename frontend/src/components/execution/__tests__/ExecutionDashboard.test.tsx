@@ -69,6 +69,7 @@ describe('ExecutionDashboard', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
     (executionApi.getStatus as jest.Mock).mockResolvedValue(mockPlan);
     (manualTasksApi.detect as jest.Mock).mockResolvedValue({ isManual: false, task: null });
     (qualityGatesApi.check as jest.Mock).mockResolvedValue({
@@ -76,6 +77,10 @@ describe('ExecutionDashboard', () => {
       overallScore: 95,
       report: 'All checks passed',
     });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('should render loading state initially', () => {
@@ -103,6 +108,10 @@ describe('ExecutionDashboard', () => {
       />
     );
 
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
+
     await waitFor(() => {
       expect(screen.getByText('Test Project')).toBeInTheDocument();
     });
@@ -118,6 +127,10 @@ describe('ExecutionDashboard', () => {
       />
     );
 
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
+
     await waitFor(() => {
       expect(screen.getByText('Execution Dashboard')).toBeInTheDocument();
     });
@@ -132,6 +145,10 @@ describe('ExecutionDashboard', () => {
         onComplete={mockOnComplete}
       />
     );
+
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
 
     await waitFor(() => {
       // Check that the Phases section exists
@@ -149,6 +166,10 @@ describe('ExecutionDashboard', () => {
       />
     );
 
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
+
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Start Execution/i })).toBeInTheDocument();
     });
@@ -163,6 +184,10 @@ describe('ExecutionDashboard', () => {
         onComplete={mockOnComplete}
       />
     );
+
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Overall Progress')).toBeInTheDocument();
@@ -179,6 +204,10 @@ describe('ExecutionDashboard', () => {
         onComplete={mockOnComplete}
       />
     );
+
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Execution Log')).toBeInTheDocument();
@@ -199,6 +228,10 @@ describe('ExecutionDashboard', () => {
 
     // Component should render loading first, then show error
     expect(screen.getByText(/Loading execution plan/)).toBeInTheDocument();
+
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
   });
 
   it('should show tasks for current phase', async () => {
@@ -210,6 +243,10 @@ describe('ExecutionDashboard', () => {
         onComplete={mockOnComplete}
       />
     );
+
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Create user model')).toBeInTheDocument();
@@ -245,6 +282,10 @@ describe('ExecutionDashboard', () => {
       />
     );
 
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
+
     await waitFor(() => {
       // Check for status indicators (emojis in the component)
       expect(screen.getByText('Completed task')).toBeInTheDocument();
@@ -263,6 +304,10 @@ describe('ExecutionDashboard', () => {
       />
     );
 
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
+
     await waitFor(() => {
       expect(executionApi.getStatus).toHaveBeenCalledWith('plan-123');
     });
@@ -277,6 +322,10 @@ describe('ExecutionDashboard', () => {
         onComplete={mockOnComplete}
       />
     );
+
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/Plan loaded/)).toBeInTheDocument();
@@ -310,6 +359,10 @@ describe('ExecutionDashboard', () => {
       />
     );
 
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
+
     await waitFor(() => {
       // Should show 1/2 for phase 1
       expect(screen.getByText('1/2')).toBeInTheDocument();
@@ -331,6 +384,10 @@ describe('ExecutionDashboard', () => {
           onComplete={mockOnComplete}
         />
       );
+
+      await act(async () => {
+        await jest.runAllTimersAsync();
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /Start Execution/i })).toBeInTheDocument();
@@ -354,6 +411,10 @@ describe('ExecutionDashboard', () => {
         />
       );
 
+      await act(async () => {
+        await jest.runAllTimersAsync();
+      });
+
       // Wait for initial load
       await waitFor(() => {
         expect(screen.getByText('Test Project')).toBeInTheDocument();
@@ -365,6 +426,17 @@ describe('ExecutionDashboard', () => {
 describe('ExecutionDashboard Progress Calculation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
+    (manualTasksApi.detect as jest.Mock).mockResolvedValue({ isManual: false, task: null });
+    (qualityGatesApi.check as jest.Mock).mockResolvedValue({
+      passed: true,
+      overallScore: 95,
+      report: 'All checks passed',
+    });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('should show 0% progress when no tasks completed', async () => {
@@ -377,6 +449,10 @@ describe('ExecutionDashboard Progress Calculation', () => {
         projectName="Test Project"
       />
     );
+
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
 
     await waitFor(() => {
       expect(screen.getByText('0%')).toBeInTheDocument();
@@ -408,6 +484,10 @@ describe('ExecutionDashboard Progress Calculation', () => {
       />
     );
 
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
+
     await waitFor(() => {
       expect(screen.getByText('50%')).toBeInTheDocument();
     });
@@ -437,6 +517,10 @@ describe('ExecutionDashboard Progress Calculation', () => {
         projectName="Test Project"
       />
     );
+
+    await act(async () => {
+      await jest.runAllTimersAsync();
+    });
 
     await waitFor(() => {
       expect(screen.getByText('100%')).toBeInTheDocument();

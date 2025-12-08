@@ -13,6 +13,8 @@ import { ManualTasksModule } from './modules/manual-tasks/manual-tasks.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { EventsModule } from './modules/events/events.module';
+import { RecommendationsModule } from './modules/recommendations/recommendations.module';
+import { DocumentationModule } from './modules/documentation/documentation.module';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { EventsModule } from './modules/events/events.module';
     LlmModule,
     QualityGatesModule,
     ManualTasksModule,
+    RecommendationsModule,
+    DocumentationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

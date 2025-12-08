@@ -43,6 +43,12 @@ export const plansApi = {
     return response.data;
   },
 
+  getAll: async (projectId?: string) => {
+    const url = projectId ? `/api/plans?projectId=${projectId}` : '/api/plans';
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
   getById: async (id: string) => {
     const response = await apiClient.get(`/api/plans/${id}`);
     return response.data;
@@ -155,6 +161,171 @@ export const authApi = {
 
   getProfile: async () => {
     const response = await apiClient.get('/api/auth/me');
+    return response.data;
+  },
+};
+
+export const recommendationsApi = {
+  // Database recommendations
+  getDatabaseRecommendation: async (requirements: {
+    dataType: string;
+    dataVolume: string;
+    trafficLevel: string;
+    needsBranching: boolean;
+    budget: string;
+    needsAuth?: boolean;
+    needsStorage?: boolean;
+    needsRealtime?: boolean;
+  }) => {
+    const response = await apiClient.post('/api/recommendations/database', requirements);
+    return response.data;
+  },
+
+  getDatabaseProviders: async () => {
+    const response = await apiClient.get('/api/recommendations/database/providers');
+    return response.data;
+  },
+
+  // Deploy recommendations
+  getDeployRecommendation: async (requirements: {
+    components: string[];
+    needsPreviewDeployments: boolean;
+    trafficTier: string;
+    infraComplexity: string;
+    budget: string;
+    devOpsLevel: string;
+  }) => {
+    const response = await apiClient.post('/api/recommendations/deploy', requirements);
+    return response.data;
+  },
+
+  getDeployProviders: async () => {
+    const response = await apiClient.get('/api/recommendations/deploy/providers');
+    return response.data;
+  },
+
+  // Cost calculator
+  calculateCost: async (projection: {
+    mvpUsers: number;
+    growthUsers: number;
+    scaleUsers: number;
+    mvpStorageGB?: number;
+    growthStorageGB?: number;
+    scaleStorageGB?: number;
+  }) => {
+    const response = await apiClient.post('/api/recommendations/cost', projection);
+    return response.data;
+  },
+
+  getPricingTiers: async () => {
+    const response = await apiClient.get('/api/recommendations/cost/pricing');
+    return response.data;
+  },
+
+  // Full recommendation (combined)
+  getFullRecommendation: async (data: {
+    database: any;
+    deploy: any;
+    cost: any;
+  }) => {
+    const response = await apiClient.post('/api/recommendations/full', data);
+    return response.data;
+  },
+};
+
+export const documentationApi = {
+  // Generate documentation
+  generateDocument: async (dto: {
+    projectId: string;
+    type: string;
+    context?: {
+      featureName?: string;
+      description?: string;
+      files?: string[];
+    };
+  }) => {
+    const response = await apiClient.post('/api/documentation/generate', dto);
+    return response.data;
+  },
+
+  // Generate ADR
+  generateADR: async (dto: {
+    projectId: string;
+    title: string;
+    context: string;
+    decision: string;
+    consequences: {
+      positive: string[];
+      negative: string[];
+    };
+    alternatives?: {
+      name: string;
+      description: string;
+      rejected_reason: string;
+    }[];
+  }) => {
+    const response = await apiClient.post('/api/documentation/adr', dto);
+    return response.data;
+  },
+
+  // Generate diagram
+  generateDiagram: async (dto: {
+    projectId: string;
+    type: string;
+    title: string;
+    entities?: { name: string; type: string; attributes?: string[] }[];
+    relationships?: { from: string; to: string; label?: string; type?: string }[];
+    steps?: { actor: string; action: string; target?: string }[];
+  }) => {
+    const response = await apiClient.post('/api/documentation/diagram', dto);
+    return response.data;
+  },
+
+  // Generate API docs
+  generateAPIDocs: async (dto: {
+    title: string;
+    version: string;
+    description: string;
+    baseUrl: string;
+    endpoints: any[];
+    schemas?: Record<string, any>;
+  }) => {
+    const response = await apiClient.post('/api/documentation/api-docs', dto);
+    return response.data;
+  },
+
+  // Generate full documentation
+  generateFullDocumentation: async (dto: {
+    projectName: string;
+    projectDescription: string;
+    features: string[];
+    stack: { frontend: string; backend: string; database: string };
+  }) => {
+    const response = await apiClient.post('/api/documentation/full', dto);
+    return response.data;
+  },
+
+  // Generate system diagram
+  generateSystemDiagram: async (dto: {
+    components: { name: string; type: string }[];
+    connections: { from: string; to: string; label?: string }[];
+  }) => {
+    const response = await apiClient.post('/api/documentation/system-diagram', dto);
+    return response.data;
+  },
+
+  // Generate data model diagram
+  generateDataModelDiagram: async (dto: {
+    models: { name: string; fields: string[] }[];
+    relations: { from: string; to: string; type: string; label?: string }[];
+  }) => {
+    const response = await apiClient.post('/api/documentation/data-model-diagram', dto);
+    return response.data;
+  },
+
+  // Get documentation types
+  getTypes: async () => {
+    const response = await apiClient.get('/api/documentation/types');
     return response.data;
   },
 };

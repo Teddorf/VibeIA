@@ -37,8 +37,12 @@ export class PlansService {
     return plan.save();
   }
 
-  async findAll(userId: string): Promise<Plan[]> {
-    return this.planModel.find({ userId }).exec();
+  async findAll(userId: string, projectId?: string): Promise<Plan[]> {
+    const query: any = { userId };
+    if (projectId) {
+      query.projectId = projectId;
+    }
+    return this.planModel.find(query).sort({ createdAt: -1 }).exec();
   }
 
   async findOne(id: string): Promise<Plan | null> {

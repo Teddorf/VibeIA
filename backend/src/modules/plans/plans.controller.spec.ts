@@ -58,9 +58,16 @@ describe('PlansController', () => {
 
   describe('findAll', () => {
     it('should return all plans for a user', async () => {
-      const result = await controller.findAll('user123');
+      const result = await controller.findAll('user123', undefined);
 
-      expect(service.findAll).toHaveBeenCalledWith('user123');
+      expect(service.findAll).toHaveBeenCalledWith('user123', undefined);
+      expect(result).toEqual([mockPlan]);
+    });
+
+    it('should return plans filtered by projectId', async () => {
+      const result = await controller.findAll('user123', 'proj123');
+
+      expect(service.findAll).toHaveBeenCalledWith('user123', 'proj123');
       expect(result).toEqual([mockPlan]);
     });
   });

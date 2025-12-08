@@ -51,7 +51,9 @@ describe('PlansService', () => {
 
   const mockPlanModel = {
     find: jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue([mockPlan]),
+      sort: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([mockPlan]),
+      }),
     }),
     findById: jest.fn().mockReturnValue({
       exec: jest.fn().mockResolvedValue(mockPlan),
@@ -91,6 +93,13 @@ describe('PlansService', () => {
       const result = await service.findAll('user123');
 
       expect(mockPlanModel.find).toHaveBeenCalledWith({ userId: 'user123' });
+      expect(result).toEqual([mockPlan]);
+    });
+
+    it('should filter by projectId when provided', async () => {
+      const result = await service.findAll('user123', 'proj123');
+
+      expect(mockPlanModel.find).toHaveBeenCalledWith({ userId: 'user123', projectId: 'proj123' });
       expect(result).toEqual([mockPlan]);
     });
   });
