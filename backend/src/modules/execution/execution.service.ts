@@ -31,7 +31,7 @@ export class ExecutionService {
     private qualityGatesService: QualityGatesService,
     private manualTasksService: ManualTasksService,
     @Optional() private eventsGateway?: EventsGateway,
-  ) {}
+  ) { }
 
   /**
    * Get user's LLM configuration for code generation
@@ -54,7 +54,7 @@ export class ExecutionService {
     const plan = await this.plansService.findOne(planId);
     if (!plan) throw new Error('Plan not found');
 
-    const project = await this.projectsService.findOne(plan.projectId);
+    const project = await this.projectsService.findOne(plan.projectId, plan.userId);
     if (!project) throw new Error('Project not found');
 
     console.log(`Starting execution for plan: ${planId} (Project: ${project.name})`);
@@ -293,7 +293,7 @@ export class ExecutionService {
     const plan = await this.plansService.findOne(planId);
     if (!plan) throw new Error('Plan not found');
 
-    const project = await this.projectsService.findOne(plan.projectId);
+    const project = await this.projectsService.findOne(plan.projectId, plan.userId);
     if (!project) throw new Error('Project not found');
 
     // Get user's LLM configuration
