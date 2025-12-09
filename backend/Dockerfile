@@ -15,7 +15,7 @@ COPY . .
 RUN npm run build
 
 # Verificar que el build existe
-RUN ls -la dist/ && test -f dist/main.js
+RUN ls -la dist/src/ && test -f dist/src/main.js
 
 # Exponer puerto (Render usa el puerto que defines, no el 10000 por defecto)
 EXPOSE 10000
@@ -24,4 +24,4 @@ EXPOSE 10000
 ENV NODE_ENV=production
 
 # Ejecutar en modo producción
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
