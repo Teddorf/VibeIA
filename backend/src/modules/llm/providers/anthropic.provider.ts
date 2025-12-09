@@ -1,20 +1,32 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { LLMProvider, LLMResponse } from '../interfaces/llm-provider.interface';
+import { LLMProvider, LLMResponse, LLMProviderOptions } from '../interfaces/llm-provider.interface';
 
 export class AnthropicProvider implements LLMProvider {
   name = 'anthropic';
-  private client: Anthropic;
 
-  constructor() {
-    this.client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
-    });
+  private createClient(apiKey: string): Anthropic {
+    return new Anthropic({ apiKey });
   }
 
-  async generatePlan(wizardData: any): Promise<LLMResponse> {
+  async validateApiKey(apiKey: string): Promise<boolean> {
+    try {
+      const client = this.createClient(apiKey);
+      await client.messages.create({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Hi' }],
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async generatePlan(wizardData: any, options: LLMProviderOptions): Promise<LLMResponse> {
+    const client = this.createClient(options.apiKey);
     const prompt = this.buildPrompt(wizardData);
 
-    const message = await this.client.messages.create({
+    const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514', // Claude 4.5 Sonnet (latest)
       max_tokens: 8192,
       messages: [
@@ -39,10 +51,11 @@ export class AnthropicProvider implements LLMProvider {
     };
   }
 
-  async generateCode(task: any, context: any): Promise<{ files: { path: string; content: string }[] }> {
+  async generateCode(task: any, context: any, options: LLMProviderOptions): Promise<{ files: { path: string; content: string }[] }> {
+    const client = this.createClient(options.apiKey);
     const prompt = this.buildCodePrompt(task, context);
 
-    const message = await this.client.messages.create({
+    const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 8192,
       messages: [

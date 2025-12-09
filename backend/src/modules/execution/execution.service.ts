@@ -1,11 +1,13 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, Optional, BadRequestException } from '@nestjs/common';
 import { PlansService } from '../plans/plans.service';
 import { ProjectsService } from '../projects/projects.service';
 import { GitService } from '../git/git.service';
 import { LlmService } from '../llm/llm.service';
+import { UsersService } from '../users/users.service';
 import { QualityGatesService } from '../quality-gates/quality-gates.service';
 import { ManualTasksService } from '../manual-tasks/manual-tasks.service';
 import { EventsGateway } from '../events/events.gateway';
+import { UserLLMConfig } from '../llm/interfaces/llm-provider.interface';
 
 export interface ExecutionState {
   planId: string;
@@ -25,10 +27,28 @@ export class ExecutionService {
     private projectsService: ProjectsService,
     private gitService: GitService,
     private llmService: LlmService,
+    private usersService: UsersService,
     private qualityGatesService: QualityGatesService,
     private manualTasksService: ManualTasksService,
     @Optional() private eventsGateway?: EventsGateway,
   ) {}
+
+  /**
+   * Get user's LLM configuration for code generation
+   */
+  private async getUserLLMConfig(userId: string): Promise<UserLLMConfig> {
+    const hasConfigured = await this.usersService.hasLLMConfigured(userId);
+    if (!hasConfigured) {
+      throw new BadRequestException(
+        'No tienes ningún proveedor de IA configurado. Ve a Ajustes para configurar tu API key.',
+      );
+    }
+
+    const apiKeys = await this.usersService.getActiveLLMApiKeys(userId);
+    const preferences = await this.usersService.getLLMPreferences(userId);
+
+    return { apiKeys, preferences };
+  }
 
   async executePlan(planId: string) {
     const plan = await this.plansService.findOne(planId);
@@ -39,6 +59,9 @@ export class ExecutionService {
 
     console.log(`Starting execution for plan: ${planId} (Project: ${project.name})`);
     this.emitLog(planId, `Starting execution for project: ${project.name}`);
+
+    // Get user's LLM configuration
+    const userLLMConfig = await this.getUserLLMConfig(plan.userId);
 
     // Initialize execution state
     this.executionStates.set(planId, {
@@ -83,7 +106,7 @@ export class ExecutionService {
         this.updateExecutionState(planId, { currentTaskIndex: j });
 
         if (task.status === 'pending' || task.status === 'paused') {
-          const result = await this.executeTask(planId, i, task, project, plan.wizardData);
+          const result = await this.executeTask(planId, i, task, project, plan.wizardData, userLLMConfig);
           if (!result.shouldContinue) {
             return; // Execution paused for manual task or error
           }
@@ -121,7 +144,8 @@ export class ExecutionService {
     phaseIndex: number,
     task: any,
     project: any,
-    wizardData: any
+    wizardData: any,
+    userLLMConfig: UserLLMConfig
   ): Promise<{ shouldContinue: boolean; completed?: boolean; failed?: boolean }> {
     console.log(`  > Executing Task: ${task.name}`);
 
@@ -159,7 +183,7 @@ export class ExecutionService {
         architecture: wizardData.stage3?.selectedArchetypes || [],
       };
 
-      const generated = await this.llmService.generateCode(task, context);
+      const generated = await this.llmService.generateCode(task, context, userLLMConfig);
 
       if (!generated.files || generated.files.length === 0) {
         console.warn(`    No files generated for task: ${task.name}`);
@@ -272,6 +296,9 @@ export class ExecutionService {
     const project = await this.projectsService.findOne(plan.projectId);
     if (!project) throw new Error('Project not found');
 
+    // Get user's LLM configuration
+    const userLLMConfig = await this.getUserLLMConfig(plan.userId);
+
     await this.plansService.updateStatus(planId, 'in_progress');
     this.emitStatusUpdate(planId, 'running', 0);
     this.emitLog(planId, 'Execution resumed');
@@ -291,7 +318,7 @@ export class ExecutionService {
         this.updateExecutionState(planId, { currentPhaseIndex: i, currentTaskIndex: j });
 
         if (task.status === 'pending' || task.status === 'paused') {
-          const result = await this.executeTask(planId, i, task, project, plan.wizardData);
+          const result = await this.executeTask(planId, i, task, project, plan.wizardData, userLLMConfig);
           if (!result.shouldContinue) {
             return;
           }

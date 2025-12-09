@@ -5,6 +5,7 @@ import { PlansModule } from '../plans/plans.module';
 import { ProjectsModule } from '../projects/projects.module';
 import { GitModule } from '../git/git.module';
 import { LlmModule } from '../llm/llm.module';
+import { UsersModule } from '../users/users.module';
 import { QualityGatesModule } from '../quality-gates/quality-gates.module';
 import { ManualTasksModule } from '../manual-tasks/manual-tasks.module';
 import { EventsModule } from '../events/events.module';
@@ -15,6 +16,7 @@ import { EventsModule } from '../events/events.module';
     ProjectsModule,
     GitModule,
     LlmModule,
+    UsersModule,
     QualityGatesModule,
     ManualTasksModule,
     EventsModule,

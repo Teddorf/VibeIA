@@ -1,8 +1,9 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
-import { User, UserDocument } from './user.schema';
+import { User, UserDocument, LLMProviderConfig, LLMPreferences } from './user.schema';
+import { EncryptionService } from './encryption.service';
 
 export interface CreateUserDto {
   email: string;
@@ -15,10 +16,64 @@ export interface UpdateUserDto {
   isActive?: boolean;
 }
 
+export interface SetLLMApiKeyDto {
+  provider: 'anthropic' | 'openai' | 'gemini';
+  apiKey: string;
+}
+
+export interface UpdateLLMPreferencesDto {
+  primaryProvider?: string;
+  fallbackEnabled?: boolean;
+  fallbackOrder?: string[];
+}
+
+export interface LLMProviderStatus {
+  provider: string;
+  isConfigured: boolean;
+  isActive: boolean;
+  maskedKey?: string;
+  addedAt?: Date;
+}
+
+// Provider info for user guidance
+export const LLM_PROVIDERS_INFO = {
+  anthropic: {
+    name: 'Claude (Anthropic)',
+    description: 'Modelos Claude - Excelente para razonamiento y código',
+    recommended: true,
+    freeCredits: false,
+    pricing: 'Desde $3/millón tokens',
+    signupUrl: 'https://console.anthropic.com/',
+    docsUrl: 'https://docs.anthropic.com/en/api/getting-started',
+    keyFormat: 'sk-ant-...',
+  },
+  openai: {
+    name: 'GPT-4 (OpenAI)',
+    description: 'Modelos GPT - Muy versátil y popular',
+    recommended: true,
+    freeCredits: true,
+    pricing: 'Desde $0.03/1K tokens, $5 créditos gratis',
+    signupUrl: 'https://platform.openai.com/signup',
+    docsUrl: 'https://platform.openai.com/docs/quickstart',
+    keyFormat: 'sk-...',
+  },
+  gemini: {
+    name: 'Gemini (Google)',
+    description: 'Modelos Gemini - Gratis hasta cierto uso',
+    recommended: false,
+    freeCredits: true,
+    pricing: 'Gratis hasta 60 consultas/minuto',
+    signupUrl: 'https://aistudio.google.com/app/apikey',
+    docsUrl: 'https://ai.google.dev/tutorials/setup',
+    keyFormat: 'AI...',
+  },
+};
+
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private encryptionService: EncryptionService,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<UserDocument> {
@@ -99,5 +154,252 @@ export class UsersService {
     if (!result) {
       throw new NotFoundException('User not found');
     }
+  }
+
+  // ==================== LLM API Keys Management ====================
+
+  async setLLMApiKey(userId: string, dto: SetLLMApiKeyDto): Promise<LLMProviderStatus> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const validProviders = ['anthropic', 'openai', 'gemini'];
+    if (!validProviders.includes(dto.provider)) {
+      throw new BadRequestException(`Invalid provider. Must be one of: ${validProviders.join(', ')}`);
+    }
+
+    // Basic validation of API key format
+    if (!dto.apiKey || dto.apiKey.trim().length < 10) {
+      throw new BadRequestException('API key is too short');
+    }
+
+    // Encrypt the API key
+    const encryptedKey = this.encryptionService.encrypt(dto.apiKey.trim());
+
+    // Update the user's LLM API keys
+    const llmApiKeys = user.llmApiKeys || {};
+    llmApiKeys[dto.provider] = {
+      apiKey: encryptedKey,
+      isActive: true,
+      addedAt: new Date(),
+    };
+
+    // If this is the first key, set it as primary
+    let llmPreferences = user.llmPreferences || {
+      primaryProvider: null,
+      fallbackEnabled: true,
+      fallbackOrder: ['anthropic', 'gemini', 'openai'],
+    };
+
+    if (!llmPreferences.primaryProvider) {
+      llmPreferences.primaryProvider = dto.provider;
+    }
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      llmApiKeys,
+      llmPreferences,
+    });
+
+    return {
+      provider: dto.provider,
+      isConfigured: true,
+      isActive: true,
+      maskedKey: this.encryptionService.maskApiKey(dto.apiKey),
+      addedAt: new Date(),
+    };
+  }
+
+  async removeLLMApiKey(userId: string, provider: string): Promise<void> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const llmApiKeys = user.llmApiKeys || {};
+    if (!llmApiKeys[provider]) {
+      throw new NotFoundException(`No API key found for provider: ${provider}`);
+    }
+
+    delete llmApiKeys[provider];
+
+    // If we removed the primary provider, set a new one
+    let llmPreferences = user.llmPreferences;
+    if (llmPreferences?.primaryProvider === provider) {
+      const remainingProviders = Object.keys(llmApiKeys).filter(
+        (p) => llmApiKeys[p]?.isActive,
+      );
+      llmPreferences.primaryProvider = remainingProviders[0] || undefined;
+    }
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      llmApiKeys,
+      llmPreferences,
+    });
+  }
+
+  async getLLMApiKeysStatus(userId: string): Promise<LLMProviderStatus[]> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const llmApiKeys = user.llmApiKeys || {};
+    const allProviders = ['anthropic', 'openai', 'gemini'];
+
+    return allProviders.map((provider) => {
+      const config = llmApiKeys[provider];
+      if (config) {
+        // Decrypt to get masked version
+        try {
+          const decryptedKey = this.encryptionService.decrypt(config.apiKey);
+          return {
+            provider,
+            isConfigured: true,
+            isActive: config.isActive,
+            maskedKey: this.encryptionService.maskApiKey(decryptedKey),
+            addedAt: config.addedAt,
+          };
+        } catch {
+          return {
+            provider,
+            isConfigured: false,
+            isActive: false,
+          };
+        }
+      }
+      return {
+        provider,
+        isConfigured: false,
+        isActive: false,
+      };
+    });
+  }
+
+  async getLLMPreferences(userId: string): Promise<LLMPreferences> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return (
+      user.llmPreferences || {
+        primaryProvider: null,
+        fallbackEnabled: true,
+        fallbackOrder: ['anthropic', 'gemini', 'openai'],
+      }
+    );
+  }
+
+  async updateLLMPreferences(
+    userId: string,
+    dto: UpdateLLMPreferencesDto,
+  ): Promise<LLMPreferences> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const currentPrefs = user.llmPreferences || {
+      primaryProvider: null,
+      fallbackEnabled: true,
+      fallbackOrder: ['anthropic', 'gemini', 'openai'],
+    };
+
+    // Validate primary provider if provided
+    if (dto.primaryProvider) {
+      const llmApiKeys = user.llmApiKeys || {};
+      if (!llmApiKeys[dto.primaryProvider]?.isActive) {
+        throw new BadRequestException(
+          `Cannot set ${dto.primaryProvider} as primary - no active API key configured`,
+        );
+      }
+    }
+
+    const updatedPrefs: LLMPreferences = {
+      primaryProvider: dto.primaryProvider ?? currentPrefs.primaryProvider,
+      fallbackEnabled: dto.fallbackEnabled ?? currentPrefs.fallbackEnabled,
+      fallbackOrder: dto.fallbackOrder ?? currentPrefs.fallbackOrder,
+    };
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      llmPreferences: updatedPrefs,
+    });
+
+    return updatedPrefs;
+  }
+
+  async toggleLLMApiKey(userId: string, provider: string, isActive: boolean): Promise<void> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const llmApiKeys = user.llmApiKeys || {};
+    if (!llmApiKeys[provider]) {
+      throw new NotFoundException(`No API key found for provider: ${provider}`);
+    }
+
+    llmApiKeys[provider].isActive = isActive;
+
+    await this.userModel.findByIdAndUpdate(userId, { llmApiKeys });
+  }
+
+  // Get decrypted API key for a specific provider (used by LLM service)
+  async getDecryptedLLMApiKey(userId: string, provider: string): Promise<string | null> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      return null;
+    }
+
+    const config = user.llmApiKeys?.[provider];
+    if (!config?.isActive) {
+      return null;
+    }
+
+    try {
+      return this.encryptionService.decrypt(config.apiKey);
+    } catch {
+      return null;
+    }
+  }
+
+  // Get all active API keys for a user (used by LLM service)
+  async getActiveLLMApiKeys(userId: string): Promise<Record<string, string>> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      return {};
+    }
+
+    const result: Record<string, string> = {};
+    const llmApiKeys = user.llmApiKeys || {};
+
+    for (const [provider, config] of Object.entries(llmApiKeys)) {
+      if (config?.isActive) {
+        try {
+          result[provider] = this.encryptionService.decrypt(config.apiKey);
+        } catch {
+          // Skip invalid keys
+        }
+      }
+    }
+
+    return result;
+  }
+
+  // Check if user has any LLM provider configured
+  async hasLLMConfigured(userId: string): Promise<boolean> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      return false;
+    }
+
+    const llmApiKeys = user.llmApiKeys || {};
+    return Object.values(llmApiKeys).some((config) => config?.isActive);
+  }
+
+  // Get providers info for frontend
+  getProvidersInfo() {
+    return LLM_PROVIDERS_INFO;
   }
 }

@@ -3,6 +3,19 @@ import { Document } from 'mongoose';
 
 export type UserDocument = User & Document;
 
+// LLM Provider configuration
+export interface LLMProviderConfig {
+  apiKey: string; // Encrypted
+  isActive: boolean;
+  addedAt: Date;
+}
+
+export interface LLMPreferences {
+  primaryProvider?: string;
+  fallbackEnabled: boolean;
+  fallbackOrder: string[];
+}
+
 @Schema({ timestamps: true })
 export class User {
   @Prop({ required: true, unique: true })
@@ -25,6 +38,21 @@ export class User {
 
   @Prop()
   refreshToken?: string;
+
+  // LLM API Keys - stored encrypted
+  @Prop({ type: Object, default: {} })
+  llmApiKeys: Record<string, LLMProviderConfig>;
+
+  // LLM Preferences
+  @Prop({
+    type: Object,
+    default: {
+      primaryProvider: null,
+      fallbackEnabled: true,
+      fallbackOrder: ['anthropic', 'gemini', 'openai'],
+    },
+  })
+  llmPreferences: LLMPreferences;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

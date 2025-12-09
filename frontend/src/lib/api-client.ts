@@ -813,6 +813,67 @@ export const billingApi = {
   },
 };
 
+// LLM Settings API
+export const llmSettingsApi = {
+  // Get all providers info (for setup guidance)
+  getProvidersInfo: async () => {
+    const response = await apiClient.get('/api/users/llm/providers');
+    return response.data;
+  },
+
+  // Get user's LLM keys status
+  getMyKeys: async () => {
+    const response = await apiClient.get('/api/users/me/llm/keys');
+    return response.data;
+  },
+
+  // Set or update an LLM API key
+  setKey: async (provider: string, apiKey: string) => {
+    const response = await apiClient.post('/api/users/me/llm/keys', { provider, apiKey });
+    return response.data;
+  },
+
+  // Remove an LLM API key
+  removeKey: async (provider: string) => {
+    const response = await apiClient.delete(`/api/users/me/llm/keys/${provider}`);
+    return response.data;
+  },
+
+  // Toggle an LLM API key active/inactive
+  toggleKey: async (provider: string, isActive: boolean) => {
+    const response = await apiClient.patch(`/api/users/me/llm/keys/${provider}/toggle`, { isActive });
+    return response.data;
+  },
+
+  // Get LLM preferences
+  getPreferences: async () => {
+    const response = await apiClient.get('/api/users/me/llm/preferences');
+    return response.data;
+  },
+
+  // Update LLM preferences
+  updatePreferences: async (preferences: {
+    primaryProvider?: string;
+    fallbackEnabled?: boolean;
+    fallbackOrder?: string[];
+  }) => {
+    const response = await apiClient.patch('/api/users/me/llm/preferences', preferences);
+    return response.data;
+  },
+
+  // Test an LLM API key
+  testKey: async (provider: string) => {
+    const response = await apiClient.post(`/api/users/me/llm/keys/${provider}/test`);
+    return response.data;
+  },
+
+  // Check if setup is required
+  checkSetupRequired: async () => {
+    const response = await apiClient.get('/api/users/me/llm/setup-required');
+    return response.data;
+  },
+};
+
 export const teamsApi = {
   // Teams CRUD
   createTeam: async (dto: { name: string; description?: string; settings?: any }) => {
