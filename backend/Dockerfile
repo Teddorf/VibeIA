@@ -14,16 +14,14 @@ COPY . .
 # Build de producción
 RUN npm run build
 
-# Limpiar devDependencies para reducir tamaño
-RUN npm prune --production
+# Verificar que el build existe
+RUN ls -la dist/ && test -f dist/main.js
 
-# Exponer puerto
-EXPOSE 3001
+# Exponer puerto (Render usa el puerto que defines, no el 10000 por defecto)
+EXPOSE 10000
 
-# Limitar memoria para free tier de Render
-ENV NODE_OPTIONS="--max-old-space-size=450"
+# Variables de entorno
 ENV NODE_ENV=production
-ENV PORT=3001
 
 # Ejecutar en modo producción
 CMD ["node", "dist/main.js"]

@@ -812,3 +812,174 @@ export const billingApi = {
     return response.data;
   },
 };
+
+export const teamsApi = {
+  // Teams CRUD
+  createTeam: async (dto: { name: string; description?: string; settings?: any }) => {
+    const response = await apiClient.post('/api/teams', dto);
+    return response.data;
+  },
+
+  getMyTeams: async () => {
+    const response = await apiClient.get('/api/teams');
+    return response.data;
+  },
+
+  getTeam: async (teamId: string) => {
+    const response = await apiClient.get(`/api/teams/${teamId}`);
+    return response.data;
+  },
+
+  getTeamBySlug: async (slug: string) => {
+    const response = await apiClient.get(`/api/teams/slug/${slug}`);
+    return response.data;
+  },
+
+  updateTeam: async (teamId: string, dto: { name?: string; description?: string; avatarUrl?: string; settings?: any }) => {
+    const response = await apiClient.patch(`/api/teams/${teamId}`, dto);
+    return response.data;
+  },
+
+  deleteTeam: async (teamId: string) => {
+    const response = await apiClient.delete(`/api/teams/${teamId}`);
+    return response.data;
+  },
+
+  transferOwnership: async (teamId: string, newOwnerId: string, confirmPassword: string) => {
+    const response = await apiClient.post(`/api/teams/${teamId}/transfer`, { newOwnerId, confirmPassword });
+    return response.data;
+  },
+
+  // Stats & Activity
+  getTeamStats: async (teamId: string) => {
+    const response = await apiClient.get(`/api/teams/${teamId}/stats`);
+    return response.data;
+  },
+
+  getTeamActivity: async (teamId: string, limit?: number, offset?: number) => {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    const query = params.toString() ? `?${params}` : '';
+    const response = await apiClient.get(`/api/teams/${teamId}/activity${query}`);
+    return response.data;
+  },
+
+  // Members
+  getMembers: async (teamId: string) => {
+    const response = await apiClient.get(`/api/teams/${teamId}/members`);
+    return response.data;
+  },
+
+  addMember: async (teamId: string, userId: string, role: string) => {
+    const response = await apiClient.post(`/api/teams/${teamId}/members`, { userId, role });
+    return response.data;
+  },
+
+  updateMemberRole: async (teamId: string, memberId: string, role: string) => {
+    const response = await apiClient.patch(`/api/teams/${teamId}/members/${memberId}/role`, { role });
+    return response.data;
+  },
+
+  removeMember: async (teamId: string, memberId: string) => {
+    const response = await apiClient.delete(`/api/teams/${teamId}/members/${memberId}`);
+    return response.data;
+  },
+
+  leaveTeam: async (teamId: string) => {
+    const response = await apiClient.post(`/api/teams/${teamId}/leave`);
+    return response.data;
+  },
+
+  // Invitations
+  getInvitations: async (teamId: string, status?: string) => {
+    const query = status ? `?status=${status}` : '';
+    const response = await apiClient.get(`/api/teams/${teamId}/invitations${query}`);
+    return response.data;
+  },
+
+  inviteMember: async (teamId: string, email: string, role: string, message?: string) => {
+    const response = await apiClient.post(`/api/teams/${teamId}/invitations`, { email, role, message });
+    return response.data;
+  },
+
+  bulkInvite: async (teamId: string, emails: string[], role: string) => {
+    const response = await apiClient.post(`/api/teams/${teamId}/invitations/bulk`, { emails, role });
+    return response.data;
+  },
+
+  revokeInvitation: async (teamId: string, invitationId: string) => {
+    const response = await apiClient.delete(`/api/teams/${teamId}/invitations/${invitationId}`);
+    return response.data;
+  },
+
+  resendInvitation: async (teamId: string, invitationId: string) => {
+    const response = await apiClient.post(`/api/teams/${teamId}/invitations/${invitationId}/resend`);
+    return response.data;
+  },
+
+  acceptInvitation: async (token: string) => {
+    const response = await apiClient.post('/api/teams/invitations/accept', { token });
+    return response.data;
+  },
+
+  declineInvitation: async (token: string) => {
+    const response = await apiClient.post('/api/teams/invitations/decline', { token });
+    return response.data;
+  },
+
+  getPendingInvitations: async () => {
+    const response = await apiClient.get('/api/teams/invitations/pending');
+    return response.data;
+  },
+
+  // Git Connections
+  getGitConnections: async (teamId: string) => {
+    const response = await apiClient.get(`/api/teams/${teamId}/git-connections`);
+    return response.data;
+  },
+
+  connectGitProvider: async (teamId: string, dto: {
+    provider: string;
+    code: string;
+    redirectUri: string;
+    organizationId?: string;
+    isDefault?: boolean;
+  }) => {
+    const response = await apiClient.post(`/api/teams/${teamId}/git-connections`, dto);
+    return response.data;
+  },
+
+  disconnectGitProvider: async (teamId: string, connectionId: string) => {
+    const response = await apiClient.delete(`/api/teams/${teamId}/git-connections/${connectionId}`);
+    return response.data;
+  },
+
+  setDefaultConnection: async (teamId: string, connectionId: string) => {
+    const response = await apiClient.post(`/api/teams/${teamId}/git-connections/${connectionId}/set-default`);
+    return response.data;
+  },
+
+  validateConnection: async (teamId: string, connectionId: string) => {
+    const response = await apiClient.post(`/api/teams/${teamId}/git-connections/${connectionId}/validate`);
+    return response.data;
+  },
+
+  // OAuth
+  getOAuthUrl: async (provider: string, redirectUri: string, state: string) => {
+    const response = await apiClient.get(`/api/teams/oauth/${provider}/url?redirectUri=${encodeURIComponent(redirectUri)}&state=${state}`);
+    return response.data;
+  },
+
+  // Permissions
+  getMyPermissions: async (teamId: string) => {
+    const response = await apiClient.get(`/api/teams/${teamId}/permissions`);
+    return response.data;
+  },
+
+  // Health
+  getHealth: async () => {
+    const response = await apiClient.get('/api/teams/health');
+    return response.data;
+  },
+};
