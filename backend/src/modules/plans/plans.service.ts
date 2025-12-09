@@ -121,18 +121,26 @@ export class PlansService {
     return this.planModel.find(query).sort({ createdAt: -1 }).exec();
   }
 
-  async findOne(id: string): Promise<Plan | null> {
-    return this.planModel.findById(id).exec();
+  async findOne(id: string, userId?: string): Promise<Plan | null> {
+    const plan = await this.planModel.findById(id).exec();
+    if (plan && userId && plan.userId !== userId) {
+      throw new BadRequestException('You do not have access to this plan'); // Or ForbiddenException if imported
+    }
+    return plan;
   }
 
-  async updateStatus(id: string, status: string): Promise<Plan | null> {
+  async updateStatus(id: string, status: string, userId?: string): Promise<Plan | null> {
+    const plan = await this.findOne(id, userId);
+    if (!plan) return null;
+
     return this.planModel
       .findByIdAndUpdate(id, { status }, { new: true })
       .exec();
   }
 
-  async updateTaskStatus(planId: string, phaseIndex: number, taskId: string, status: string): Promise<Plan | null> {
-    const plan = await this.planModel.findById(planId);
+  async updateTaskStatus(planId: string, phaseIndex: number, taskId: string, status: string, userId?: string): Promise<Plan | null> {
+    // If userId provided, findOne will check ownership
+    const plan = await this.findOne(planId, userId);
     if (!plan) return null;
 
     const phase = plan.phases[phaseIndex];

@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID, randomBytes } from 'crypto';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { randomBytes } from 'crypto';
+import { TeamInvitation, TeamInvitationDocument } from './schemas/team-invitation.schema';
 import {
-  Invitation,
   InvitationStatus,
   TeamRole,
   INVITATION_EXPIRY_DAYS,
@@ -9,79 +11,65 @@ import {
 
 @Injectable()
 export class InvitationsService {
-  private invitations: Map<string, Invitation> = new Map();
-  private tokenIndex: Map<string, string> = new Map(); // token -> invitationId
-  private emailIndex: Map<string, Set<string>> = new Map(); // email -> Set<invitationId>
-  private teamIndex: Map<string, Set<string>> = new Map(); // teamId -> Set<invitationId>
+  constructor(
+    @InjectModel(TeamInvitation.name) private invitationModel: Model<TeamInvitationDocument>,
+  ) {}
 
   async createInvitation(
     teamId: string,
     email: string,
     role: TeamRole,
     invitedBy: string,
-  ): Promise<Invitation> {
+  ): Promise<TeamInvitationDocument> {
+    const normalizedEmail = email.toLowerCase();
+
     // Check for existing pending invitation
-    const existing = await this.getPendingInvitation(teamId, email);
+    const existing = await this.getPendingInvitation(teamId, normalizedEmail);
     if (existing) {
       // Update and return existing invitation
-      existing.role = role;
-      existing.invitedBy = invitedBy;
-      existing.token = this.generateToken();
-      existing.expiresAt = this.getExpiryDate();
-      this.tokenIndex.delete(existing.token);
-      this.tokenIndex.set(existing.token, existing.id);
-      this.invitations.set(existing.id, existing);
-      return existing;
+      return this.invitationModel
+        .findByIdAndUpdate(
+          existing._id,
+          {
+            role,
+            invitedBy,
+            token: this.generateToken(),
+            expiresAt: this.getExpiryDate(),
+          },
+          { new: true },
+        )
+        .exec() as Promise<TeamInvitationDocument>;
     }
 
-    const id = randomUUID();
-    const token = this.generateToken();
-
-    const invitation: Invitation = {
-      id,
+    const invitation = new this.invitationModel({
       teamId,
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       role,
       status: InvitationStatus.PENDING,
       invitedBy,
-      token,
+      token: this.generateToken(),
       expiresAt: this.getExpiryDate(),
-      createdAt: new Date(),
-    };
+    });
 
-    this.invitations.set(id, invitation);
-    this.tokenIndex.set(token, id);
-
-    // Update email index
-    if (!this.emailIndex.has(email.toLowerCase())) {
-      this.emailIndex.set(email.toLowerCase(), new Set());
-    }
-    this.emailIndex.get(email.toLowerCase())!.add(id);
-
-    // Update team index
-    if (!this.teamIndex.has(teamId)) {
-      this.teamIndex.set(teamId, new Set());
-    }
-    this.teamIndex.get(teamId)!.add(id);
-
-    return invitation;
+    return invitation.save();
   }
 
-  async getInvitation(invitationId: string): Promise<Invitation | null> {
-    return this.invitations.get(invitationId) || null;
+  async getInvitation(invitationId: string): Promise<TeamInvitationDocument | null> {
+    try {
+      return await this.invitationModel.findById(invitationId).exec();
+    } catch {
+      return null;
+    }
   }
 
-  async getInvitationByToken(token: string): Promise<Invitation | null> {
-    const invitationId = this.tokenIndex.get(token);
-    if (!invitationId) return null;
-
-    const invitation = this.invitations.get(invitationId);
+  async getInvitationByToken(token: string): Promise<TeamInvitationDocument | null> {
+    const invitation = await this.invitationModel.findOne({ token }).exec();
     if (!invitation) return null;
 
     // Check if expired
     if (invitation.expiresAt < new Date()) {
-      await this.updateStatus(invitationId, InvitationStatus.EXPIRED);
-      return this.invitations.get(invitationId) || null;
+      await this.updateStatus(invitation._id.toString(), InvitationStatus.EXPIRED);
+      return this.invitationModel.findById(invitation._id).exec();
     }
 
     return invitation;
@@ -90,73 +78,50 @@ export class InvitationsService {
   async getPendingInvitation(
     teamId: string,
     email: string,
-  ): Promise<Invitation | null> {
-    const invitationIds = this.emailIndex.get(email.toLowerCase());
-    if (!invitationIds) return null;
-
-    for (const id of invitationIds) {
-      const invitation = this.invitations.get(id);
-      if (
-        invitation &&
-        invitation.teamId === teamId &&
-        invitation.status === InvitationStatus.PENDING
-      ) {
-        return invitation;
-      }
-    }
-
-    return null;
+  ): Promise<TeamInvitationDocument | null> {
+    return this.invitationModel
+      .findOne({
+        teamId,
+        email: email.toLowerCase(),
+        status: InvitationStatus.PENDING,
+      })
+      .exec();
   }
 
   async getTeamInvitations(
     teamId: string,
     status?: InvitationStatus,
-  ): Promise<Invitation[]> {
-    const invitationIds = this.teamIndex.get(teamId);
-    if (!invitationIds) return [];
-
-    const invitations: Invitation[] = [];
-    for (const id of invitationIds) {
-      const invitation = this.invitations.get(id);
-      if (invitation) {
-        if (!status || invitation.status === status) {
-          invitations.push(invitation);
-        }
-      }
+  ): Promise<TeamInvitationDocument[]> {
+    const query: Record<string, any> = { teamId };
+    if (status) {
+      query.status = status;
     }
 
-    // Sort by creation date (newest first)
-    return invitations.sort(
-      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-    );
+    return this.invitationModel
+      .find(query)
+      .sort({ createdAt: -1 })
+      .exec();
   }
 
-  async getInvitationsByEmail(email: string): Promise<Invitation[]> {
-    const invitationIds = this.emailIndex.get(email.toLowerCase());
-    if (!invitationIds) return [];
-
-    const invitations: Invitation[] = [];
-    for (const id of invitationIds) {
-      const invitation = this.invitations.get(id);
-      if (invitation) {
-        invitations.push(invitation);
-      }
-    }
-
-    return invitations.sort(
-      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-    );
+  async getInvitationsByEmail(email: string): Promise<TeamInvitationDocument[]> {
+    return this.invitationModel
+      .find({ email: email.toLowerCase() })
+      .sort({ createdAt: -1 })
+      .exec();
   }
 
-  async getPendingInvitationsByEmail(email: string): Promise<Invitation[]> {
-    const invitations = await this.getInvitationsByEmail(email);
-    return invitations.filter(
-      (inv) =>
-        inv.status === InvitationStatus.PENDING && inv.expiresAt >= new Date(),
-    );
+  async getPendingInvitationsByEmail(email: string): Promise<TeamInvitationDocument[]> {
+    return this.invitationModel
+      .find({
+        email: email.toLowerCase(),
+        status: InvitationStatus.PENDING,
+        expiresAt: { $gte: new Date() },
+      })
+      .sort({ createdAt: -1 })
+      .exec();
   }
 
-  async acceptInvitation(token: string): Promise<Invitation | null> {
+  async acceptInvitation(token: string): Promise<TeamInvitationDocument | null> {
     const invitation = await this.getInvitationByToken(token);
     if (!invitation) return null;
 
@@ -165,18 +130,23 @@ export class InvitationsService {
     }
 
     if (invitation.expiresAt < new Date()) {
-      await this.updateStatus(invitation.id, InvitationStatus.EXPIRED);
-      return this.invitations.get(invitation.id) || null;
+      await this.updateStatus(invitation._id.toString(), InvitationStatus.EXPIRED);
+      return this.invitationModel.findById(invitation._id).exec();
     }
 
-    invitation.status = InvitationStatus.ACCEPTED;
-    invitation.acceptedAt = new Date();
-    this.invitations.set(invitation.id, invitation);
-
-    return invitation;
+    return this.invitationModel
+      .findByIdAndUpdate(
+        invitation._id,
+        {
+          status: InvitationStatus.ACCEPTED,
+          acceptedAt: new Date(),
+        },
+        { new: true },
+      )
+      .exec();
   }
 
-  async declineInvitation(token: string): Promise<Invitation | null> {
+  async declineInvitation(token: string): Promise<TeamInvitationDocument | null> {
     const invitation = await this.getInvitationByToken(token);
     if (!invitation) return null;
 
@@ -184,29 +154,35 @@ export class InvitationsService {
       return invitation;
     }
 
-    invitation.status = InvitationStatus.DECLINED;
-    invitation.declinedAt = new Date();
-    this.invitations.set(invitation.id, invitation);
-
-    return invitation;
+    return this.invitationModel
+      .findByIdAndUpdate(
+        invitation._id,
+        {
+          status: InvitationStatus.DECLINED,
+          declinedAt: new Date(),
+        },
+        { new: true },
+      )
+      .exec();
   }
 
   async revokeInvitation(invitationId: string): Promise<boolean> {
-    const invitation = this.invitations.get(invitationId);
+    const invitation = await this.getInvitation(invitationId);
     if (!invitation) return false;
 
     if (invitation.status !== InvitationStatus.PENDING) {
       return false;
     }
 
-    invitation.status = InvitationStatus.REVOKED;
-    this.invitations.set(invitationId, invitation);
+    await this.invitationModel
+      .findByIdAndUpdate(invitationId, { status: InvitationStatus.REVOKED })
+      .exec();
 
     return true;
   }
 
-  async resendInvitation(invitationId: string): Promise<Invitation | null> {
-    const invitation = this.invitations.get(invitationId);
+  async resendInvitation(invitationId: string): Promise<TeamInvitationDocument | null> {
+    const invitation = await this.getInvitation(invitationId);
     if (!invitation) return null;
 
     if (
@@ -216,73 +192,56 @@ export class InvitationsService {
       return null;
     }
 
-    // Generate new token and extend expiry
-    const oldToken = invitation.token;
-    invitation.token = this.generateToken();
-    invitation.expiresAt = this.getExpiryDate();
-    invitation.status = InvitationStatus.PENDING;
-
-    // Update token index
-    this.tokenIndex.delete(oldToken);
-    this.tokenIndex.set(invitation.token, invitation.id);
-
-    this.invitations.set(invitationId, invitation);
-
-    return invitation;
+    return this.invitationModel
+      .findByIdAndUpdate(
+        invitationId,
+        {
+          token: this.generateToken(),
+          expiresAt: this.getExpiryDate(),
+          status: InvitationStatus.PENDING,
+        },
+        { new: true },
+      )
+      .exec();
   }
 
   async updateStatus(
     invitationId: string,
     status: InvitationStatus,
   ): Promise<boolean> {
-    const invitation = this.invitations.get(invitationId);
-    if (!invitation) return false;
-
-    invitation.status = status;
-    this.invitations.set(invitationId, invitation);
-
-    return true;
+    const result = await this.invitationModel
+      .findByIdAndUpdate(invitationId, { status })
+      .exec();
+    return result !== null;
   }
 
   async deleteInvitation(invitationId: string): Promise<boolean> {
-    const invitation = this.invitations.get(invitationId);
-    if (!invitation) return false;
-
-    // Remove from indexes
-    this.tokenIndex.delete(invitation.token);
-    this.emailIndex.get(invitation.email)?.delete(invitationId);
-    this.teamIndex.get(invitation.teamId)?.delete(invitationId);
-
-    // Remove invitation
-    this.invitations.delete(invitationId);
-
-    return true;
+    const result = await this.invitationModel.findByIdAndDelete(invitationId).exec();
+    return result !== null;
   }
 
   async cleanupExpiredInvitations(): Promise<number> {
-    let cleaned = 0;
-    const now = new Date();
+    const result = await this.invitationModel
+      .updateMany(
+        {
+          status: InvitationStatus.PENDING,
+          expiresAt: { $lt: new Date() },
+        },
+        { status: InvitationStatus.EXPIRED },
+      )
+      .exec();
 
-    for (const [id, invitation] of this.invitations) {
-      if (
-        invitation.status === InvitationStatus.PENDING &&
-        invitation.expiresAt < now
-      ) {
-        invitation.status = InvitationStatus.EXPIRED;
-        this.invitations.set(id, invitation);
-        cleaned++;
-      }
-    }
-
-    return cleaned;
+    return result.modifiedCount;
   }
 
   async countPendingInvitations(teamId: string): Promise<number> {
-    const invitations = await this.getTeamInvitations(
-      teamId,
-      InvitationStatus.PENDING,
-    );
-    return invitations.filter((inv) => inv.expiresAt >= new Date()).length;
+    return this.invitationModel
+      .countDocuments({
+        teamId,
+        status: InvitationStatus.PENDING,
+        expiresAt: { $gte: new Date() },
+      })
+      .exec();
   }
 
   async hasBeenInvited(teamId: string, email: string): Promise<boolean> {
@@ -295,8 +254,8 @@ export class InvitationsService {
     emails: string[],
     role: TeamRole,
     invitedBy: string,
-  ): Promise<Invitation[]> {
-    const invitations: Invitation[] = [];
+  ): Promise<TeamInvitationDocument[]> {
+    const invitations: TeamInvitationDocument[] = [];
 
     for (const email of emails) {
       const invitation = await this.createInvitation(
@@ -318,10 +277,17 @@ export class InvitationsService {
     expired: number;
     revoked: number;
   }> {
-    const invitationIds = this.teamIndex.get(teamId);
-    if (!invitationIds) {
-      return { pending: 0, accepted: 0, declined: 0, expired: 0, revoked: 0 };
-    }
+    const pipeline = [
+      { $match: { teamId } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+        },
+      },
+    ];
+
+    const results = await this.invitationModel.aggregate(pipeline).exec();
 
     const stats = {
       pending: 0,
@@ -331,10 +297,10 @@ export class InvitationsService {
       revoked: 0,
     };
 
-    for (const id of invitationIds) {
-      const invitation = this.invitations.get(id);
-      if (invitation) {
-        stats[invitation.status]++;
+    for (const result of results) {
+      const status = result._id as InvitationStatus;
+      if (status in stats) {
+        stats[status] = result.count;
       }
     }
 
@@ -352,11 +318,6 @@ export class InvitationsService {
   }
 
   async clearTeamInvitations(teamId: string): Promise<void> {
-    const invitationIds = this.teamIndex.get(teamId);
-    if (!invitationIds) return;
-
-    for (const id of invitationIds) {
-      await this.deleteInvitation(id);
-    }
+    await this.invitationModel.deleteMany({ teamId }).exec();
   }
 }

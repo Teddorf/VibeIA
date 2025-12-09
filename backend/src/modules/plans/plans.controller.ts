@@ -5,7 +5,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('api/plans')
 export class PlansController {
-  constructor(private readonly plansService: PlansService) {}
+  constructor(private readonly plansService: PlansService) { }
 
   @Post('generate')
   async generate(
@@ -24,15 +24,19 @@ export class PlansController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.plansService.findOne(id);
+  async findOne(
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.plansService.findOne(id, userId);
   }
 
   @Patch(':id')
   async updateStatus(
+    @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body('status') status: string,
   ) {
-    return this.plansService.updateStatus(id, status);
+    return this.plansService.updateStatus(id, status, userId);
   }
 }

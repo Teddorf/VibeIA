@@ -8,7 +8,11 @@
       "Bash(npm run build:*)",
       "Bash(npm install:*)",
       "Bash(cat:*)",
-      "Bash(docker run:*)"
+      "Bash(docker run:*)",
+      "Bash(vercel env add:*)",
+      "Bash(vercel:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []

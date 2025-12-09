@@ -1,33 +1,31 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Team, TeamDocument } from './schemas/team.schema';
+import { TeamActivity, TeamActivityDocument } from './schemas/team-activity.schema';
 import {
-  Team,
   TeamSettings,
-  TeamActivity,
   TeamActivityAction,
   CreateTeamDto,
   UpdateTeamDto,
   DEFAULT_TEAM_SETTINGS,
-  TeamRole,
 } from './dto/teams.dto';
 
 @Injectable()
 export class TeamsService {
-  private teams: Map<string, Team> = new Map();
-  private activities: Map<string, TeamActivity[]> = new Map();
+  constructor(
+    @InjectModel(Team.name) private teamModel: Model<TeamDocument>,
+    @InjectModel(TeamActivity.name) private activityModel: Model<TeamActivityDocument>,
+  ) {}
 
-  async createTeam(ownerId: string, dto: CreateTeamDto): Promise<Team> {
-    const id = randomUUID();
-    const slug = this.generateSlug(dto.name);
+  async createTeam(ownerId: string, dto: CreateTeamDto): Promise<TeamDocument> {
+    const slug = await this.generateSlug(dto.name);
 
-    const team: Team = {
-      id,
+    const team = new this.teamModel({
       name: dto.name,
       slug,
       description: dto.description,
       ownerId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
       settings: {
         ...DEFAULT_TEAM_SETTINGS,
         ...dto.settings,
@@ -35,69 +33,66 @@ export class TeamsService {
       gitConnections: [],
       memberCount: 1, // Owner
       projectCount: 0,
-    };
+    });
 
-    this.teams.set(id, team);
+    const savedTeam = await team.save();
 
-    await this.logActivity(id, ownerId, 'team.created', 'team', id);
+    await this.logActivity(savedTeam._id.toString(), ownerId, 'team.created', 'team', savedTeam._id.toString());
 
-    return team;
+    return savedTeam;
   }
 
-  async getTeam(teamId: string): Promise<Team | null> {
-    return this.teams.get(teamId) || null;
-  }
-
-  async getTeamBySlug(slug: string): Promise<Team | null> {
-    for (const team of this.teams.values()) {
-      if (team.slug === slug) {
-        return team;
-      }
+  async getTeam(teamId: string): Promise<TeamDocument | null> {
+    try {
+      return await this.teamModel.findById(teamId).exec();
+    } catch {
+      return null;
     }
-    return null;
   }
 
-  async getTeamsByOwner(ownerId: string): Promise<Team[]> {
-    const teams: Team[] = [];
-    for (const team of this.teams.values()) {
-      if (team.ownerId === ownerId) {
-        teams.push(team);
-      }
-    }
-    return teams;
+  async getTeamBySlug(slug: string): Promise<TeamDocument | null> {
+    return this.teamModel.findOne({ slug }).exec();
   }
 
-  async updateTeam(teamId: string, dto: UpdateTeamDto): Promise<Team | null> {
-    const team = this.teams.get(teamId);
+  async getTeamsByOwner(ownerId: string): Promise<TeamDocument[]> {
+    return this.teamModel.find({ ownerId }).exec();
+  }
+
+  async updateTeam(teamId: string, dto: UpdateTeamDto): Promise<TeamDocument | null> {
+    const team = await this.teamModel.findById(teamId).exec();
     if (!team) return null;
 
-    const updatedTeam: Team = {
-      ...team,
-      name: dto.name ?? team.name,
-      description: dto.description ?? team.description,
-      avatarUrl: dto.avatarUrl ?? team.avatarUrl,
-      settings: dto.settings
-        ? { ...team.settings, ...dto.settings }
-        : team.settings,
-      slug: dto.name ? this.generateSlug(dto.name) : team.slug,
-      updatedAt: new Date(),
-    };
+    const updateData: Partial<Team> = {};
 
-    this.teams.set(teamId, updatedTeam);
+    if (dto.name !== undefined) {
+      updateData.name = dto.name;
+      updateData.slug = await this.generateSlug(dto.name);
+    }
+    if (dto.description !== undefined) updateData.description = dto.description;
+    if (dto.avatarUrl !== undefined) updateData.avatarUrl = dto.avatarUrl;
+    if (dto.settings) {
+      updateData.settings = { ...team.settings, ...dto.settings } as any;
+    }
 
-    await this.logActivity(teamId, team.ownerId, 'team.updated', 'team', teamId);
+    const updatedTeam = await this.teamModel
+      .findByIdAndUpdate(teamId, updateData, { new: true })
+      .exec();
+
+    if (updatedTeam) {
+      await this.logActivity(teamId, team.ownerId, 'team.updated', 'team', teamId);
+    }
 
     return updatedTeam;
   }
 
   async deleteTeam(teamId: string, userId: string): Promise<boolean> {
-    const team = this.teams.get(teamId);
+    const team = await this.teamModel.findById(teamId).exec();
     if (!team) return false;
 
     await this.logActivity(teamId, userId, 'team.deleted', 'team', teamId);
 
-    this.teams.delete(teamId);
-    this.activities.delete(teamId);
+    await this.teamModel.findByIdAndDelete(teamId).exec();
+    await this.activityModel.deleteMany({ teamId }).exec();
 
     return true;
   }
@@ -106,18 +101,15 @@ export class TeamsService {
     teamId: string,
     settings: Partial<TeamSettings>,
   ): Promise<TeamSettings | null> {
-    const team = this.teams.get(teamId);
+    const team = await this.teamModel.findById(teamId).exec();
     if (!team) return null;
 
-    team.settings = {
-      ...team.settings,
-      ...settings,
-    };
-    team.updatedAt = new Date();
+    const updatedSettings = { ...team.settings, ...settings };
+    await this.teamModel
+      .findByIdAndUpdate(teamId, { settings: updatedSettings })
+      .exec();
 
-    this.teams.set(teamId, team);
-
-    return team.settings;
+    return updatedSettings as TeamSettings;
   }
 
   async transferOwnership(
@@ -125,13 +117,12 @@ export class TeamsService {
     currentOwnerId: string,
     newOwnerId: string,
   ): Promise<boolean> {
-    const team = this.teams.get(teamId);
+    const team = await this.teamModel.findById(teamId).exec();
     if (!team || team.ownerId !== currentOwnerId) return false;
 
-    team.ownerId = newOwnerId;
-    team.updatedAt = new Date();
-
-    this.teams.set(teamId, team);
+    await this.teamModel
+      .findByIdAndUpdate(teamId, { ownerId: newOwnerId })
+      .exec();
 
     await this.logActivity(
       teamId,
@@ -146,35 +137,27 @@ export class TeamsService {
   }
 
   async incrementMemberCount(teamId: string): Promise<void> {
-    const team = this.teams.get(teamId);
-    if (team) {
-      team.memberCount++;
-      this.teams.set(teamId, team);
-    }
+    await this.teamModel
+      .findByIdAndUpdate(teamId, { $inc: { memberCount: 1 } })
+      .exec();
   }
 
   async decrementMemberCount(teamId: string): Promise<void> {
-    const team = this.teams.get(teamId);
-    if (team && team.memberCount > 0) {
-      team.memberCount--;
-      this.teams.set(teamId, team);
-    }
+    await this.teamModel
+      .findByIdAndUpdate(teamId, { $inc: { memberCount: -1 } })
+      .exec();
   }
 
   async incrementProjectCount(teamId: string): Promise<void> {
-    const team = this.teams.get(teamId);
-    if (team) {
-      team.projectCount++;
-      this.teams.set(teamId, team);
-    }
+    await this.teamModel
+      .findByIdAndUpdate(teamId, { $inc: { projectCount: 1 } })
+      .exec();
   }
 
   async decrementProjectCount(teamId: string): Promise<void> {
-    const team = this.teams.get(teamId);
-    if (team && team.projectCount > 0) {
-      team.projectCount--;
-      this.teams.set(teamId, team);
-    }
+    await this.teamModel
+      .findByIdAndUpdate(teamId, { $inc: { projectCount: -1 } })
+      .exec();
   }
 
   async getTeamStats(teamId: string): Promise<{
@@ -183,15 +166,15 @@ export class TeamsService {
     activityCount: number;
     gitConnections: number;
   } | null> {
-    const team = this.teams.get(teamId);
+    const team = await this.teamModel.findById(teamId).exec();
     if (!team) return null;
 
-    const activities = this.activities.get(teamId) || [];
+    const activityCount = await this.activityModel.countDocuments({ teamId }).exec();
 
     return {
       memberCount: team.memberCount,
       projectCount: team.projectCount,
-      activityCount: activities.length,
+      activityCount,
       gitConnections: team.gitConnections.length,
     };
   }
@@ -200,94 +183,85 @@ export class TeamsService {
     teamId: string,
     userId: string,
     action: TeamActivityAction,
-    resourceType: string,
-    resourceId: string,
+    targetType: string,
+    targetId: string,
     metadata?: Record<string, any>,
-  ): Promise<TeamActivity> {
-    const activity: TeamActivity = {
-      id: randomUUID(),
+  ): Promise<TeamActivityDocument> {
+    const activity = new this.activityModel({
       teamId,
       userId,
       action,
-      resourceType,
-      resourceId,
+      targetType,
+      targetId,
       metadata,
-      timestamp: new Date(),
-    };
+    });
 
-    const teamActivities = this.activities.get(teamId) || [];
-    teamActivities.unshift(activity);
-
-    // Keep only last 1000 activities
-    if (teamActivities.length > 1000) {
-      teamActivities.pop();
-    }
-
-    this.activities.set(teamId, teamActivities);
-
-    return activity;
+    return activity.save();
   }
 
   async getActivityLog(
     teamId: string,
     limit: number = 50,
     offset: number = 0,
-  ): Promise<TeamActivity[]> {
-    const activities = this.activities.get(teamId) || [];
-    return activities.slice(offset, offset + limit);
+  ): Promise<TeamActivityDocument[]> {
+    return this.activityModel
+      .find({ teamId })
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(limit)
+      .exec();
   }
 
   async getActivityByUser(
     teamId: string,
     userId: string,
     limit: number = 50,
-  ): Promise<TeamActivity[]> {
-    const activities = this.activities.get(teamId) || [];
-    return activities.filter((a) => a.userId === userId).slice(0, limit);
+  ): Promise<TeamActivityDocument[]> {
+    return this.activityModel
+      .find({ teamId, userId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .exec();
   }
 
   async getRecentActivity(
     teamId: string,
     hours: number = 24,
-  ): Promise<TeamActivity[]> {
-    const activities = this.activities.get(teamId) || [];
+  ): Promise<TeamActivityDocument[]> {
     const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-    return activities.filter((a) => a.timestamp >= cutoff);
+    return this.activityModel
+      .find({
+        teamId,
+        createdAt: { $gte: cutoff },
+      })
+      .sort({ createdAt: -1 })
+      .exec();
   }
 
-  async searchTeams(query: string, limit: number = 10): Promise<Team[]> {
-    const results: Team[] = [];
-    const lowerQuery = query.toLowerCase();
-
-    for (const team of this.teams.values()) {
-      if (
-        team.name.toLowerCase().includes(lowerQuery) ||
-        team.slug.includes(lowerQuery) ||
-        team.description?.toLowerCase().includes(lowerQuery)
-      ) {
-        results.push(team);
-        if (results.length >= limit) break;
-      }
-    }
-
-    return results;
+  async searchTeams(query: string, limit: number = 10): Promise<TeamDocument[]> {
+    return this.teamModel
+      .find({
+        $or: [
+          { name: { $regex: query, $options: 'i' } },
+          { slug: { $regex: query, $options: 'i' } },
+          { description: { $regex: query, $options: 'i' } },
+        ],
+      })
+      .limit(limit)
+      .exec();
   }
 
-  async getAllTeams(): Promise<Team[]> {
-    return Array.from(this.teams.values());
+  async getAllTeams(): Promise<TeamDocument[]> {
+    return this.teamModel.find().exec();
   }
 
   async checkSlugAvailability(slug: string): Promise<boolean> {
-    for (const team of this.teams.values()) {
-      if (team.slug === slug) {
-        return false;
-      }
-    }
-    return true;
+    const existing = await this.teamModel.findOne({ slug }).exec();
+    return !existing;
   }
 
-  private generateSlug(name: string): string {
+  private async generateSlug(name: string): Promise<string> {
     let slug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -296,20 +270,11 @@ export class TeamsService {
     // Check if slug exists and append number if needed
     let counter = 1;
     let finalSlug = slug;
-    while (!this.checkSlugAvailabilitySync(finalSlug)) {
+    while (!(await this.checkSlugAvailability(finalSlug))) {
       finalSlug = `${slug}-${counter}`;
       counter++;
     }
 
     return finalSlug;
-  }
-
-  private checkSlugAvailabilitySync(slug: string): boolean {
-    for (const team of this.teams.values()) {
-      if (team.slug === slug) {
-        return false;
-      }
-    }
-    return true;
   }
 }

@@ -1,5 +1,6 @@
-import { Controller, Post, Get, Body, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { Public } from '../auth/decorators/public.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { SetupOrchestratorService } from './setup-orchestrator.service';
 import { NeonSetupService } from './neon-setup.service';
 import { VercelSetupService } from './vercel-setup.service';
@@ -20,15 +21,21 @@ export class SetupController {
     private readonly railwaySetupService: RailwaySetupService,
   ) {}
 
-  @Public()
+  // Protected endpoints - require authentication
   @Post('start')
   @HttpCode(HttpStatus.OK)
   async startSetup(
+    @CurrentUser('userId') userId: string,
     @Body() dto: StartSetupDto & { tokens?: { neon?: string; vercel?: string; railway?: string } },
   ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
     const config = {
       projectId: dto.projectId,
       projectName: dto.projectName,
+      userId, // Track who initiated the setup
       providers: {
         neon: dto.enableNeon ? dto.neonConfig || { projectName: dto.projectName } : undefined,
         vercel: dto.enableVercel
@@ -63,10 +70,16 @@ export class SetupController {
     };
   }
 
-  @Public()
   @Get('status/:setupId')
-  async getStatus(@Param('setupId') setupId: string): Promise<SetupStatusResponse | { error: string }> {
-    const state = this.orchestrator.getStatus(setupId);
+  async getStatus(
+    @CurrentUser('userId') userId: string,
+    @Param('setupId') setupId: string,
+  ): Promise<SetupStatusResponse | { error: string }> {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const state = await this.orchestrator.getStatusAsync(setupId);
 
     if (!state) {
       return { error: 'Setup not found' };
@@ -84,10 +97,16 @@ export class SetupController {
     };
   }
 
-  @Public()
   @Post('validate-tokens')
   @HttpCode(HttpStatus.OK)
-  async validateTokens(@Body() dto: ValidateTokensDto) {
+  async validateTokens(
+    @CurrentUser('userId') userId: string,
+    @Body() dto: ValidateTokensDto,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
     const results = await this.orchestrator.validateAllTokens({
       neon: dto.neonToken,
       vercel: dto.vercelToken,
@@ -101,13 +120,17 @@ export class SetupController {
     };
   }
 
-  @Public()
   @Post('rollback/:setupId')
   @HttpCode(HttpStatus.OK)
   async rollback(
+    @CurrentUser('userId') userId: string,
     @Param('setupId') setupId: string,
     @Body() tokens?: { neon?: string; vercel?: string; railway?: string },
   ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
     await this.orchestrator.rollback(setupId, tokens);
 
     return {
@@ -155,27 +178,44 @@ export class SetupController {
     };
   }
 
-  @Public()
+  // Individual token validation - protected
   @Post('neon/validate')
   @HttpCode(HttpStatus.OK)
-  async validateNeonToken(@Body() body: { token: string }) {
+  async validateNeonToken(
+    @CurrentUser('userId') userId: string,
+    @Body() body: { token: string },
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
     return this.neonSetupService.validateToken(body.token);
   }
 
-  @Public()
   @Post('vercel/validate')
   @HttpCode(HttpStatus.OK)
-  async validateVercelToken(@Body() body: { token: string }) {
+  async validateVercelToken(
+    @CurrentUser('userId') userId: string,
+    @Body() body: { token: string },
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
     return this.vercelSetupService.validateToken(body.token);
   }
 
-  @Public()
   @Post('railway/validate')
   @HttpCode(HttpStatus.OK)
-  async validateRailwayToken(@Body() body: { token: string }) {
+  async validateRailwayToken(
+    @CurrentUser('userId') userId: string,
+    @Body() body: { token: string },
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
     return this.railwaySetupService.validateToken(body.token);
   }
 
+  // Public informational endpoints
   @Public()
   @Get('regions')
   getRegions() {

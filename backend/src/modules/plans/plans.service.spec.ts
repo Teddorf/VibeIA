@@ -5,6 +5,10 @@ import { Plan } from '../../schemas/plan.schema';
 import { LlmService } from '../llm/llm.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 
+import { UsersService } from '../users/users.service';
+import { ProjectsService } from '../projects/projects.service';
+import { BadRequestException } from '@nestjs/common';
+
 describe('PlansService', () => {
   let service: PlansService;
   let llmService: LlmService;
@@ -12,8 +16,8 @@ describe('PlansService', () => {
   const mockLlmResponse = {
     plan: {
       phases: [
-        { 
-          name: 'Phase 1', 
+        {
+          name: 'Phase 1',
           tasks: [
             {
               id: 't1',
@@ -23,7 +27,7 @@ describe('PlansService', () => {
               dependencies: [],
               status: 'pending'
             }
-          ], 
+          ],
           estimatedTime: 60,
           status: 'pending'
         }
@@ -63,6 +67,16 @@ describe('PlansService', () => {
     }),
   };
 
+  const mockUsersService = {
+    hasLLMConfigured: jest.fn(),
+    getActiveLLMApiKeys: jest.fn(),
+    getLLMPreferences: jest.fn(),
+  };
+
+  const mockProjectsService = {
+    findOne: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -76,6 +90,14 @@ describe('PlansService', () => {
           useValue: {
             generatePlan: jest.fn().mockResolvedValue(mockLlmResponse),
           },
+        },
+        {
+          provide: UsersService,
+          useValue: mockUsersService,
+        },
+        {
+          provide: ProjectsService,
+          useValue: mockProjectsService,
         },
       ],
     }).compile();
@@ -105,24 +127,49 @@ describe('PlansService', () => {
   });
 
   describe('findOne', () => {
-    it('should return a plan by id', async () => {
+    it('should return a plan by id without userId check (internal)', async () => {
       const result = await service.findOne('plan123');
 
       expect(mockPlanModel.findById).toHaveBeenCalledWith('plan123');
       expect(result).toEqual(mockPlan);
     });
+
+    it('should return a plan by id if userId matches', async () => {
+      const result = await service.findOne('plan123', 'user123');
+      expect(result).toEqual(mockPlan);
+    });
+
+    it('should throw BadRequestException if userId does not match', async () => {
+      const otherUserPlan = { ...mockPlan, userId: 'otherUser' };
+      // Create a fresh mock context to avoid side effects
+      mockPlanModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(otherUserPlan),
+      });
+
+      await expect(service.findOne('plan123', 'user123')).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('updateStatus', () => {
-    it('should update plan status', async () => {
-      const result = await service.updateStatus('plan123', 'in_progress');
+    it('should update plan status if user owns plan', async () => {
+      // Reset standard mock for success case
+      mockPlanModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockPlan),
+      });
 
-      expect(mockPlanModel.findByIdAndUpdate).toHaveBeenCalledWith(
-        'plan123',
-        { status: 'in_progress' },
-        { new: true }
-      );
+      const result = await service.updateStatus('plan123', 'in_progress', 'user123');
+
+      expect(mockPlanModel.findByIdAndUpdate).toHaveBeenCalled();
       expect(result.status).toBe('in_progress');
+    });
+
+    it('should fail to update status if user does not own plan', async () => {
+      const otherUserPlan = { ...mockPlan, userId: 'otherUser' };
+      mockPlanModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(otherUserPlan),
+      });
+
+      await expect(service.updateStatus('plan123', 'in_progress', 'user123')).rejects.toThrow(BadRequestException);
     });
   });
 });

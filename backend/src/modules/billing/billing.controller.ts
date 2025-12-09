@@ -7,13 +7,14 @@ import {
   Body,
   Param,
   Query,
-  Headers,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { SubscriptionService } from './subscription.service';
 import { UsageService } from './usage.service';
 import { AnalyticsService } from './analytics.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
   CreateSubscriptionDto,
   UpdateSubscriptionDto,
@@ -38,9 +39,11 @@ export class BillingController {
   }
 
   @Get('subscriptions/me')
-  async getMySubscription(@Headers('x-user-id') userId: string) {
-    const safeUserId = userId || 'default-user';
-    const subscription = await this.subscriptionService.getSubscriptionByUserId(safeUserId);
+  async getMySubscription(@CurrentUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    const subscription = await this.subscriptionService.getSubscriptionByUserId(userId);
     if (!subscription) {
       return { hasSubscription: false, plan: SubscriptionPlan.FREE };
     }
@@ -102,9 +105,11 @@ export class BillingController {
 
   // Invoice Endpoints
   @Get('invoices')
-  async getInvoices(@Headers('x-user-id') userId: string) {
-    const safeUserId = userId || 'default-user';
-    return this.subscriptionService.getInvoices(safeUserId);
+  async getInvoices(@CurrentUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    return this.subscriptionService.getInvoices(userId);
   }
 
   @Post('invoices/:id/pay')
@@ -120,30 +125,36 @@ export class BillingController {
 
   @Get('usage/me')
   async getMyUsage(
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
     @Query('period') period?: string,
   ) {
-    const safeUserId = userId || 'default-user';
-    return this.usageService.getUsageSummary(safeUserId, period);
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    return this.usageService.getUsageSummary(userId, period);
   }
 
   @Get('usage/check/:type')
   async checkLimit(
     @Param('type') type: UsageType,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
-    return this.usageService.checkLimit(safeUserId, type);
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    return this.usageService.checkLimit(userId, type);
   }
 
   @Get('usage/history/:type')
   async getUsageHistory(
     @Param('type') type: UsageType,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
     @Query('months') months?: string,
   ) {
-    const safeUserId = userId || 'default-user';
-    return this.usageService.getUsageHistory(safeUserId, type, months ? parseInt(months) : 6);
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    return this.usageService.getUsageHistory(userId, type, months ? parseInt(months) : 6);
   }
 
   @Get('usage/top-users/:type')
@@ -203,27 +214,33 @@ export class BillingController {
   // Tracking Endpoints (for internal use)
   @Post('track/activity')
   @HttpCode(HttpStatus.OK)
-  async trackActivity(@Headers('x-user-id') userId: string) {
-    const safeUserId = userId || 'default-user';
-    await this.analyticsService.trackUserActivity(safeUserId);
+  async trackActivity(@CurrentUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.analyticsService.trackUserActivity(userId);
     return { tracked: true };
   }
 
   @Post('track/plan-created')
   @HttpCode(HttpStatus.OK)
-  async trackPlanCreated(@Headers('x-user-id') userId: string) {
-    const safeUserId = userId || 'default-user';
-    await this.analyticsService.trackPlanCreated(safeUserId);
-    await this.usageService.incrementPlan(safeUserId);
+  async trackPlanCreated(@CurrentUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.analyticsService.trackPlanCreated(userId);
+    await this.usageService.incrementPlan(userId);
     return { tracked: true };
   }
 
   @Post('track/task-completed')
   @HttpCode(HttpStatus.OK)
-  async trackTaskCompleted(@Headers('x-user-id') userId: string) {
-    const safeUserId = userId || 'default-user';
-    await this.analyticsService.trackTaskCompleted(safeUserId);
-    await this.usageService.incrementTask(safeUserId);
+  async trackTaskCompleted(@CurrentUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.analyticsService.trackTaskCompleted(userId);
+    await this.usageService.incrementTask(userId);
     return { tracked: true };
   }
 
@@ -257,11 +274,13 @@ export class BillingController {
   @Get('features/:feature')
   async checkFeatureAccess(
     @Param('feature') feature: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
     const hasAccess = await this.subscriptionService.checkFeatureAccess(
-      safeUserId,
+      userId,
       feature as any,
     );
     return { feature, hasAccess };

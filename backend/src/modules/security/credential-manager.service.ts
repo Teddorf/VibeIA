@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { Credential, CredentialDocument, CredentialProvider as SchemaCredentialProvider, CredentialStatus } from './schemas/credential.schema';
 import {
-  CredentialStore,
   CredentialProvider,
   StoreCredentialDto,
   DEFAULT_GITIGNORE_SECRETS,
@@ -12,11 +14,13 @@ import {
 @Injectable()
 export class CredentialManagerService {
   private readonly logger = new Logger(CredentialManagerService.name);
-  private credentials: Map<string, CredentialStore> = new Map();
   private readonly encryptionKey: Buffer;
   private readonly algorithm = 'aes-256-gcm';
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    @InjectModel(Credential.name) private credentialModel: Model<CredentialDocument>,
+    private readonly configService: ConfigService,
+  ) {
     const key = this.configService.get<string>('ENCRYPTION_KEY') || 'default-key-for-development-only!';
     this.encryptionKey = crypto.scryptSync(key, 'salt', 32);
   }
@@ -25,56 +29,70 @@ export class CredentialManagerService {
     userId: string,
     dto: StoreCredentialDto,
   ): Promise<{ id: string; provider: CredentialProvider }> {
-    const credentialId = this.generateCredentialId();
     const encryptedToken = this.encrypt(dto.token);
 
-    const credential: CredentialStore = {
-      id: credentialId,
+    const credential = new this.credentialModel({
       userId,
       provider: dto.provider,
+      name: dto.name || `${dto.provider} API Key`,
       encryptedToken,
-      tokenType: dto.tokenType || 'api_key',
-      scope: dto.scope,
-      createdAt: new Date(),
-    };
+      status: CredentialStatus.ACTIVE,
+      scopes: dto.scope || [],
+    });
 
-    this.credentials.set(credentialId, credential);
+    const saved = await credential.save();
 
-    this.logger.log(`Stored credential ${credentialId} for provider ${dto.provider}`);
+    this.logger.log(`Stored credential ${saved._id} for provider ${dto.provider}`);
 
-    return { id: credentialId, provider: dto.provider };
+    return { id: saved._id.toString(), provider: dto.provider };
   }
 
   async getCredential(
     userId: string,
     provider: CredentialProvider,
   ): Promise<string | null> {
-    for (const credential of this.credentials.values()) {
-      if (credential.userId === userId && credential.provider === provider) {
-        if (credential.expiresAt && credential.expiresAt < new Date()) {
-          this.logger.warn(`Credential for ${provider} has expired`);
-          return null;
-        }
+    const credential = await this.credentialModel
+      .findOne({
+        userId,
+        provider,
+        status: CredentialStatus.ACTIVE,
+      })
+      .exec();
 
-        credential.lastUsedAt = new Date();
-        return this.decrypt(credential.encryptedToken);
-      }
+    if (!credential) return null;
+
+    if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
+      this.logger.warn(`Credential for ${provider} has expired`);
+      await this.credentialModel
+        .findByIdAndUpdate(credential._id, { status: CredentialStatus.EXPIRED })
+        .exec();
+      return null;
     }
-    return null;
+
+    await this.credentialModel
+      .findByIdAndUpdate(credential._id, { lastUsedAt: new Date() })
+      .exec();
+
+    return this.decrypt(credential.encryptedToken);
   }
 
   async getCredentialById(credentialId: string): Promise<string | null> {
-    const credential = this.credentials.get(credentialId);
-    if (!credential) {
+    try {
+      const credential = await this.credentialModel.findById(credentialId).exec();
+      if (!credential) return null;
+
+      if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
+        return null;
+      }
+
+      await this.credentialModel
+        .findByIdAndUpdate(credentialId, { lastUsedAt: new Date() })
+        .exec();
+
+      return this.decrypt(credential.encryptedToken);
+    } catch {
       return null;
     }
-
-    if (credential.expiresAt && credential.expiresAt < new Date()) {
-      return null;
-    }
-
-    credential.lastUsedAt = new Date();
-    return this.decrypt(credential.encryptedToken);
   }
 
   async listCredentials(userId: string): Promise<
@@ -87,40 +105,35 @@ export class CredentialManagerService {
       expiresAt?: Date;
     }>
   > {
-    const userCredentials: Array<{
-      id: string;
-      provider: CredentialProvider;
-      tokenType: string;
-      createdAt: Date;
-      lastUsedAt?: Date;
-      expiresAt?: Date;
-    }> = [];
+    const credentials = await this.credentialModel
+      .find({ userId })
+      .select('-encryptedToken -encryptedRefreshToken')
+      .exec();
 
-    this.credentials.forEach((credential) => {
-      if (credential.userId === userId) {
-        userCredentials.push({
-          id: credential.id,
-          provider: credential.provider,
-          tokenType: credential.tokenType,
-          createdAt: credential.createdAt,
-          lastUsedAt: credential.lastUsedAt,
-          expiresAt: credential.expiresAt,
-        });
-      }
-    });
-
-    return userCredentials;
+    return credentials.map((cred) => ({
+      id: cred._id.toString(),
+      provider: cred.provider as unknown as CredentialProvider,
+      tokenType: 'api_key',
+      createdAt: cred.createdAt || new Date(),
+      lastUsedAt: cred.lastUsedAt,
+      expiresAt: cred.tokenExpiresAt,
+    }));
   }
 
   async deleteCredential(userId: string, credentialId: string): Promise<boolean> {
-    const credential = this.credentials.get(credentialId);
-    if (!credential || credential.userId !== userId) {
+    try {
+      const result = await this.credentialModel
+        .findOneAndDelete({ _id: credentialId, userId })
+        .exec();
+
+      if (result) {
+        this.logger.log(`Deleted credential ${credentialId}`);
+        return true;
+      }
+      return false;
+    } catch {
       return false;
     }
-
-    this.credentials.delete(credentialId);
-    this.logger.log(`Deleted credential ${credentialId}`);
-    return true;
   }
 
   async rotateCredential(
@@ -128,27 +141,38 @@ export class CredentialManagerService {
     credentialId: string,
     newToken: string,
   ): Promise<boolean> {
-    const credential = this.credentials.get(credentialId);
-    if (!credential || credential.userId !== userId) {
+    try {
+      const result = await this.credentialModel
+        .findOneAndUpdate(
+          { _id: credentialId, userId },
+          {
+            encryptedToken: this.encrypt(newToken),
+            updatedAt: new Date(),
+          },
+        )
+        .exec();
+
+      if (result) {
+        this.logger.log(`Rotated credential ${credentialId}`);
+        return true;
+      }
+      return false;
+    } catch {
       return false;
     }
-
-    credential.encryptedToken = this.encrypt(newToken);
-    credential.rotatedAt = new Date();
-
-    this.logger.log(`Rotated credential ${credentialId}`);
-    return true;
   }
 
-  shouldRotate(credentialId: string): boolean {
-    const credential = this.credentials.get(credentialId);
-    if (!credential) {
+  async shouldRotate(credentialId: string): Promise<boolean> {
+    try {
+      const credential = await this.credentialModel.findById(credentialId).exec();
+      if (!credential) return false;
+
+      const rotationInterval = (credential.rotationDays || 90) * 24 * 60 * 60 * 1000;
+      const lastRotation = credential.updatedAt || credential.createdAt || new Date();
+      return Date.now() - lastRotation.getTime() > rotationInterval;
+    } catch {
       return false;
     }
-
-    const rotationInterval = 30 * 24 * 60 * 60 * 1000;
-    const lastRotation = credential.rotatedAt || credential.createdAt;
-    return Date.now() - lastRotation.getTime() > rotationInterval;
   }
 
   async validateToken(
@@ -205,10 +229,6 @@ export class CredentialManagerService {
     });
 
     return lines.join('\n');
-  }
-
-  private generateCredentialId(): string {
-    return `cred-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   private encrypt(text: string): string {

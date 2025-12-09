@@ -156,6 +156,66 @@ export class UsersService {
     }
   }
 
+  // ==================== Password Reset ====================
+
+  async setPasswordResetToken(email: string): Promise<{ token: string; user: UserDocument } | null> {
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      return null;
+    }
+
+    // Generate a random token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Set token and expiry (1 hour)
+    await this.userModel.findByIdAndUpdate(user._id, {
+      passwordResetToken: hashedToken,
+      passwordResetExpires: new Date(Date.now() + 3600000), // 1 hour
+    });
+
+    return { token, user };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<boolean> {
+    const crypto = require('crypto');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await this.userModel.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return false;
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear reset token
+    await this.userModel.findByIdAndUpdate(user._id, {
+      password: hashedPassword,
+      passwordResetToken: undefined,
+      passwordResetExpires: undefined,
+    });
+
+    return true;
+  }
+
+  async verifyResetToken(token: string): Promise<boolean> {
+    const crypto = require('crypto');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await this.userModel.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    });
+
+    return !!user;
+  }
+
   // ==================== LLM API Keys Management ====================
 
   async setLLMApiKey(userId: string, dto: SetLLMApiKeyDto): Promise<LLMProviderStatus> {

@@ -39,6 +39,13 @@ export class User {
   @Prop()
   refreshToken?: string;
 
+  // Password reset fields
+  @Prop()
+  passwordResetToken?: string;
+
+  @Prop()
+  passwordResetExpires?: Date;
+
   // GitHub OAuth fields
   @Prop({ sparse: true })
   githubId?: string;

@@ -1,6 +1,7 @@
 ﻿import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PlansModule } from './modules/plans/plans.module';
@@ -46,12 +47,17 @@ import { CodebaseAnalysisModule } from './modules/codebase-analysis/codebase-ana
     SecurityModule,
     BillingModule,
     TeamsModule,
+    TeamsModule,
     CodebaseAnalysisModule,
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 10,
+    }]),
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
 
 
 

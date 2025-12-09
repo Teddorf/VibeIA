@@ -2,6 +2,22 @@
 
 > **IMPORTANTE**: Este archivo debe actualizarse con cada modificación significativa del proyecto. Mantener sincronizado con el estado actual del código.
 
+## 🚀 URLs de Producción
+
+| Servicio | URL | Estado |
+|----------|-----|--------|
+| **Frontend** | https://frontend-delta-drab-99.vercel.app | ✅ Live |
+| **Backend API** | https://vibeia.onrender.com | ✅ Live |
+| **Database** | MongoDB Atlas (cluster0.31tgodn.mongodb.net) | ✅ Conectado |
+
+### Links Rápidos
+- **Login**: https://frontend-delta-drab-99.vercel.app/login
+- **Register**: https://frontend-delta-drab-99.vercel.app/register
+- **Dashboard**: https://frontend-delta-drab-99.vercel.app/dashboard
+- **API Health**: https://vibeia.onrender.com/api/recommendations/database/providers
+
+> **Nota**: El backend en Render (free tier) se duerme después de 15 min de inactividad. El primer request tarda ~30 segundos en despertar.
+
 ## Descripción del Proyecto
 
 **VibeIA** (Vibe Coding Platform) es una plataforma de generación de código impulsada por IA que guía a los usuarios a través de un wizard de 4 etapas para crear prompts ultra-granulares, orquesta agentes de IA para generación de código, aplica quality gates de nivel enterprise y gestiona tareas manuales de forma transparente.
@@ -11,12 +27,13 @@
 ### Backend
 - **Framework**: NestJS 11 (Node.js)
 - **Lenguaje**: TypeScript 5.7
-- **Base de datos**: MongoDB con Mongoose ODM
+- **Base de datos**: MongoDB Atlas (cloud)
 - **Autenticación**: Passport.js + JWT (access + refresh tokens)
 - **Real-time**: Socket.io con WebSocket gateway
 - **LLM**: Anthropic (Claude), OpenAI (GPT-4), Google Gemini
 - **Git**: Octokit (GitHub API)
 - **Testing**: Jest
+- **Hosting**: Render (free tier)
 
 ### Frontend
 - **Framework**: Next.js 15.1.3 (React 19, App Router)
@@ -26,25 +43,21 @@
 - **HTTP**: Axios con interceptors
 - **Real-time**: Socket.io client
 - **Testing**: Jest + React Testing Library
+- **Hosting**: Vercel
 
-### Infraestructura
-- **Containerización**: Docker + Docker Compose
-- **Servicios**: MongoDB, Redis
-- **Puertos**: Frontend (3000), Backend (3001), MongoDB (27017), Redis (6379)
-
-### Deployment (Producción - Gratis)
-- **Frontend**: Vercel (Next.js optimizado)
+### Infraestructura de Producción
+- **Frontend**: Vercel (gratis, CDN global)
 - **Backend**: Render (free tier, 750 hrs/mes)
 - **Database**: MongoDB Atlas (free tier, 512MB)
-- **Configuración**: `frontend/vercel.json`, `backend/render.yaml`
 
 ## Estructura del Proyecto
 
 ```
 VibeIA/
 ├── backend/                    # API NestJS
+│   ├── Dockerfile              # Docker config para Render
 │   └── src/
-│       ├── main.ts            # Entry point
+│       ├── main.ts            # Entry point (puerto 10000)
 │       ├── app.module.ts      # Root module
 │       └── modules/
 │           ├── auth/          # Autenticación JWT
@@ -59,6 +72,10 @@ VibeIA/
 │           ├── recommendations/ # Recomendaciones infra
 │           ├── documentation/ # Generación de docs
 │           ├── setup/         # Setup automatizado
+│           ├── teams/         # Colaboración en equipo
+│           ├── security/      # Escaneo de seguridad
+│           ├── billing/       # Gestión de facturación
+│           ├── error-handling/# Manejo de errores
 │           └── events/        # WebSocket gateway
 │
 ├── frontend/                   # App Next.js
@@ -76,9 +93,9 @@ VibeIA/
 │       ├── contexts/          # AuthContext
 │       └── lib/               # API client, utils
 │
-├── docker-compose.yml
+├── docker-compose.yml          # Solo para desarrollo local
 ├── implementation_plan.md      # Plan de implementación
-└── CLAUDE.md                   # Este archivo
+└── .claude/CLAUDE.md          # Este archivo
 ```
 
 ## Módulos Principales
@@ -89,7 +106,7 @@ VibeIA/
 - Guards globales con decorador `@Public()` para opt-out
 - Role-based access control con `@Roles()`
 
-**Endpoints**:
+**Endpoints** (Base: `https://vibeia.onrender.com`):
 - `POST /api/auth/register` - Registro
 - `POST /api/auth/login` - Login
 - `POST /api/auth/refresh` - Refresh token
@@ -144,7 +161,20 @@ VibeIA/
 - Diagramas Mermaid (secuencia, flujo, ERD, clases)
 - OpenAPI 3.0.3 docs
 
-## Modelos de Datos (MongoDB)
+### Teams Module (`backend/src/modules/teams/`)
+- CRUD de equipos
+- Gestión de miembros
+- Sistema de invitaciones
+- Conexiones Git (GitHub, GitLab, Bitbucket)
+
+### Security Module (`backend/src/modules/security/`)
+- Escaneo de secretos en código
+- Detección de vulnerabilidades
+- Validación de headers de seguridad
+- Gestión de credenciales
+- Rate limiting
+
+## Modelos de Datos (MongoDB Atlas)
 
 ### User
 ```typescript
@@ -216,105 +246,80 @@ VibeIA/
 - `log` - Logs de ejecución
 - `error` - Errores
 
-## Comandos Principales
+## Comandos de Desarrollo Local
 
 ```bash
-# Backend
+# Backend (desarrollo local)
 cd backend
 npm install
-npm run start:dev      # Desarrollo (hot-reload)
+npm run start:dev      # http://localhost:3001
 npm run build          # Build producción
 npm run test           # Tests unitarios
 npm run test:cov       # Coverage
 
-# Frontend
+# Frontend (desarrollo local)
 cd frontend
 npm install
-npm run dev            # Desarrollo
+npm run dev            # http://localhost:3000
 npm run build          # Build producción
 npm run test           # Tests componentes
 
-# Docker (desarrollo local)
+# Docker (desarrollo local opcional)
 docker-compose up -d   # Levantar todos los servicios
 docker-compose down    # Detener servicios
 ```
 
-## Deployment a Producción (100% Gratis)
+## Variables de Entorno en Producción
 
-### Paso 1: MongoDB Atlas (Base de datos)
+### Backend (Render)
+```bash
+NODE_ENV=production
+PORT=10000
+MONGO_URI=mongodb+srv://VibeIA_db:xxxxx@cluster0.31tgodn.mongodb.net/vibecoding
+JWT_SECRET=vibeia-jwt-secret-key-prod-2024-secure
+JWT_REFRESH_SECRET=vibeia-refresh-secret-key-prod-2024-secure
+FRONTEND_URL=https://frontend-delta-drab-99.vercel.app
 
-1. Ir a [mongodb.com/atlas](https://mongodb.com/atlas) → Create Account
-2. Create Cluster → **M0 Free Tier** (512MB gratis)
-3. Database Access → Add User (username/password)
-4. Network Access → Add IP → **Allow Access from Anywhere** (0.0.0.0/0)
-5. Connect → Drivers → Copiar connection string:
-   ```
-   mongodb+srv://usuario:password@cluster.xxxxx.mongodb.net/vibecoding
-   ```
-
-### Paso 2: Backend → Render
-
-1. Ir a [render.com](https://render.com) → Create Account
-2. New → **Web Service** → Connect GitHub repo
-3. Configurar:
-   - **Name**: vibeia-backend
-   - **Root Directory**: `backend`
-   - **Runtime**: Node
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `npm run start:prod`
-   - **Plan**: **Free**
-4. Environment Variables:
-   ```
-   NODE_ENV=production
-   PORT=3001
-   MONGO_URI=mongodb+srv://...  (de MongoDB Atlas)
-   JWT_SECRET=genera-string-seguro-32-chars
-   JWT_REFRESH_SECRET=otro-string-seguro-diferente
-   ANTHROPIC_API_KEY=sk-ant-...
-   FRONTEND_URL=https://pendiente.vercel.app
-   ```
-5. Create Web Service → Copiar URL (ej: `https://vibeia-backend.onrender.com`)
-
-> **Nota**: El free tier de Render se duerme tras 15 min de inactividad. El primer request tarda ~30 seg en despertar.
-
-### Paso 3: Frontend → Vercel
-
-1. Ir a [vercel.com](https://vercel.com) → Create Account
-2. Add New Project → Import GitHub repo
-3. Configurar:
-   - **Root Directory**: `frontend`
-   - **Framework**: Next.js (auto-detectado)
-4. Environment Variables:
-   ```
-   NEXT_PUBLIC_API_URL=https://vibeia-backend.onrender.com
-   ```
-5. Deploy → Copiar URL (ej: `https://vibeia.vercel.app`)
-
-### Paso 4: Actualizar referencias cruzadas
-
-1. En **Render** → Environment → Actualizar:
-   ```
-   FRONTEND_URL=https://tu-app.vercel.app
-   ```
-2. Redeploy en Render para aplicar CORS
-
-## Variables de Entorno
-
-### Backend (.env)
-```
-MONGO_URI=mongodb://localhost:27017/vibecoding
-JWT_SECRET=your-secret
-JWT_REFRESH_SECRET=your-refresh-secret
+# Opcional: LLM APIs
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 GOOGLE_AI_API_KEY=...
 GITHUB_TOKEN=ghp_...
 ```
 
-### Frontend (.env.local)
+### Frontend (Vercel)
+```bash
+NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 ```
-NEXT_PUBLIC_API_URL=http://localhost:3001/api
+
+## Deployment
+
+### Arquitectura de Producción
+
 ```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│    Vercel       │────▶│    Render       │────▶│  MongoDB Atlas  │
+│   (Frontend)    │     │   (Backend)     │     │   (Database)    │
+│    Next.js      │     │    NestJS       │     │    MongoDB      │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                       │
+        │                       │
+        ▼                       ▼
+   CDN Global              Docker Container
+   Auto-deploy             Free Tier (750h)
+```
+
+### Render Service Config
+- **Service ID**: `srv-d4ro4echg0os73d4pho0`
+- **Root Directory**: `backend`
+- **Dockerfile Path**: `./Dockerfile`
+- **Docker Command**: `node dist/src/main.js`
+- **Port**: 10000
+
+### Vercel Config
+- **Root Directory**: `frontend`
+- **Framework**: Next.js (auto-detectado)
+- **Build Command**: `npm run build`
 
 ## Convenciones de Código
 
@@ -352,10 +357,13 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 | Phase 7 | ✅ | Automated Documentation System |
 | Phase 8 | ✅ | Automated Setup System |
 | Phase 9 | ✅ | Error Handling & Rollback System |
+| Phase 10 | ✅ | Security & Billing Modules |
+| Phase 11 | ✅ | Teams & Collaboration |
+| Deployment | ✅ | Producción en Vercel + Render + MongoDB Atlas |
 
 ## Flujo de Usuario
 
-1. **Landing Page** → Registro/Login
+1. **Login/Register** → https://frontend-delta-drab-99.vercel.app/login
 2. **Dashboard** → Ver proyectos y planes
 3. **New Project** → Wizard de 4 etapas:
    - Stage 1: Intent (nombre, descripción)
@@ -374,6 +382,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 3. Importar en `app.module.ts`
 4. Documentar endpoints en este archivo
 5. Agregar tests unitarios
+6. Push a GitHub → auto-deploy en Render
 
 ### Al modificar modelos:
 1. Actualizar schema en `backend/src/modules/*/`
@@ -384,13 +393,30 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 1. Crear componente en directorio apropiado
 2. Agregar a `lib/api-client.ts` si requiere API
 3. Agregar tests en `__tests__/`
-4. Actualizar este archivo
+4. Push a GitHub → auto-deploy en Vercel
+5. Actualizar este archivo
+
+### Troubleshooting Deployment
+
+**Backend no responde:**
+1. Verificar logs en Render Dashboard
+2. El free tier se duerme después de 15 min - esperar ~30s
+3. Verificar que MONGO_URI esté correctamente configurado
+
+**CORS errors:**
+1. Verificar que `FRONTEND_URL` en Render coincida con URL de Vercel
+2. Redeploy backend después de cambiar variables
+
+**MongoDB connection failed:**
+1. Verificar Network Access en MongoDB Atlas (0.0.0.0/0)
+2. Verificar usuario/contraseña en connection string
 
 ---
 
-**Última actualización**: Phase 9 completado - Error Handling & Rollback System + Configuración de deployment
+**Última actualización**: Deployment completo a producción (Vercel + Render + MongoDB Atlas)
 
 **Próximos pasos sugeridos**:
+- Configurar dominio personalizado
 - Integración con más proveedores cloud
 - Sistema de templates de proyectos
 - Analytics y métricas de uso

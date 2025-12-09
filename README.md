@@ -2,6 +2,21 @@
 
 Ultra-granular prompts for enterprise-quality code generation.
 
+## 🚀 Production URLs
+
+| Service | URL | Status |
+|---------|-----|--------|
+| **Frontend** | https://frontend-delta-drab-99.vercel.app | ✅ Live |
+| **Backend API** | https://vibeia.onrender.com | ✅ Live |
+| **Database** | MongoDB Atlas | ✅ Connected |
+
+### Quick Links
+- **Login**: https://frontend-delta-drab-99.vercel.app/login
+- **Register**: https://frontend-delta-drab-99.vercel.app/register
+- **Dashboard**: https://frontend-delta-drab-99.vercel.app/dashboard
+
+> **Note**: Backend on Render free tier sleeps after 15 min of inactivity. First request takes ~30 seconds to wake up.
+
 ## Overview
 
 VibeIA is an AI-powered code generation platform that guides users through a 4-stage wizard to create ultra-granular prompts, orchestrates AI agents for code generation, enforces enterprise-quality gates, and manages manual tasks seamlessly.
@@ -16,33 +31,7 @@ VibeIA is an AI-powered code generation platform that guides users through a 4-s
 | Real-time | Socket.io (WebSocket gateway) |
 | AI/LLM | Anthropic Claude, OpenAI GPT-4, Google Gemini |
 | Git | Octokit (GitHub API) |
-| Infra | Docker, Docker Compose, Redis |
-
-## Quick Start
-
-### Development
-
-```bash
-# Backend
-cd backend
-npm install
-npm run start:dev  # http://localhost:3001
-
-# Frontend
-cd frontend
-npm install
-npm run dev  # http://localhost:3000
-```
-
-### Docker
-
-```bash
-docker-compose up -d
-# Frontend: http://localhost:3000
-# Backend: http://localhost:3001
-# MongoDB: localhost:27017
-# Redis: localhost:6379
-```
+| Hosting | Vercel (Frontend), Render (Backend), MongoDB Atlas (DB) |
 
 ## Features
 
@@ -99,6 +88,10 @@ VibeIA/
 │       ├── recommendations/# Infra recommendations
 │       ├── documentation/  # Doc generation
 │       ├── setup/          # Automated setup
+│       ├── teams/          # Team collaboration
+│       ├── security/       # Security scanning
+│       ├── billing/        # Billing management
+│       ├── error-handling/ # Error & rollback
 │       └── events/         # WebSocket gateway
 │
 ├── frontend/                # Next.js App
@@ -112,6 +105,8 @@ VibeIA/
 ```
 
 ## API Endpoints
+
+**Base URL**: `https://vibeia.onrender.com`
 
 ### Authentication
 - `POST /api/auth/register` - User registration
@@ -135,11 +130,12 @@ VibeIA/
 - `POST /api/execution/:planId/pause` - Pause
 - `POST /api/execution/:planId/resume` - Resume
 
-### Recommendations
+### Recommendations (Public)
+- `GET /api/recommendations/database/providers` - List DB providers
+- `GET /api/recommendations/deploy/providers` - List deploy providers
 - `POST /api/recommendations/database` - DB recommendation
 - `POST /api/recommendations/deploy` - Deploy recommendation
 - `POST /api/recommendations/cost` - Cost projection
-- `POST /api/recommendations/full` - Full recommendation
 
 ### Setup
 - `POST /api/setup/start` - Start automated setup
@@ -150,6 +146,59 @@ VibeIA/
 - `POST /api/documentation/generate` - Generate docs
 - `POST /api/documentation/adr` - Generate ADR
 - `POST /api/documentation/diagram` - Generate diagram
+
+## Local Development
+
+### Prerequisites
+- Node.js 20+
+- MongoDB (local or Atlas)
+- npm or yarn
+
+### Backend
+```bash
+cd backend
+npm install
+cp .env.example .env  # Configure environment variables
+npm run start:dev     # Runs on http://localhost:3001
+```
+
+### Frontend
+```bash
+cd frontend
+npm install
+cp .env.example .env.local  # Configure API URL
+npm run dev           # Runs on http://localhost:3000
+```
+
+### Docker (Optional)
+```bash
+docker-compose up -d
+# Frontend: http://localhost:3000
+# Backend: http://localhost:3001
+```
+
+## Environment Variables
+
+### Backend Production (.env)
+```bash
+MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/vibecoding
+JWT_SECRET=your-secure-jwt-secret-32-chars
+JWT_REFRESH_SECRET=your-secure-refresh-secret-32-chars
+PORT=10000
+NODE_ENV=production
+FRONTEND_URL=https://frontend-delta-drab-99.vercel.app
+
+# Optional: LLM APIs
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GOOGLE_AI_API_KEY=...
+GITHUB_TOKEN=ghp_...
+```
+
+### Frontend Production (.env.local)
+```bash
+NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
+```
 
 ## Testing
 
@@ -165,23 +214,23 @@ npm run test        # Component tests
 npm run test:cov    # Coverage
 ```
 
-## Environment Variables
+## Deployment
 
-### Backend (.env)
-```
-MONGO_URI=mongodb://localhost:27017/vibecoding
-JWT_SECRET=your-jwt-secret
-JWT_REFRESH_SECRET=your-refresh-secret
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GOOGLE_AI_API_KEY=...
-GITHUB_TOKEN=ghp_...
-```
+### Current Production Setup
 
-### Frontend (.env.local)
-```
-NEXT_PUBLIC_API_URL=http://localhost:3001/api
-```
+| Service | Platform | Plan |
+|---------|----------|------|
+| Frontend | Vercel | Free |
+| Backend | Render | Free (750 hrs/month) |
+| Database | MongoDB Atlas | Free (512MB) |
+
+### Deploy Your Own
+
+1. **MongoDB Atlas**: Create free cluster, whitelist 0.0.0.0/0
+2. **Render**: Connect GitHub, set root directory to `backend`, add env vars
+3. **Vercel**: Connect GitHub, set root directory to `frontend`, add `NEXT_PUBLIC_API_URL`
+
+See [CLAUDE.md](./.claude/CLAUDE.md) for detailed deployment instructions.
 
 ## Implementation Status
 
@@ -195,19 +244,14 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 | 6 | ✅ | Infrastructure Recommendations |
 | 7 | ✅ | Automated Documentation |
 | 8 | ✅ | Automated Setup System |
+| 9 | ✅ | Error Handling & Rollback |
+| 10 | ✅ | Security & Billing Modules |
+| 11 | ✅ | Teams & Collaboration |
 
 ## Documentation
 
-- [CLAUDE.md](./CLAUDE.md) - Full project context for AI assistants
+- [CLAUDE.md](./.claude/CLAUDE.md) - Full project context for AI assistants
 - [Implementation Plan](./implementation_plan.md) - Detailed feature roadmap
-
-## Best Practices Applied
-
-- Ultra-granular tasks (~10 min each)
-- Quality-first UI/UX
-- Comprehensive test coverage
-- Clear git commits
-- Enterprise-quality code gates
 
 ## License
 

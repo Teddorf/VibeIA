@@ -118,7 +118,7 @@ export interface SetupTask {
   name: string;
   provider: SetupProvider;
   status: SetupTaskStatus;
-  estimatedDuration: number; // in seconds
+  estimatedDuration?: number; // in seconds
   steps: SetupStep[];
   result?: NeonSetupResult | VercelSetupResult | RailwaySetupResult;
   error?: string;
@@ -145,6 +145,7 @@ export interface RollbackAction {
 export interface SetupOrchestratorConfig {
   projectId: string;
   projectName: string;
+  userId?: string; // Track who initiated the setup
   providers: {
     neon?: NeonProjectConfig;
     vercel?: VercelProjectConfig;

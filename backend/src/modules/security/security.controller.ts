@@ -6,14 +6,15 @@ import {
   Body,
   Param,
   Query,
-  Headers,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { SecurityScannerService } from './security-scanner.service';
 import { CredentialManagerService } from './credential-manager.service';
 import { WorkspaceService } from './workspace.service';
 import { RateLimiterService } from './rate-limiter.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
   ScanFilesDto,
   StoreCredentialDto,
@@ -77,35 +78,43 @@ export class SecurityController {
   @Post('credentials')
   async storeCredential(
     @Body() dto: StoreCredentialDto,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
-    return this.credentialManager.storeCredential(safeUserId, dto);
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    return this.credentialManager.storeCredential(userId, dto);
   }
 
   @Get('credentials')
-  async listCredentials(@Headers('x-user-id') userId: string) {
-    const safeUserId = userId || 'default-user';
-    return this.credentialManager.listCredentials(safeUserId);
+  async listCredentials(@CurrentUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    return this.credentialManager.listCredentials(userId);
   }
 
   @Get('credentials/:provider')
   async getCredential(
     @Param('provider') provider: CredentialProvider,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
-    const credential = await this.credentialManager.getCredential(safeUserId, provider);
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    const credential = await this.credentialManager.getCredential(userId, provider);
     return { exists: !!credential, provider };
   }
 
   @Delete('credentials/:id')
   async deleteCredential(
     @Param('id') credentialId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
-    const deleted = await this.credentialManager.deleteCredential(safeUserId, credentialId);
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    const deleted = await this.credentialManager.deleteCredential(userId, credentialId);
     return { deleted };
   }
 
@@ -113,11 +122,13 @@ export class SecurityController {
   async rotateCredential(
     @Param('id') credentialId: string,
     @Body() body: { newToken: string },
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
     const rotated = await this.credentialManager.rotateCredential(
-      safeUserId,
+      userId,
       credentialId,
       body.newToken,
     );
@@ -141,16 +152,20 @@ export class SecurityController {
   @Post('workspaces')
   async createWorkspace(
     @Body() dto: CreateWorkspaceDto,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
-    return this.workspaceService.createWorkspace(safeUserId, dto);
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    return this.workspaceService.createWorkspace(userId, dto);
   }
 
   @Get('workspaces')
-  async getUserWorkspaces(@Headers('x-user-id') userId: string) {
-    const safeUserId = userId || 'default-user';
-    return this.workspaceService.getUserWorkspaces(safeUserId);
+  async getUserWorkspaces(@CurrentUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    return this.workspaceService.getUserWorkspaces(userId);
   }
 
   @Get('workspaces/stats')

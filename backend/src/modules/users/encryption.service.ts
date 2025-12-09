@@ -10,7 +10,8 @@ export class EncryptionService {
 
   private getKey(): Buffer {
     const secret = process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || 'default-key-change-me';
-    return crypto.scryptSync(secret, 'salt', this.keyLength);
+    const salt = process.env.ENCRYPTION_SALT || 'vibeia-default-salt-change-in-prod';
+    return crypto.scryptSync(secret, salt, this.keyLength);
   }
 
   encrypt(text: string): string {

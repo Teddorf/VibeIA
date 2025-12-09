@@ -243,12 +243,14 @@ export const DEFAULT_GITIGNORE_SECRETS: GitIgnoreEntry[] = [
 
 export interface CreateWorkspaceDto {
   projectId: string;
+  name?: string;
   config?: Partial<WorkspaceConfig>;
 }
 
 export interface StoreCredentialDto {
   provider: CredentialProvider;
   token: string;
+  name?: string;
   tokenType?: 'api_key' | 'oauth' | 'personal_access';
   scope?: string[];
 }

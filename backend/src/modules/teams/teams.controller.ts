@@ -10,11 +10,13 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { TeamsService } from './teams.service';
 import { MembersService } from './members.service';
 import { InvitationsService } from './invitations.service';
 import { GitConnectionsService } from './git-connections.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
   CreateTeamDto,
   UpdateTeamDto,
@@ -40,22 +42,26 @@ export class TeamsController {
   // Team CRUD
   @Post()
   async createTeam(
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
     @Body() dto: CreateTeamDto,
   ) {
-    const safeUserId = userId || 'default-user';
-    const team = await this.teamsService.createTeam(safeUserId, dto);
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    const team = await this.teamsService.createTeam(userId, dto);
 
     // Add owner as first member
-    await this.membersService.addMember(team.id, safeUserId, TeamRole.OWNER);
+    await this.membersService.addMember(team.id, userId, TeamRole.OWNER);
 
     return team;
   }
 
   @Get()
-  async getMyTeams(@Headers('x-user-id') userId: string) {
-    const safeUserId = userId || 'default-user';
-    const memberships = await this.membersService.getUserTeams(safeUserId);
+  async getMyTeams(@CurrentUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    const memberships = await this.membersService.getUserTeams(userId);
 
     const teams = await Promise.all(
       memberships.map(async (m) => {
@@ -88,15 +94,17 @@ export class TeamsController {
   @Patch(':teamId')
   async updateTeam(
     @Param('teamId') teamId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
     @Body() dto: UpdateTeamDto,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     // Check permission
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.TEAM_MANAGE,
     );
     if (!hasPermission) {
@@ -113,14 +121,16 @@ export class TeamsController {
   @Delete(':teamId')
   async deleteTeam(
     @Param('teamId') teamId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     // Only owner can delete
     const member = await this.membersService.getMemberByUserAndTeam(
       teamId,
-      safeUserId,
+      userId,
     );
     if (!member || member.role !== TeamRole.OWNER) {
       return { error: 'Only the owner can delete a team' };
@@ -131,22 +141,24 @@ export class TeamsController {
     await this.invitationsService.clearTeamInvitations(teamId);
     await this.gitConnectionsService.clearTeamConnections(teamId);
 
-    const deleted = await this.teamsService.deleteTeam(teamId, safeUserId);
+    const deleted = await this.teamsService.deleteTeam(teamId, userId);
     return { deleted };
   }
 
   @Post(':teamId/transfer')
   async transferOwnership(
     @Param('teamId') teamId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
     @Body() dto: TransferOwnershipDto,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     // Verify current owner
     const member = await this.membersService.getMemberByUserAndTeam(
       teamId,
-      safeUserId,
+      userId,
     );
     if (!member || member.role !== TeamRole.OWNER) {
       return { error: 'Only the owner can transfer ownership' };
@@ -155,10 +167,10 @@ export class TeamsController {
     // Transfer in both services
     await this.membersService.transferOwnership(
       teamId,
-      safeUserId,
+      userId,
       dto.newOwnerId,
     );
-    await this.teamsService.transferOwnership(teamId, safeUserId, dto.newOwnerId);
+    await this.teamsService.transferOwnership(teamId, userId, dto.newOwnerId);
 
     return { transferred: true };
   }
@@ -201,14 +213,16 @@ export class TeamsController {
   @Post(':teamId/members')
   async addMember(
     @Param('teamId') teamId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
     @Body() body: { userId: string; role: TeamRole },
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.TEAM_INVITE,
     );
     if (!hasPermission) {
@@ -224,12 +238,12 @@ export class TeamsController {
       teamId,
       body.userId,
       body.role,
-      safeUserId,
+      userId,
     );
     await this.teamsService.incrementMemberCount(teamId);
     await this.teamsService.logActivity(
       teamId,
-      safeUserId,
+      userId,
       'member.joined',
       'user',
       body.userId,
@@ -242,14 +256,16 @@ export class TeamsController {
   async updateMemberRole(
     @Param('teamId') teamId: string,
     @Param('memberId') memberId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
     @Body() dto: UpdateMemberRoleDto,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.TEAM_MANAGE,
     );
     if (!hasPermission) {
@@ -272,7 +288,7 @@ export class TeamsController {
 
     await this.teamsService.logActivity(
       teamId,
-      safeUserId,
+      userId,
       'member.role_changed',
       'user',
       member.userId,
@@ -286,13 +302,15 @@ export class TeamsController {
   async removeMember(
     @Param('teamId') teamId: string,
     @Param('memberId') memberId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.TEAM_REMOVE,
     );
     if (!hasPermission) {
@@ -312,7 +330,7 @@ export class TeamsController {
       await this.teamsService.decrementMemberCount(teamId);
       await this.teamsService.logActivity(
         teamId,
-        safeUserId,
+        userId,
         'member.removed',
         'user',
         member.userId,
@@ -325,19 +343,21 @@ export class TeamsController {
   @Post(':teamId/leave')
   async leaveTeam(
     @Param('teamId') teamId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
-    const left = await this.membersService.leaveTeam(teamId, safeUserId);
+    const left = await this.membersService.leaveTeam(teamId, userId);
     if (left) {
       await this.teamsService.decrementMemberCount(teamId);
       await this.teamsService.logActivity(
         teamId,
-        safeUserId,
+        userId,
         'member.left',
         'user',
-        safeUserId,
+        userId,
       );
     } else {
       return { error: 'Cannot leave team (you may be the owner)' };
@@ -358,14 +378,16 @@ export class TeamsController {
   @Post(':teamId/invitations')
   async inviteMember(
     @Param('teamId') teamId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
     @Body() dto: InviteMemberDto,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.TEAM_INVITE,
     );
     if (!hasPermission) {
@@ -379,12 +401,12 @@ export class TeamsController {
       teamId,
       dto.email,
       dto.role,
-      safeUserId,
+      userId,
     );
 
     await this.teamsService.logActivity(
       teamId,
-      safeUserId,
+      userId,
       'member.invited',
       'invitation',
       invitation.id,
@@ -397,14 +419,16 @@ export class TeamsController {
   @Post(':teamId/invitations/bulk')
   async bulkInvite(
     @Param('teamId') teamId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
     @Body() body: { emails: string[]; role: TeamRole },
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.TEAM_INVITE,
     );
     if (!hasPermission) {
@@ -415,7 +439,7 @@ export class TeamsController {
       teamId,
       body.emails,
       body.role,
-      safeUserId,
+      userId,
     );
 
     return { invitations, count: invitations.length };
@@ -425,13 +449,15 @@ export class TeamsController {
   async revokeInvitation(
     @Param('teamId') teamId: string,
     @Param('invitationId') invitationId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.TEAM_INVITE,
     );
     if (!hasPermission) {
@@ -446,13 +472,15 @@ export class TeamsController {
   async resendInvitation(
     @Param('teamId') teamId: string,
     @Param('invitationId') invitationId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.TEAM_INVITE,
     );
     if (!hasPermission) {
@@ -473,9 +501,11 @@ export class TeamsController {
   @HttpCode(HttpStatus.OK)
   async acceptInvitation(
     @Body() body: { token: string },
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const invitation = await this.invitationsService.acceptInvitation(
       body.token,
@@ -491,7 +521,7 @@ export class TeamsController {
     // Add user as member
     const member = await this.membersService.addMember(
       invitation.teamId,
-      safeUserId,
+      userId,
       invitation.role,
       invitation.invitedBy,
     );
@@ -544,14 +574,16 @@ export class TeamsController {
   @Post(':teamId/git-connections')
   async connectGitProvider(
     @Param('teamId') teamId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
     @Body() dto: ConnectGitProviderDto,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.GIT_MANAGE,
     );
     if (!hasPermission) {
@@ -565,7 +597,7 @@ export class TeamsController {
 
     await this.teamsService.logActivity(
       teamId,
-      safeUserId,
+      userId,
       'git.connected',
       'git_connection',
       connection.id,
@@ -579,13 +611,15 @@ export class TeamsController {
   async disconnectGitProvider(
     @Param('teamId') teamId: string,
     @Param('connectionId') connectionId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.GIT_MANAGE,
     );
     if (!hasPermission) {
@@ -600,7 +634,7 @@ export class TeamsController {
     if (disconnected) {
       await this.teamsService.logActivity(
         teamId,
-        safeUserId,
+        userId,
         'git.disconnected',
         'git_connection',
         connectionId,
@@ -614,13 +648,15 @@ export class TeamsController {
   async setDefaultConnection(
     @Param('teamId') teamId: string,
     @Param('connectionId') connectionId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
 
     const hasPermission = await this.membersService.hasPermission(
       teamId,
-      safeUserId,
+      userId,
       Permission.GIT_MANAGE,
     );
     if (!hasPermission) {
@@ -664,16 +700,18 @@ export class TeamsController {
   @Get(':teamId/permissions')
   async getMyPermissions(
     @Param('teamId') teamId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    const safeUserId = userId || 'default-user';
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
     const permissions = await this.membersService.getMemberPermissions(
       teamId,
-      safeUserId,
+      userId,
     );
     const member = await this.membersService.getMemberByUserAndTeam(
       teamId,
-      safeUserId,
+      userId,
     );
 
     return { role: member?.role, permissions };
