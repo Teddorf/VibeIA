@@ -5,6 +5,7 @@ import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from './users.service';
 import { User, UserDocument } from './user.schema';
+import { EncryptionService } from './encryption.service';
 
 jest.mock('bcrypt');
 
@@ -30,6 +31,12 @@ describe('UsersService', () => {
     create: jest.fn(),
   };
 
+  const mockEncryptionService = {
+    encrypt: jest.fn(),
+    decrypt: jest.fn(),
+    maskApiKey: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -37,6 +44,10 @@ describe('UsersService', () => {
         {
           provide: getModelToken(User.name),
           useValue: mockUserModel,
+        },
+        {
+          provide: EncryptionService,
+          useValue: mockEncryptionService,
         },
       ],
     }).compile();
@@ -71,7 +82,7 @@ describe('UsersService', () => {
       });
 
       // Mock the constructor behavior
-      jest.spyOn(service as any, 'create').mockImplementation(async (dto) => {
+      jest.spyOn(service as any, 'create').mockImplementation(async (dto: any) => {
         const existing = await mockUserModel.findOne({ email: dto.email }).exec();
         if (existing) throw new ConflictException();
         return { ...mockUser, email: dto.email, name: dto.name };
@@ -224,6 +235,69 @@ describe('UsersService', () => {
       const result = await service.validateRefreshToken('user-123', 'wrong-token');
 
       expect(result).toBe(false);
+    });
+  });
+  describe('getGitHubAccessToken', () => {
+    it('should return decrypted token', async () => {
+      const encryptedToken = 'iv:tag:encrypted';
+      const decryptedToken = 'access-token';
+
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        githubAccessToken: encryptedToken,
+      });
+      mockEncryptionService.decrypt.mockReturnValue(decryptedToken);
+
+      const result = await service.getGitHubAccessToken('user-123');
+
+      expect(mockEncryptionService.decrypt).toHaveBeenCalledWith(encryptedToken);
+      expect(result).toBe(decryptedToken);
+    });
+
+    it('should return null if decryption fails (invalid format)', async () => {
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        githubAccessToken: 'iv:tag:encrypted',
+      });
+      mockEncryptionService.decrypt.mockImplementation(() => {
+        throw new Error('Decryption failed');
+      });
+
+      const result = await service.getGitHubAccessToken('user-123');
+      expect(result).toBeNull();
+    });
+
+    it('should return original token if legacy format (decryption fails but not 3 parts)', async () => {
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        githubAccessToken: 'legacy-token',
+      });
+      mockEncryptionService.decrypt.mockImplementation(() => {
+        throw new Error('Invalid format');
+      });
+
+      const result = await service.getGitHubAccessToken('user-123');
+      expect(result).toBe('legacy-token');
+    });
+  });
+
+  describe('connectGitHub', () => {
+    it('should encrypt token before saving', async () => {
+      const token = 'gh_token';
+      const encrypted = 'iv:tag:encrypted';
+
+      mockEncryptionService.encrypt.mockReturnValue(encrypted);
+      mockUserModel.findById.mockResolvedValue(mockUser);
+
+      await service.connectGitHub('user-123', 'gh-id', token, 'username');
+
+      expect(mockEncryptionService.encrypt).toHaveBeenCalledWith(token);
+      expect(mockUserModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        'user-123',
+        expect.objectContaining({
+          githubAccessToken: encrypted
+        })
+      );
     });
   });
 });

@@ -39,6 +39,19 @@ export class User {
   @Prop()
   refreshToken?: string;
 
+  // GitHub OAuth fields
+  @Prop({ sparse: true })
+  githubId?: string;
+
+  @Prop()
+  githubAccessToken?: string;
+
+  @Prop()
+  githubUsername?: string;
+
+  @Prop()
+  githubConnectedAt?: Date;
+
   // LLM API Keys - stored encrypted
   @Prop({ type: Object, default: {} })
   llmApiKeys: Record<string, LLMProviderConfig>;

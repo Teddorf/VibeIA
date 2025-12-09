@@ -1,11 +1,12 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Plan, PlanDocument } from '../../schemas/plan.schema';
 import { LlmService } from '../llm/llm.service';
 import { UsersService } from '../users/users.service';
-import { CreatePlanDto } from './dto/create-plan.dto';
-import { UserLLMConfig } from '../llm/interfaces/llm-provider.interface';
+import { ProjectsService } from '../projects/projects.service';
+import { CreatePlanDto, PlanType } from './dto/create-plan.dto';
+import { UserLLMConfig, ImportedProjectWizardData } from '../llm/interfaces/llm-provider.interface';
 
 @Injectable()
 export class PlansService {
@@ -13,6 +14,8 @@ export class PlansService {
     @InjectModel(Plan.name) private planModel: Model<PlanDocument>,
     private llmService: LlmService,
     private usersService: UsersService,
+    @Inject(forwardRef(() => ProjectsService))
+    private projectsService: ProjectsService,
   ) { }
 
   /**
@@ -43,8 +46,16 @@ export class PlansService {
     // Get user's LLM configuration
     const userLLMConfig = await this.getUserLLMConfig(createPlanDto.userId);
 
+    // Check if this is for an imported project and enrich wizard data
+    const enrichedWizardData = await this.enrichWizardDataForImportedProject(
+      createPlanDto.projectId,
+      createPlanDto.userId,
+      createPlanDto.wizardData,
+      createPlanDto.planType,
+    );
+
     // Generate plan using LLM with user's API keys
-    const llmResponse = await this.llmService.generatePlan(createPlanDto.wizardData, userLLMConfig);
+    const llmResponse = await this.llmService.generatePlan(enrichedWizardData, userLLMConfig);
 
     // Create plan document
     const plan = new this.planModel({
@@ -59,10 +70,47 @@ export class PlansService {
         tokensUsed: llmResponse.tokensUsed,
         cost: llmResponse.cost,
         generatedAt: new Date(),
+        planType: createPlanDto.planType || 'new',
+        isImportedProject: !!enrichedWizardData.existingCodebase,
       },
     });
 
     return plan.save();
+  }
+
+  /**
+   * Enrich wizard data with codebase analysis for imported projects
+   */
+  private async enrichWizardDataForImportedProject(
+    projectId: string,
+    userId: string,
+    wizardData: CreatePlanDto['wizardData'],
+    planType?: PlanType,
+  ): Promise<ImportedProjectWizardData> {
+    // Check if project exists and is imported
+    const project = await this.projectsService.findOne(projectId, userId);
+
+    if (!project || !project.metadata?.imported) {
+      // Not an imported project, return original wizard data
+      return {
+        stage1: wizardData.stage1,
+        stage2: wizardData.stage2,
+        stage3: wizardData.stage3,
+        planType: planType || 'new',
+      };
+    }
+
+    // This is an imported project - enrich with codebase analysis
+    console.log(`Enriching wizard data for imported project: ${project.name}`);
+
+    return {
+      stage1: wizardData.stage1,
+      stage2: wizardData.stage2,
+      stage3: wizardData.stage3,
+      existingCodebase: project.metadata.analysis,
+      importContext: wizardData.importContext,
+      planType: planType || 'feature', // Default to 'feature' for imported projects
+    };
   }
 
   async findAll(userId: string, projectId?: string): Promise<Plan[]> {

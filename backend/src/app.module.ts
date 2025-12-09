@@ -20,6 +20,7 @@ import { ErrorHandlingModule } from './modules/error-handling/error-handling.mod
 import { SecurityModule } from './modules/security/security.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { TeamsModule } from './modules/teams/teams.module';
+import { CodebaseAnalysisModule } from './modules/codebase-analysis/codebase-analysis.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { TeamsModule } from './modules/teams/teams.module';
     SecurityModule,
     BillingModule,
     TeamsModule,
+    CodebaseAnalysisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

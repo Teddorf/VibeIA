@@ -74,7 +74,7 @@ export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private encryptionService: EncryptionService,
-  ) {}
+  ) { }
 
   async create(createUserDto: CreateUserDto): Promise<UserDocument> {
     // Check if user already exists
@@ -401,5 +401,94 @@ export class UsersService {
   // Get providers info for frontend
   getProvidersInfo() {
     return LLM_PROVIDERS_INFO;
+  }
+
+  // ==================== GitHub Integration ====================
+
+  async connectGitHub(
+    userId: string,
+    githubId: string,
+    accessToken: string,
+    username: string,
+  ): Promise<void> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Encrypt the access token
+    const encryptedToken = this.encryptionService.encrypt(accessToken);
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      githubId,
+      githubAccessToken: encryptedToken,
+      githubUsername: username,
+      githubConnectedAt: new Date(),
+    });
+  }
+
+  async disconnectGitHub(userId: string): Promise<void> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      $unset: {
+        githubId: '',
+        githubAccessToken: '',
+        githubUsername: '',
+        githubConnectedAt: '',
+      },
+    });
+  }
+
+  async getGitHubConnectionStatus(userId: string): Promise<{
+    connected: boolean;
+    username?: string;
+    connectedAt?: Date;
+  }> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.githubId && user.githubAccessToken) {
+      return {
+        connected: true,
+        username: user.githubUsername,
+        connectedAt: user.githubConnectedAt,
+      };
+    }
+
+    return { connected: false };
+  }
+
+  async getGitHubAccessToken(userId: string): Promise<string | null> {
+    const user = await this.userModel.findById(userId);
+    if (!user?.githubAccessToken) return null;
+
+    try {
+      // Try to decrypt
+      return this.encryptionService.decrypt(user.githubAccessToken);
+    } catch (error) {
+      // If decryption fails, it might be an old unencrypted token
+      // or the key/salt changed. For now, return as is if it doesn't look like
+      // an encrypted string (doesn't contain colons or is significantly shorter/different format)
+      // Check if it matches iv:tag:content format (hex strings)
+      const parts = user.githubAccessToken.split(':');
+      if (parts.length === 3) {
+        // It WAS encrypted but failed (wrong key/salt?), return null to be safe
+        console.error('Failed to decrypt GitHub token for user', userId, error);
+        return null; // Force re-authentication
+      }
+
+      // Fallback: assume it's a legacy unencrypted token
+      return user.githubAccessToken;
+    }
+  }
+
+  async findByGitHubId(githubId: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ githubId });
   }
 }

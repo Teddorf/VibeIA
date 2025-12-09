@@ -75,6 +75,41 @@ export const projectsApi = {
     const response = await apiClient.get(`/api/projects/${id}`);
     return response.data;
   },
+
+  // Import project from GitHub
+  importFromGitHub: async (data: {
+    githubRepoFullName: string;
+    branch?: string;
+    name?: string;
+    description?: string;
+  }) => {
+    const response = await apiClient.post('/api/projects/import', data);
+    return response.data;
+  },
+
+  // Get imported projects
+  getImported: async () => {
+    const response = await apiClient.get('/api/projects/imported');
+    return response.data;
+  },
+
+  // Resync an imported project
+  resync: async (projectId: string) => {
+    const response = await apiClient.post(`/api/projects/${projectId}/resync`);
+    return response.data;
+  },
+
+  // Update project
+  update: async (id: string, data: { name?: string; description?: string; status?: string }) => {
+    const response = await apiClient.patch(`/api/projects/${id}`, data);
+    return response.data;
+  },
+
+  // Delete project
+  delete: async (id: string) => {
+    const response = await apiClient.delete(`/api/projects/${id}`);
+    return response.data;
+  },
 };
 
 export const executionApi = {
@@ -1053,6 +1088,89 @@ export const teamsApi = {
   // Health
   getHealth: async () => {
     const response = await apiClient.get('/api/teams/health');
+    return response.data;
+  },
+};
+
+// GitHub API
+export const githubApi = {
+  // Get GitHub OAuth URL
+  getAuthUrl: async () => {
+    const response = await apiClient.get('/api/auth/github/auth-url');
+    return response.data;
+  },
+
+  // Get GitHub connection status
+  getConnectionStatus: async () => {
+    const response = await apiClient.get('/api/auth/github/status');
+    return response.data;
+  },
+
+  // Disconnect GitHub
+  disconnect: async () => {
+    const response = await apiClient.delete('/api/auth/github');
+    return response.data;
+  },
+
+  // List user's repositories
+  listRepos: async () => {
+    const response = await apiClient.get('/api/git/repos');
+    return response.data;
+  },
+
+  // Search repositories
+  searchRepos: async (query: string, language?: string) => {
+    const params = new URLSearchParams({ q: query });
+    if (language) params.append('language', language);
+    const response = await apiClient.get(`/api/git/repos/search?${params}`);
+    return response.data;
+  },
+
+  // Get repository details
+  getRepository: async (owner: string, repo: string) => {
+    const response = await apiClient.get(`/api/git/repos/${owner}/${repo}`);
+    return response.data;
+  },
+
+  // Get repository tree
+  getTree: async (owner: string, repo: string, branch?: string) => {
+    const params = branch ? `?branch=${branch}` : '';
+    const response = await apiClient.get(`/api/git/repos/${owner}/${repo}/tree${params}`);
+    return response.data;
+  },
+
+  // List branches
+  listBranches: async (owner: string, repo: string) => {
+    const response = await apiClient.get(`/api/git/repos/${owner}/${repo}/branches`);
+    return response.data;
+  },
+
+  // Get file content
+  getFileContent: async (owner: string, repo: string, path: string, branch?: string) => {
+    const params = branch ? `?branch=${branch}` : '';
+    const response = await apiClient.get(`/api/git/repos/${owner}/${repo}/contents/${path}${params}`);
+    return response.data;
+  },
+};
+
+// Codebase Analysis API
+export const codebaseAnalysisApi = {
+  // Analyze a repository
+  analyze: async (owner: string, repo: string, branch?: string) => {
+    const params = branch ? `?branch=${branch}` : '';
+    const response = await apiClient.post(`/api/codebase-analysis/${owner}/${repo}${params}`);
+    return response.data;
+  },
+
+  // Get cached analysis
+  getAnalysis: async (owner: string, repo: string) => {
+    const response = await apiClient.get(`/api/codebase-analysis/${owner}/${repo}`);
+    return response.data;
+  },
+
+  // Clear analysis cache
+  clearCache: async (owner: string, repo: string) => {
+    const response = await apiClient.delete(`/api/codebase-analysis/${owner}/${repo}/cache`);
     return response.data;
   },
 };
