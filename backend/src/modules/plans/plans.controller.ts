@@ -1,19 +1,26 @@
-﻿import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, Query } from '@nestjs/common';
 import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('api/plans')
 export class PlansController {
   constructor(private readonly plansService: PlansService) {}
 
   @Post('generate')
-  async generate(@Body() createPlanDto: CreatePlanDto) {
-    return this.plansService.generatePlan(createPlanDto);
+  async generate(
+    @CurrentUser('userId') userId: string,
+    @Body() createPlanDto: CreatePlanDto,
+  ) {
+    return this.plansService.generatePlan({ ...createPlanDto, userId });
   }
 
   @Get()
-  async findAll(@Body('userId') userId: string) {
-    return this.plansService.findAll(userId);
+  async findAll(
+    @CurrentUser('userId') userId: string,
+    @Query('projectId') projectId?: string,
+  ) {
+    return this.plansService.findAll(userId, projectId);
   }
 
   @Get(':id')

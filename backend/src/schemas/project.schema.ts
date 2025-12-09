@@ -17,6 +17,9 @@ export class Project {
   @Prop()
   repositoryUrl?: string;
 
+  @Prop()
+  githubRepoId?: string;
+
   @Prop({ default: 'active' })
   status: string;
 

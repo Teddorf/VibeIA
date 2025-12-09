@@ -1,20 +1,32 @@
 import OpenAI from 'openai';
-import { LLMProvider, LLMResponse } from '../interfaces/llm-provider.interface';
+import { LLMProvider, LLMResponse, LLMProviderOptions } from '../interfaces/llm-provider.interface';
 
 export class OpenAIProvider implements LLMProvider {
   name = 'openai';
-  private client: OpenAI;
 
-  constructor() {
-    this.client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY || '',
-    });
+  private createClient(apiKey: string): OpenAI {
+    return new OpenAI({ apiKey });
   }
 
-  async generatePlan(wizardData: any): Promise<LLMResponse> {
+  async validateApiKey(apiKey: string): Promise<boolean> {
+    try {
+      const client = this.createClient(apiKey);
+      await client.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Hi' }],
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async generatePlan(wizardData: any, options: LLMProviderOptions): Promise<LLMResponse> {
+    const client = this.createClient(options.apiKey);
     const prompt = this.buildPrompt(wizardData);
 
-    const completion = await this.client.chat.completions.create({
+    const completion = await client.chat.completions.create({
       model: 'gpt-4-turbo-preview',
       messages: [
         {
@@ -39,6 +51,47 @@ export class OpenAIProvider implements LLMProvider {
       tokensUsed: completion.usage?.total_tokens || 0,
       cost: this.calculateCost(completion.usage?.prompt_tokens || 0, completion.usage?.completion_tokens || 0),
     };
+  }
+
+  async generateCode(task: any, context: any, options: LLMProviderOptions): Promise<{ files: { path: string; content: string }[] }> {
+    const client = this.createClient(options.apiKey);
+    const prompt = this.buildCodePrompt(task, context);
+
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4-turbo-preview',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert senior software engineer. Output ONLY valid JSON.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      response_format: { type: 'json_object' },
+      max_tokens: 4096,
+    });
+
+    const responseText = completion.choices[0].message.content || '{}';
+
+    try {
+      return JSON.parse(responseText);
+    } catch (error) {
+      console.error('Failed to parse LLM code generation response:', error);
+      throw new Error('LLM response was not valid JSON');
+    }
+  }
+
+  private buildCodePrompt(task: any, context: any): string {
+    return `Implement task: ${task.name}
+Description: ${task.description}
+
+Context:
+- Project: ${context.projectName}
+- Stack: ${context.technologies.join(', ')}
+
+Return JSON: { "files": [{ "path": "...", "content": "..." }] }`;
   }
 
   private buildPrompt(wizardData: any): string {

@@ -1,18 +1,29 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { LLMProvider, LLMResponse } from '../interfaces/llm-provider.interface';
+import { LLMProvider, LLMResponse, LLMProviderOptions } from '../interfaces/llm-provider.interface';
 
 export class GeminiProvider implements LLMProvider {
   name = 'gemini';
-  private client: GoogleGenerativeAI;
 
-  constructor() {
-    this.client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+  private createClient(apiKey: string): GoogleGenerativeAI {
+    return new GoogleGenerativeAI(apiKey);
   }
 
-  async generatePlan(wizardData: any): Promise<LLMResponse> {
+  async validateApiKey(apiKey: string): Promise<boolean> {
+    try {
+      const client = this.createClient(apiKey);
+      const model = client.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      await model.generateContent('Hi');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async generatePlan(wizardData: any, options: LLMProviderOptions): Promise<LLMResponse> {
+    const client = this.createClient(options.apiKey);
     const prompt = this.buildPrompt(wizardData);
 
-    const model = this.client.getGenerativeModel({ 
+    const model = client.getGenerativeModel({
       model: 'gemini-2.0-flash-exp', // Gemini 2.0 Flash (latest experimental)
       generationConfig: {
         temperature: 0.7,
@@ -24,7 +35,7 @@ export class GeminiProvider implements LLMProvider {
     const result = await model.generateContent(prompt);
     const response = result.response;
     const planText = response.text();
-    
+
     // Parse the JSON response from Gemini
     const plan = JSON.parse(planText);
 
@@ -37,6 +48,52 @@ export class GeminiProvider implements LLMProvider {
       tokensUsed: estimatedTokens,
       cost: this.calculateCost(estimatedTokens),
     };
+  }
+
+  async generateCode(task: any, context: any, options: LLMProviderOptions): Promise<{ files: { path: string; content: string }[] }> {
+    const client = this.createClient(options.apiKey);
+    const prompt = this.buildCodePrompt(task, context);
+
+    const model = client.getGenerativeModel({
+      model: 'gemini-2.0-flash-exp',
+      generationConfig: {
+        temperature: 0.2, // Lower temperature for code
+        maxOutputTokens: 8192,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const responseText = response.text();
+
+    try {
+      return JSON.parse(responseText);
+    } catch (error) {
+      console.error('Failed to parse LLM code generation response:', error);
+      throw new Error('LLM response was not valid JSON');
+    }
+  }
+
+  private buildCodePrompt(task: any, context: any): string {
+    return `You are an expert senior software engineer. Implement the following task.
+
+TASK: ${task.name}
+DESCRIPTION: ${task.description}
+
+PROJECT CONTEXT:
+- Project: ${context.projectName}
+- Tech Stack: ${context.technologies.join(', ')}
+
+OUTPUT JSON ONLY:
+{
+  "files": [
+    {
+      "path": "src/path/to/file.ts",
+      "content": "full code content"
+    }
+  ]
+}`;
   }
 
   private buildPrompt(wizardData: any): string {

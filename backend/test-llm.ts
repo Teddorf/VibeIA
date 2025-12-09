@@ -29,7 +29,7 @@ async function testClaude() {
     console.log(' Sending request to Anthropic...');
     const startTime = Date.now();
 
-    const response = await provider.generatePlan(mockWizardData);
+    const response = await provider.generatePlan(mockWizardData, { apiKey: process.env.ANTHROPIC_API_KEY! });
 
     const duration = (Date.now() - startTime) / 1000;
     console.log(`\n Plan Generated in ${duration}s!`);

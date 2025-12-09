@@ -1,20 +1,32 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { LLMProvider, LLMResponse } from '../interfaces/llm-provider.interface';
+import { LLMProvider, LLMResponse, LLMProviderOptions } from '../interfaces/llm-provider.interface';
 
 export class AnthropicProvider implements LLMProvider {
   name = 'anthropic';
-  private client: Anthropic;
 
-  constructor() {
-    this.client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
-    });
+  private createClient(apiKey: string): Anthropic {
+    return new Anthropic({ apiKey });
   }
 
-  async generatePlan(wizardData: any): Promise<LLMResponse> {
+  async validateApiKey(apiKey: string): Promise<boolean> {
+    try {
+      const client = this.createClient(apiKey);
+      await client.messages.create({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Hi' }],
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async generatePlan(wizardData: any, options: LLMProviderOptions): Promise<LLMResponse> {
+    const client = this.createClient(options.apiKey);
     const prompt = this.buildPrompt(wizardData);
 
-    const message = await this.client.messages.create({
+    const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514', // Claude 4.5 Sonnet (latest)
       max_tokens: 8192,
       messages: [
@@ -27,7 +39,7 @@ export class AnthropicProvider implements LLMProvider {
 
     const content = message.content[0];
     const planText = content.type === 'text' ? content.text : '';
-    
+
     // Parse the JSON response from Claude
     const plan = JSON.parse(planText);
 
@@ -37,6 +49,62 @@ export class AnthropicProvider implements LLMProvider {
       tokensUsed: message.usage.input_tokens + message.usage.output_tokens,
       cost: this.calculateCost(message.usage.input_tokens, message.usage.output_tokens),
     };
+  }
+
+  async generateCode(task: any, context: any, options: LLMProviderOptions): Promise<{ files: { path: string; content: string }[] }> {
+    const client = this.createClient(options.apiKey);
+    const prompt = this.buildCodePrompt(task, context);
+
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8192,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    });
+
+    const content = message.content[0];
+    const responseText = content.type === 'text' ? content.text : '';
+
+    try {
+      // Parse JSON response
+      const result = JSON.parse(responseText);
+      return result;
+    } catch (error) {
+      console.error('Failed to parse LLM code generation response:', error);
+      throw new Error('LLM response was not valid JSON');
+    }
+  }
+
+  private buildCodePrompt(task: any, context: any): string {
+    return `You are an expert senior software engineer. Your task is to implement the following task.
+
+TASK: ${task.name}
+DESCRIPTION: ${task.description}
+
+PROJECT CONTEXT:
+- Project: ${context.projectName}
+- Tech Stack: ${context.technologies.join(', ')}
+- Architecture: ${context.architecture.join(', ')}
+
+INSTRUCTIONS:
+1. Generate the necessary code files to complete this task.
+2. Ensure code is production-ready, typed (if TS), and follows best practices.
+3. Return ONLY valid JSON with the following structure:
+
+{
+  "files": [
+    {
+      "path": "src/path/to/file.ts",
+      "content": "full code content here"
+    }
+  ]
+}
+
+Do not include markdown formatting or explanations outside the JSON.`;
   }
 
   private buildPrompt(wizardData: any): string {

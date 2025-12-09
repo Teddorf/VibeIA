@@ -38,6 +38,7 @@ describe('PlansController', () => {
 
   describe('generate', () => {
     it('should generate a new plan', async () => {
+      const userId = 'user123';
       const createPlanDto: CreatePlanDto = {
         projectId: 'proj123',
         userId: 'user123',
@@ -48,18 +49,25 @@ describe('PlansController', () => {
         },
       };
 
-      const result = await controller.generate(createPlanDto);
+      const result = await controller.generate(userId, createPlanDto);
 
-      expect(service.generatePlan).toHaveBeenCalledWith(createPlanDto);
+      expect(service.generatePlan).toHaveBeenCalledWith({ ...createPlanDto, userId });
       expect(result).toEqual(mockPlan);
     });
   });
 
   describe('findAll', () => {
     it('should return all plans for a user', async () => {
-      const result = await controller.findAll('user123');
+      const result = await controller.findAll('user123', undefined);
 
-      expect(service.findAll).toHaveBeenCalledWith('user123');
+      expect(service.findAll).toHaveBeenCalledWith('user123', undefined);
+      expect(result).toEqual([mockPlan]);
+    });
+
+    it('should return plans filtered by projectId', async () => {
+      const result = await controller.findAll('user123', 'proj123');
+
+      expect(service.findAll).toHaveBeenCalledWith('user123', 'proj123');
       expect(result).toEqual([mockPlan]);
     });
   });
@@ -78,7 +86,7 @@ describe('PlansController', () => {
       const result = await controller.updateStatus('plan123', 'completed');
 
       expect(service.updateStatus).toHaveBeenCalledWith('plan123', 'completed');
-      expect(result.status).toBe('completed');
+      expect(result!.status).toBe('completed');
     });
   });
 });

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Implement Phase 3 - Manual Tasks & Quality Gates with Tests\n\nPhase 3 Implementation:\n- Quality Gates Service with lint, security, and test checks\n- Manual Tasks detection and validation (Stripe, Firebase, AWS, OAuth)\n- Pause & Guide UI for manual task handling\n- Execution Dashboard with real-time progress tracking\n- Comprehensive test suite (84 backend + 37 frontend tests)\n\nNew Backend Modules:\n- quality-gates: Code quality checks with scoring\n- manual-tasks: Task detection and validation templates\n\nNew Frontend Components:\n- ExecutionDashboard: Real-time execution monitoring\n- ManualTaskGuide: Step-by-step manual task UI\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(docker run:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

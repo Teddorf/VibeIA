@@ -9,7 +9,7 @@ export type Task = {
   description: string;
   estimatedTime: number;
   dependencies: string[];
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'paused';
 };
 
 export type Phase = {
@@ -41,7 +41,7 @@ export class Plan {
   estimatedTime: number;
 
   @Prop({ default: 'pending' })
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'paused';
 
   @Prop({ type: Object })
   metadata?: Record<string, any>;
