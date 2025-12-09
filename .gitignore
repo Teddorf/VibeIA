@@ -34,3 +34,7 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Fix for Windows nul files
+nul
+frontend/nul

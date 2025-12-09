@@ -36,7 +36,7 @@ Enhance API security and data integrity by validating incoming requests using DT
 - Update `importFromGitHub` to use the class-based `ImportProjectDto`.
 
 ### Backend - Dependencies
-- Ensure `class-validator` and `class-transformer` are installed (often default in Nest, but verify).
+- Ensure `class-validator` and `class-transformer` are installed (Done).
 
 ## Verification Plan
 

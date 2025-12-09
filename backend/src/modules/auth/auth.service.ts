@@ -36,7 +36,7 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
   async register(registerDto: RegisterDto): Promise<TokenResponse> {
     // Validate input
@@ -140,5 +140,20 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+  async forgotPassword(email: string): Promise<{ token: string } | null> {
+    const result = await this.usersService.setPasswordResetToken(email);
+    if (!result) {
+      return null;
+    }
+    return { token: result.token };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<boolean> {
+    return this.usersService.resetPassword(token, newPassword);
+  }
+
+  async verifyResetToken(token: string): Promise<boolean> {
+    return this.usersService.verifyResetToken(token);
   }
 }

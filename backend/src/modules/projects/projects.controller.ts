@@ -1,6 +1,8 @@
 import { Controller, Post, Body, Get, Param, Patch, Delete, HttpCode, HttpStatus } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CreateProjectDto } from './dto/create-project.dto';
+import { UpdateProjectDto } from './dto/update-project.dto';
 import { ImportProjectDto } from './dto/import-project.dto';
 
 @Controller('api/projects')
@@ -10,12 +12,12 @@ export class ProjectsController {
   @Post()
   async create(
     @CurrentUser('userId') userId: string,
-    @Body() createProjectDto: { name: string; description: string },
+    @Body() createProjectDto: CreateProjectDto,
   ) {
     return this.projectsService.createProject(
       userId,
       createProjectDto.name,
-      createProjectDto.description,
+      createProjectDto.description ?? '',
     );
   }
 
@@ -73,7 +75,7 @@ export class ProjectsController {
   async update(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
-    @Body() updateData: { name?: string; description?: string; status?: string },
+    @Body() updateData: UpdateProjectDto,
   ) {
     return this.projectsService.update(id, userId, updateData);
   }

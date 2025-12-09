@@ -1,4 +1,5 @@
 ﻿import axios from 'axios';
+import { logger } from './logger';
 
 const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
@@ -26,7 +27,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    logger.error('API Error', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );

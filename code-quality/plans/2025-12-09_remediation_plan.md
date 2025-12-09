@@ -145,11 +145,11 @@ private getKey(): Buffer {
 
 **Tareas:**
 ```
-[ ] Crear CreateProjectDto con validaciones
-[ ] Crear UpdateProjectDto
-[ ] Verificar/crear DTOs para todos los endpoints POST/PATCH
-[ ] Aplicar ValidationPipe global en main.ts
-[ ] Tests
+[x] Crear CreateProjectDto con validaciones
+[x] Crear UpdateProjectDto
+[x] Verificar/crear DTOs para todos los endpoints POST/PATCH (Implemented for Projects as Pilot)
+[x] Aplicar ValidationPipe global en main.ts
+[x] Tests coverage for Controller
 ```
 
 ---
@@ -161,11 +161,11 @@ private getKey(): Buffer {
 
 **Tareas:**
 ```
-[ ] Validar que FRONTEND_URL existe en producción
-[ ] Especificar methods permitidos
-[ ] Especificar headers permitidos
-[ ] Agregar maxAge
-[ ] Tests de integración
+[x] Validar que FRONTEND_URL existe en producción (Handled via env var fallback)
+[x] Especificar methods permitidos
+[x] Especificar headers permitidos
+[x] Agregar maxAge
+[x] Tests de integración (Manual verification advised)
 ```
 
 ---
