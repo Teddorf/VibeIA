@@ -259,7 +259,7 @@ export class DiagramGeneratorService {
     }));
 
     // Add response steps
-    const allSteps = [];
+    const allSteps: { actor: string; action: string; target: string }[] = [];
     for (const step of steps) {
       allSteps.push(step);
       allSteps.push({

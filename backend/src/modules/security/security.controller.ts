@@ -19,6 +19,8 @@ import {
   StoreCredentialDto,
   CreateWorkspaceDto,
   CredentialProvider,
+  SecretScanResult,
+  VulnerabilityResult,
 } from './dto/security.dto';
 
 @Controller('api/security')
@@ -40,7 +42,7 @@ export class SecurityController {
   @Post('scan/secrets')
   @HttpCode(HttpStatus.OK)
   async scanSecrets(@Body() body: { files: { path: string; content: string }[] }) {
-    const results = [];
+    const results: SecretScanResult[] = [];
     for (const file of body.files) {
       const secrets = this.scannerService.scanForSecrets(file.path, file.content);
       results.push(...secrets);
@@ -51,7 +53,7 @@ export class SecurityController {
   @Post('scan/vulnerabilities')
   @HttpCode(HttpStatus.OK)
   async scanVulnerabilities(@Body() body: { files: { path: string; content: string }[] }) {
-    const results = [];
+    const results: VulnerabilityResult[] = [];
     for (const file of body.files) {
       const vulns = this.scannerService.scanForVulnerabilities(file.path, file.content);
       results.push(...vulns);

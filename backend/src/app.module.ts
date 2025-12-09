@@ -19,6 +19,7 @@ import { SetupModule } from './modules/setup/setup.module';
 import { ErrorHandlingModule } from './modules/error-handling/error-handling.module';
 import { SecurityModule } from './modules/security/security.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { TeamsModule } from './modules/teams/teams.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { BillingModule } from './modules/billing/billing.module';
     ErrorHandlingModule,
     SecurityModule,
     BillingModule,
+    TeamsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
