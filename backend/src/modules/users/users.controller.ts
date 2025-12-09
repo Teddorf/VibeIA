@@ -22,6 +22,51 @@ import {
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // ==================== Profile Endpoints ====================
+
+  /**
+   * Get current user's full profile
+   */
+  @Get('me/profile')
+  async getMyProfile(@Request() req: any) {
+    const user = await this.usersService.findById(req.user.userId);
+    if (!user) {
+      return null;
+    }
+
+    const hasLLMConfigured = await this.usersService.hasLLMConfigured(req.user.userId);
+
+    return {
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      isActive: user.isActive,
+      lastLoginAt: user.lastLoginAt,
+      createdAt: (user as any).createdAt,
+      updatedAt: (user as any).updatedAt,
+      hasLLMConfigured,
+    };
+  }
+
+  /**
+   * Update current user's profile
+   */
+  @Patch('me/profile')
+  async updateMyProfile(
+    @Request() req: any,
+    @Body() dto: { name?: string },
+  ) {
+    const user = await this.usersService.update(req.user.userId, dto);
+    return {
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      isActive: user.isActive,
+    };
+  }
+
   // ==================== LLM Settings Endpoints ====================
 
   /**

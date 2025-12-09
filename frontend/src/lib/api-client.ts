@@ -165,6 +165,18 @@ export const authApi = {
   },
 };
 
+export const profileApi = {
+  getProfile: async () => {
+    const response = await apiClient.get('/api/users/me/profile');
+    return response.data;
+  },
+
+  updateProfile: async (data: { name?: string }) => {
+    const response = await apiClient.patch('/api/users/me/profile', data);
+    return response.data;
+  },
+};
+
 export const recommendationsApi = {
   // Database recommendations
   getDatabaseRecommendation: async (requirements: {
