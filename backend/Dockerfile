@@ -1,12 +1,24 @@
-﻿FROM node:20-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
+# Copiar package.json primero para aprovechar cache de Docker
 COPY package*.json ./
-RUN npm install
 
+# Instalar dependencias
+RUN npm ci --only=production
+
+# Copiar código fuente
 COPY . .
 
-EXPOSE 3000
+# Build de producción
+RUN npm run build
 
-CMD ["npm", "run", "start:dev"]
+# Exponer puerto
+EXPOSE 3001
+
+# Limitar memoria para free tier de Render (512MB)
+ENV NODE_OPTIONS="--max-old-space-size=450"
+
+# Ejecutar en modo producción
+CMD ["node", "dist/main.js"]
