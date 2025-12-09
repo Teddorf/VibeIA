@@ -32,17 +32,25 @@ import { ManualTasksService } from '../manual-tasks/manual-tasks.service';
 
 describe('ExecutionService', () => {
   let service: ExecutionService;
-  let plansService: jest.Mocked<PlansService>;
-  let projectsService: jest.Mocked<ProjectsService>;
-  let gitService: jest.Mocked<GitService>;
-  let llmService: jest.Mocked<LlmService>;
-  let qualityGatesService: jest.Mocked<QualityGatesService>;
-  let manualTasksService: jest.Mocked<ManualTasksService>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let plansService: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let projectsService: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let gitService: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let llmService: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let qualityGatesService: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let manualTasksService: any;
 
   const mockPlan = {
     _id: 'plan-123',
     projectId: 'project-456',
+    userId: 'user-123',
     status: 'pending',
+    estimatedTime: 50,
     phases: [
       {
         name: 'Phase 1: Setup',
@@ -64,13 +72,13 @@ describe('ExecutionService', () => {
       stage1: { projectName: 'Test Project', description: 'Test' },
       stage3: { selectedArchetypes: ['auth-jwt'], technologies: ['node', 'mongodb'] },
     },
-  };
+  } as any;
 
   const mockProject = {
     _id: 'project-456',
     name: 'Test Project',
     ownerId: 'user-123',
-  };
+  } as any;
 
   const mockGeneratedCode = {
     files: [

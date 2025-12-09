@@ -1,13 +1,12 @@
-﻿import { Test, TestingModule } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from './../src/app.module';
-import { MongooseModule } from '@nestjs/mongoose';
 
-describe('Plans API (e2e)', () =\u003e {
+describe('Plans API (e2e)', () => {
   let app: INestApplication;
 
-  beforeAll(async () =\u003e {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -16,12 +15,12 @@ describe('Plans API (e2e)', () =\u003e {
     await app.init();
   });
 
-  afterAll(async () =\u003e {
+  afterAll(async () => {
     await app.close();
   });
 
-  describe('/api/plans/generate (POST)', () =\u003e {
-    it('should generate a new plan', () =\u003e {
+  describe('/api/plans/generate (POST)', () => {
+    it('should generate a new plan', () => {
       const createPlanDto = {
         projectId: 'test-proj',
         userId: 'test-user',
@@ -47,7 +46,7 @@ describe('Plans API (e2e)', () =\u003e {
         .post('/api/plans/generate')
         .send(createPlanDto)
         .expect(201)
-        .expect((res) =\u003e {
+        .expect((res) => {
           expect(res.body).toHaveProperty('_id');
           expect(res.body).toHaveProperty('phases');
           expect(res.body).toHaveProperty('estimatedTime');
@@ -55,7 +54,7 @@ describe('Plans API (e2e)', () =\u003e {
         });
     });
 
-    it('should return 400 for invalid data', () =\u003e {
+    it('should return 400 for invalid data', () => {
       return request(app.getHttpServer())
         .post('/api/plans/generate')
         .send({})
@@ -63,8 +62,8 @@ describe('Plans API (e2e)', () =\u003e {
     });
   });
 
-  describe('/api/plans/:id (GET)', () =\u003e {
-    it('should retrieve a plan by ID', async () =\u003e {
+  describe('/api/plans/:id (GET)', () => {
+    it('should retrieve a plan by ID', async () => {
       // First create a plan
       const createResponse = await request(app.getHttpServer())
         .post('/api/plans/generate')
@@ -82,16 +81,16 @@ describe('Plans API (e2e)', () =\u003e {
 
       // Then retrieve it
       return request(app.getHttpServer())
-        .get(\/api/plans/\\)
+        .get(`/api/plans/${planId}`)
         .expect(200)
-        .expect((res) =\u003e {
+        .expect((res) => {
           expect(res.body._id).toBe(planId);
         });
     });
   });
 
-  describe('/api/plans/:id (PATCH)', () =\u003e {
-    it('should update plan status', async () =\u003e {
+  describe('/api/plans/:id (PATCH)', () => {
+    it('should update plan status', async () => {
       // Create a plan first
       const createResponse = await request(app.getHttpServer())
         .post('/api/plans/generate')
@@ -109,10 +108,10 @@ describe('Plans API (e2e)', () =\u003e {
 
       // Update status
       return request(app.getHttpServer())
-        .patch(\/api/plans/\\)
+        .patch(`/api/plans/${planId}`)
         .send({ status: 'in_progress' })
         .expect(200)
-        .expect((res) =\u003e {
+        .expect((res) => {
           expect(res.body.status).toBe('in_progress');
         });
     });

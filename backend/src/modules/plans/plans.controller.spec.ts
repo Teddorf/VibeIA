@@ -86,7 +86,7 @@ describe('PlansController', () => {
       const result = await controller.updateStatus('plan123', 'completed');
 
       expect(service.updateStatus).toHaveBeenCalledWith('plan123', 'completed');
-      expect(result.status).toBe('completed');
+      expect(result!.status).toBe('completed');
     });
   });
 });
