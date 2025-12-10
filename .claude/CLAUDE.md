@@ -176,6 +176,42 @@ VibeIA/
 
 ## Modelos de Datos (MongoDB Atlas)
 
+### Colecciones de MongoDB
+
+El sistema utiliza las siguientes colecciones en MongoDB Atlas. Las colecciones se crean automáticamente cuando Mongoose inserta el primer documento.
+
+#### Core Collections
+
+| Colección | Schema | Descripción |
+|-----------|--------|-------------|
+| `users` | `backend/src/schemas/user.schema.ts` | Usuarios del sistema |
+| `projects` | `backend/src/schemas/project.schema.ts` | Proyectos de usuarios |
+| `plans` | `backend/src/schemas/plan.schema.ts` | Planes de ejecución generados |
+
+#### Teams Module Collections
+
+| Colección | Schema | Descripción |
+|-----------|--------|-------------|
+| `teams` | `backend/src/modules/teams/schemas/team.schema.ts` | Equipos de trabajo |
+| `teammembers` | `backend/src/modules/teams/schemas/team-member.schema.ts` | Miembros de equipos |
+| `teaminvitations` | `backend/src/modules/teams/schemas/team-invitation.schema.ts` | Invitaciones pendientes |
+| `gitconnections` | `backend/src/modules/teams/schemas/git-connection.schema.ts` | Conexiones a Git providers |
+| `teamactivities` | `backend/src/modules/teams/schemas/team-activity.schema.ts` | Log de actividad |
+
+#### Setup Module Collections
+
+| Colección | Schema | Descripción |
+|-----------|--------|-------------|
+| `setupstates` | `backend/src/modules/setup/schemas/setup-state.schema.ts` | Estado de setups de infraestructura |
+| `rollbackactions` | `backend/src/modules/setup/schemas/rollback-action.schema.ts` | Acciones de rollback para deshacer setups |
+
+#### Security Module Collections
+
+| Colección | Schema | Descripción |
+|-----------|--------|-------------|
+| `credentials` | `backend/src/modules/security/schemas/credential.schema.ts` | Credenciales encriptadas (API keys, tokens) |
+| `workspaces` | `backend/src/modules/security/schemas/workspace.schema.ts` | Workspaces aislados para ejecución |
+
 ### User
 ```typescript
 {
@@ -227,6 +263,50 @@ VibeIA/
   }]
   estimatedTime: number
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'paused'
+}
+```
+
+### Team
+```typescript
+{
+  name: string
+  slug: string (unique)
+  description?: string
+  ownerId: string
+  settings: { allowMemberInvites, defaultRole, ... }
+  isPersonal: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+### Credential
+```typescript
+{
+  userId: string
+  provider: 'github' | 'neon' | 'vercel' | 'railway' | ...
+  name: string
+  encryptedToken: string (AES-256-GCM)
+  status: 'active' | 'expired' | 'revoked'
+  scopes: string[]
+  lastUsedAt?: Date
+  rotationDays: number
+}
+```
+
+### SetupState
+```typescript
+{
+  setupId: string (unique)
+  userId?: string
+  projectId?: string
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'rolled_back'
+  progress: number (0-100)
+  tasks: SetupTask[]
+  urls: { frontend?, backend?, database?, dashboards: {...} }
+  credentials: { databaseUrl?, redisUrl?, ... }
+  startedAt?: Date
+  completedAt?: Date
 }
 ```
 

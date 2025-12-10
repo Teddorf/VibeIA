@@ -200,6 +200,43 @@ GITHUB_TOKEN=ghp_...
 NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 ```
 
+## MongoDB Collections
+
+All data is persisted in MongoDB Atlas with the following 12 collections:
+
+### Core Collections
+
+| Collection | Schema | Description |
+|------------|--------|-------------|
+| `users` | [user.schema.ts](backend/src/modules/users/schemas/user.schema.ts) | User accounts with auth credentials |
+| `projects` | [project.schema.ts](backend/src/modules/projects/schemas/project.schema.ts) | Project definitions and metadata |
+| `plans` | [plan.schema.ts](backend/src/modules/plans/schemas/plan.schema.ts) | Generated execution plans with phases/tasks |
+| `executionstates` | [execution-state.schema.ts](backend/src/modules/execution/schemas/execution-state.schema.ts) | Execution progress and state tracking |
+
+### Teams Collections
+
+| Collection | Schema | Description |
+|------------|--------|-------------|
+| `teams` | [team.schema.ts](backend/src/modules/teams/schemas/team.schema.ts) | Team entities with settings |
+| `teammembers` | [team-member.schema.ts](backend/src/modules/teams/schemas/team-member.schema.ts) | Team membership records |
+| `teaminvitations` | [team-invitation.schema.ts](backend/src/modules/teams/schemas/team-invitation.schema.ts) | Pending team invitations |
+| `gitconnections` | [git-connection.schema.ts](backend/src/modules/teams/schemas/git-connection.schema.ts) | OAuth connections (GitHub, GitLab, Bitbucket) |
+| `teamactivities` | [team-activity.schema.ts](backend/src/modules/teams/schemas/team-activity.schema.ts) | Team activity audit log |
+
+### Setup Collections
+
+| Collection | Schema | Description |
+|------------|--------|-------------|
+| `setupstates` | [setup-state.schema.ts](backend/src/modules/setup/schemas/setup-state.schema.ts) | Automated setup progress (Neon, Vercel, Railway) |
+| `rollbackactions` | [rollback-action.schema.ts](backend/src/modules/setup/schemas/rollback-action.schema.ts) | Rollback actions for failed setups |
+
+### Security Collections
+
+| Collection | Schema | Description |
+|------------|--------|-------------|
+| `credentials` | [credential.schema.ts](backend/src/modules/security/schemas/credential.schema.ts) | Encrypted API tokens (AES-256-GCM) |
+| `workspaces` | [workspace.schema.ts](backend/src/modules/security/schemas/workspace.schema.ts) | Isolated workspace environments |
+
 ## Testing
 
 ```bash

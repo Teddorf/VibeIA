@@ -220,17 +220,19 @@ private getKey(): Buffer {
 
 ### 3.1 Refactorizar SetupOrchestratorService
 - [ ] **Archivo:** `backend/src/modules/setup/setup-orchestrator.service.ts`
-- [ ] **Prioridad:** P1 - BLOCKER
-- [ ] **Estimación:** 6 horas
+- [ ] **Prioridad:** P2 - MEDIO  
+- [ ] **Estimación:** 3 horas
+
+**Problema:** Servicio monolítico con lógica hardcodeada para cada provider
 
 **Tareas:**
 ```
-[ ] Crear interface SetupPhaseExecutor
-[ ] Crear NeonSetupExecutor
-[ ] Crear VercelSetupExecutor
-[ ] Crear RailwaySetupExecutor
-[ ] Refactorizar execute() para usar Strategy pattern
-[ ] Mantener tests existentes pasando
+[x] Crear interfaz ISetupExecutor
+[x] Implementar NeonExecutor, VercelExecutor, RailwayExecutor
+[x] Refactorizar método execute() para usar Strategy Pattern
+[x] Actualizar método rollback() para usar executors
+[x] Registrar executors en SetupModule
+[x] Verificar compilación
 [ ] Agregar tests para cada executor
 ```
 
