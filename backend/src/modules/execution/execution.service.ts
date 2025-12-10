@@ -50,8 +50,8 @@ export class ExecutionService {
     return { apiKeys, preferences };
   }
 
-  async executePlan(planId: string) {
-    const plan = await this.plansService.findOne(planId);
+  async executePlan(planId: string, userId: string) {
+    const plan = await this.plansService.findOne(planId, userId);
     if (!plan) throw new Error('Plan not found');
 
     const project = await this.projectsService.findOne(plan.projectId, plan.userId);
@@ -71,7 +71,7 @@ export class ExecutionService {
       currentTaskIndex: 0,
     });
 
-    await this.plansService.updateStatus(planId, 'in_progress');
+    await this.plansService.updateStatus(planId, 'in_progress', userId);
     this.emitStatusUpdate(planId, 'running', 0);
 
     const totalTasks = plan.phases.reduce((sum, phase) => sum + phase.tasks.length, 0);
@@ -106,7 +106,7 @@ export class ExecutionService {
         this.updateExecutionState(planId, { currentTaskIndex: j });
 
         if (task.status === 'pending' || task.status === 'paused') {
-          const result = await this.executeTask(planId, i, task, project, plan.wizardData, userLLMConfig);
+          const result = await this.executeTask(planId, i, task, project, plan.wizardData, userLLMConfig, userId);
           if (!result.shouldContinue) {
             return; // Execution paused for manual task or error
           }
@@ -125,7 +125,7 @@ export class ExecutionService {
       this.eventsGateway?.emitPhaseCompleted(planId, i, phase.name);
     }
 
-    await this.plansService.updateStatus(planId, 'completed');
+    await this.plansService.updateStatus(planId, 'completed', userId);
     this.updateExecutionState(planId, { status: 'completed' });
 
     // Emit execution completed
@@ -145,7 +145,8 @@ export class ExecutionService {
     task: any,
     project: any,
     wizardData: any,
-    userLLMConfig: UserLLMConfig
+    userLLMConfig: UserLLMConfig,
+    userId: string,
   ): Promise<{ shouldContinue: boolean; completed?: boolean; failed?: boolean }> {
     console.log(`  > Executing Task: ${task.name}`);
 
@@ -160,7 +161,7 @@ export class ExecutionService {
       console.log(`  > Manual task detected: ${manualTask.title}`);
       this.emitLog(planId, `Manual task required: ${manualTask.title}`, 'warn');
 
-      await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'paused');
+      await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'paused', userId);
       this.updateExecutionState(planId, {
         status: 'paused',
         pauseReason: `Manual task required: ${manualTask.title}`,
@@ -171,7 +172,7 @@ export class ExecutionService {
     }
 
     // Update status to in_progress
-    await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'in_progress');
+    await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'in_progress', userId);
     this.eventsGateway?.emitTaskStarted(planId, phaseIndex, task.id, task.name);
     this.emitLog(planId, `Starting task: ${task.name}`);
 
@@ -188,7 +189,7 @@ export class ExecutionService {
       if (!generated.files || generated.files.length === 0) {
         console.warn(`    No files generated for task: ${task.name}`);
         this.emitLog(planId, `No files generated for task: ${task.name}`, 'warn');
-        await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'completed');
+        await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'completed', userId);
         this.eventsGateway?.emitTaskCompleted(planId, phaseIndex, task.id, task.name, 0);
         return { shouldContinue: true, completed: true };
       }
@@ -210,7 +211,7 @@ export class ExecutionService {
         const errorMsg = `Quality gate failed: ${qualityResult.blockers.map(b => b.message).join(', ')}`;
         this.emitLog(planId, errorMsg, 'error');
 
-        await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'failed');
+        await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'failed', userId);
         this.eventsGateway?.emitTaskFailed(planId, phaseIndex, task.id, task.name, errorMsg);
         return { shouldContinue: true, failed: true };
       }
@@ -233,7 +234,7 @@ export class ExecutionService {
       }
 
       // Update status to completed
-      await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'completed');
+      await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'completed', userId);
       this.eventsGateway?.emitTaskCompleted(planId, phaseIndex, task.id, task.name, generated.files.length);
 
       console.log(`    Task completed: ${task.name}`);
@@ -248,13 +249,13 @@ export class ExecutionService {
       this.emitLog(planId, `Task failed: ${task.name} - ${errorMsg}`, 'error');
       this.eventsGateway?.emitTaskFailed(planId, phaseIndex, task.id, task.name, errorMsg);
 
-      await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'failed');
+      await this.plansService.updateTaskStatus(planId, phaseIndex, task.id, 'failed', userId);
       return { shouldContinue: true, failed: true };
     }
   }
 
-  async getExecutionStatus(planId: string) {
-    const plan = await this.plansService.findOne(planId);
+  async getExecutionStatus(planId: string, userId: string) {
+    const plan = await this.plansService.findOne(planId, userId);
     if (!plan) throw new Error('Plan not found');
 
     const state = this.executionStates.get(planId);
@@ -270,19 +271,22 @@ export class ExecutionService {
     };
   }
 
-  async pauseExecution(planId: string) {
+  async pauseExecution(planId: string, userId: string) {
+    // Validate access first
+    await this.plansService.findOne(planId, userId);
+
     const state = this.executionStates.get(planId);
     if (state) {
       state.status = 'paused';
       state.pauseReason = 'User requested pause';
     }
-    await this.plansService.updateStatus(planId, 'paused');
+    await this.plansService.updateStatus(planId, 'paused', userId);
     this.emitStatusUpdate(planId, 'paused', 0);
     this.emitLog(planId, 'Execution paused by user');
     return { message: 'Execution paused', planId };
   }
 
-  async resumeExecution(planId: string) {
+  async resumeExecution(planId: string, userId: string) {
     const state = this.executionStates.get(planId);
     if (!state) throw new Error('No execution state found');
 
@@ -290,7 +294,7 @@ export class ExecutionService {
     state.pauseReason = undefined;
     state.manualTaskPending = false;
 
-    const plan = await this.plansService.findOne(planId);
+    const plan = await this.plansService.findOne(planId, userId);
     if (!plan) throw new Error('Plan not found');
 
     const project = await this.projectsService.findOne(plan.projectId, plan.userId);
@@ -299,7 +303,7 @@ export class ExecutionService {
     // Get user's LLM configuration
     const userLLMConfig = await this.getUserLLMConfig(plan.userId);
 
-    await this.plansService.updateStatus(planId, 'in_progress');
+    await this.plansService.updateStatus(planId, 'in_progress', userId);
     this.emitStatusUpdate(planId, 'running', 0);
     this.emitLog(planId, 'Execution resumed');
 
@@ -318,7 +322,7 @@ export class ExecutionService {
         this.updateExecutionState(planId, { currentPhaseIndex: i, currentTaskIndex: j });
 
         if (task.status === 'pending' || task.status === 'paused') {
-          const result = await this.executeTask(planId, i, task, project, plan.wizardData, userLLMConfig);
+          const result = await this.executeTask(planId, i, task, project, plan.wizardData, userLLMConfig, userId);
           if (!result.shouldContinue) {
             return;
           }
@@ -326,7 +330,7 @@ export class ExecutionService {
       }
     }
 
-    await this.plansService.updateStatus(planId, 'completed');
+    await this.plansService.updateStatus(planId, 'completed', userId);
     this.updateExecutionState(planId, { status: 'completed' });
     this.emitLog(planId, 'Execution completed');
   }

@@ -6,6 +6,10 @@ import { VercelSetupService } from './vercel-setup.service';
 import { RailwaySetupService } from './railway-setup.service';
 import { SetupState, SetupStateDocument, SetupStatus, TaskStatus } from './schemas/setup-state.schema';
 import { RollbackAction, RollbackActionDocument, RollbackStatus } from './schemas/rollback-action.schema';
+import { ISetupExecutor } from './executors/ISetupExecutor';
+import { NeonExecutor } from './executors/NeonExecutor';
+import { VercelExecutor } from './executors/VercelExecutor';
+import { RailwayExecutor } from './executors/RailwayExecutor';
 import {
   SetupOrchestratorConfig,
   SetupResult,
@@ -29,7 +33,14 @@ export class SetupOrchestratorService {
     private readonly neonSetupService: NeonSetupService,
     private readonly vercelSetupService: VercelSetupService,
     private readonly railwaySetupService: RailwaySetupService,
-  ) {}
+    private readonly neonExecutor: NeonExecutor,
+    private readonly vercelExecutor: VercelExecutor,
+    private readonly railwayExecutor: RailwayExecutor,
+  ) {
+    this.executors = [this.neonExecutor, this.vercelExecutor, this.railwayExecutor];
+  }
+
+  private readonly executors: ISetupExecutor[];
 
   private generateSetupId(): string {
     return `setup-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -192,208 +203,82 @@ export class SetupOrchestratorService {
     this.logger.log(`Starting setup: ${setupId}`);
 
     try {
-      // Execute Neon setup
-      const neonTaskIndex = tasks.findIndex((t) => t.provider === SetupProvider.NEON);
-      if (neonTaskIndex !== -1 && config.providers.neon) {
-        const neonTask = tasks[neonTaskIndex];
-        neonTask.status = SetupTaskStatus.IN_PROGRESS;
-        neonTask.startedAt = new Date();
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        const executor = this.executors.find((e) => e.canExecute(task.provider));
+
+        if (!executor) {
+          this.logger.warn(`No executor found for provider ${task.provider}`);
+          continue;
+        }
+
+        // Update status IN_PROGRESS
+        task.status = SetupTaskStatus.IN_PROGRESS;
+        task.startedAt = new Date();
 
         await this.setupStateModel.findOneAndUpdate(
           { setupId },
           {
-            currentTaskIndex: neonTaskIndex,
+            currentTaskIndex: i,
             tasks,
             progress: this.calculateProgress(tasks),
           },
         ).exec();
 
-        try {
-          const neonResult = await this.neonSetupService.execute(
-            config.providers.neon,
-            tokens?.neon,
-          );
-
-          neonTask.steps = neonResult.steps;
-          neonTask.result = neonResult as NeonSetupResult;
-          neonTask.status = SetupTaskStatus.COMPLETED;
-          neonTask.completedAt = new Date();
-
-          await this.setupStateModel.findOneAndUpdate(
-            { setupId },
-            {
-              tasks,
-              'urls.database': neonResult.dashboardUrl,
-              'urls.dashboards.neon': neonResult.dashboardUrl,
-              'credentials.databaseUrl': neonResult.connectionStrings.main,
-              progress: this.calculateProgress(tasks),
-            },
-          ).exec();
-
-          await this.addRollbackAction(
-            setupId,
-            SetupProvider.NEON,
-            'delete-project',
-            neonResult.projectId,
-            neonTask.id,
-            rollbackOrder++,
-          );
-        } catch (error) {
-          neonTask.status = SetupTaskStatus.FAILED;
-          neonTask.error = error instanceof Error ? error.message : 'Unknown error';
-          await this.setupStateModel.findOneAndUpdate({ setupId }, { tasks }).exec();
-          throw error;
-        }
-      }
-
-      // Reload state to get updated credentials
-      let currentState = await this.setupStateModel.findOne({ setupId }).exec();
-
-      // Execute Vercel setup
-      const vercelTaskIndex = tasks.findIndex((t) => t.provider === SetupProvider.VERCEL);
-      if (vercelTaskIndex !== -1 && config.providers.vercel) {
-        const vercelTask = tasks[vercelTaskIndex];
-        vercelTask.status = SetupTaskStatus.IN_PROGRESS;
-        vercelTask.startedAt = new Date();
-
-        await this.setupStateModel.findOneAndUpdate(
-          { setupId },
-          {
-            currentTaskIndex: vercelTaskIndex,
-            tasks,
-            progress: this.calculateProgress(tasks),
-          },
-        ).exec();
-
-        // Prepare env vars for Vercel
-        const envVars: VercelEnvironmentVariable[] = [];
-        if (currentState?.credentials?.databaseUrl) {
-          envVars.push({
-            key: 'DATABASE_URL',
-            value: currentState.credentials.databaseUrl,
-            target: ['production', 'preview'],
-          });
-        }
-        if (config.envVars) {
-          for (const [key, value] of Object.entries(config.envVars)) {
-            envVars.push({
-              key,
-              value,
-              target: ['production', 'preview', 'development'],
-            });
-          }
-        }
+        // Reload state to get updated credentials for the executor
+        const currentState = await this.setupStateModel.findOne({ setupId }).exec();
+        if (!currentState) throw new Error('Setup state not found');
 
         try {
-          const vercelResult = await this.vercelSetupService.execute(
-            config.providers.vercel,
-            envVars,
-            undefined, // gitSource
-            tokens?.vercel,
-          );
+          // Determine token
+          let token: string | undefined;
+          if (task.provider === SetupProvider.NEON) token = tokens?.neon;
+          else if (task.provider === SetupProvider.VERCEL) token = tokens?.vercel;
+          else if (task.provider === SetupProvider.RAILWAY) token = tokens?.railway;
 
-          vercelTask.steps = vercelResult.steps;
-          vercelTask.result = vercelResult as VercelSetupResult;
-          vercelTask.status = SetupTaskStatus.COMPLETED;
-          vercelTask.completedAt = new Date();
+          const result = await executor.execute(config, currentState, task, token);
 
-          await this.setupStateModel.findOneAndUpdate(
-            { setupId },
-            {
-              tasks,
-              'urls.frontend': vercelResult.url,
-              'urls.dashboards.vercel': vercelResult.dashboardUrl,
-              progress: this.calculateProgress(tasks),
-            },
-          ).exec();
+          // Update task with result
+          task.steps = result.steps;
+          task.result = result;
+          task.status = SetupTaskStatus.COMPLETED;
+          task.completedAt = new Date();
 
-          await this.addRollbackAction(
-            setupId,
-            SetupProvider.VERCEL,
-            'delete-project',
-            vercelResult.projectId,
-            vercelTask.id,
-            rollbackOrder++,
-          );
-        } catch (error) {
-          vercelTask.status = SetupTaskStatus.FAILED;
-          vercelTask.error = error instanceof Error ? error.message : 'Unknown error';
-          await this.setupStateModel.findOneAndUpdate({ setupId }, { tasks }).exec();
-          throw error;
-        }
-      }
-
-      // Reload state again
-      currentState = await this.setupStateModel.findOne({ setupId }).exec();
-
-      // Execute Railway setup
-      const railwayTaskIndex = tasks.findIndex((t) => t.provider === SetupProvider.RAILWAY);
-      if (railwayTaskIndex !== -1 && config.providers.railway) {
-        const railwayTask = tasks[railwayTaskIndex];
-        railwayTask.status = SetupTaskStatus.IN_PROGRESS;
-        railwayTask.startedAt = new Date();
-
-        await this.setupStateModel.findOneAndUpdate(
-          { setupId },
-          {
-            currentTaskIndex: railwayTaskIndex,
-            tasks,
-            progress: this.calculateProgress(tasks),
-          },
-        ).exec();
-
-        // Prepare env vars for Railway
-        const envVars: Record<string, string> = {};
-        if (currentState?.credentials?.databaseUrl) {
-          envVars['DATABASE_URL'] = currentState.credentials.databaseUrl;
-        }
-        if (currentState?.urls?.frontend) {
-          envVars['FRONTEND_URL'] = currentState.urls.frontend;
-        }
-        if (config.envVars) {
-          Object.assign(envVars, config.envVars);
-        }
-
-        try {
-          const railwayResult = await this.railwaySetupService.execute(
-            config.providers.railway,
-            undefined, // serviceConfig
-            false, // needsRedis
-            envVars,
-            tokens?.railway,
-          );
-
-          railwayTask.steps = railwayResult.steps;
-          railwayTask.result = railwayResult as RailwaySetupResult;
-          railwayTask.status = SetupTaskStatus.COMPLETED;
-          railwayTask.completedAt = new Date();
-
+          // Update global state based on result
           const updates: Record<string, any> = {
             tasks,
-            'urls.dashboards.railway': railwayResult.dashboardUrl,
             progress: this.calculateProgress(tasks),
           };
 
-          if (railwayResult.services.api) {
-            updates['urls.backend'] = railwayResult.services.api.url;
-          }
-          if (railwayResult.services.redis) {
-            updates['credentials.redisUrl'] = railwayResult.services.redis.connectionString;
+          if (task.provider === SetupProvider.NEON) {
+            const res = result as NeonSetupResult;
+            updates['urls.database'] = res.dashboardUrl;
+            updates['urls.dashboards.neon'] = res.dashboardUrl;
+            updates['credentials.databaseUrl'] = res.connectionStrings.main;
+          } else if (task.provider === SetupProvider.VERCEL) {
+            const res = result as VercelSetupResult;
+            updates['urls.frontend'] = res.url;
+            updates['urls.dashboards.vercel'] = res.dashboardUrl;
+          } else if (task.provider === SetupProvider.RAILWAY) {
+            const res = result as RailwaySetupResult;
+            updates['urls.dashboards.railway'] = res.dashboardUrl;
+            if (res.services.api) updates['urls.backend'] = res.services.api.url;
+            if (res.services.redis) updates['credentials.redisUrl'] = res.services.redis.connectionString;
           }
 
           await this.setupStateModel.findOneAndUpdate({ setupId }, updates).exec();
 
           await this.addRollbackAction(
             setupId,
-            SetupProvider.RAILWAY,
+            task.provider,
             'delete-project',
-            railwayResult.projectId,
-            railwayTask.id,
+            result.projectId,
+            task.id,
             rollbackOrder++,
           );
         } catch (error) {
-          railwayTask.status = SetupTaskStatus.FAILED;
-          railwayTask.error = error instanceof Error ? error.message : 'Unknown error';
+          task.status = SetupTaskStatus.FAILED;
+          task.error = error instanceof Error ? error.message : 'Unknown error';
           await this.setupStateModel.findOneAndUpdate({ setupId }, { tasks }).exec();
           throw error;
         }
@@ -495,16 +380,17 @@ export class SetupOrchestratorService {
 
     for (const action of rollbackActions) {
       try {
-        switch (action.provider) {
-          case SetupProvider.NEON:
-            await this.neonSetupService.rollback(action.resourceId, tokens?.neon);
-            break;
-          case SetupProvider.VERCEL:
-            await this.vercelSetupService.rollback(action.resourceId, tokens?.vercel);
-            break;
-          case SetupProvider.RAILWAY:
-            await this.railwaySetupService.rollback(action.resourceId, tokens?.railway);
-            break;
+        const executor = this.executors.find((e) => e.canExecute(action.provider as SetupProvider));
+
+        if (executor) {
+          let token: string | undefined;
+          if (action.provider === SetupProvider.NEON) token = tokens?.neon;
+          else if (action.provider === SetupProvider.VERCEL) token = tokens?.vercel;
+          else if (action.provider === SetupProvider.RAILWAY) token = tokens?.railway;
+
+          await executor.rollback(action.resourceId, token);
+        } else {
+          this.logger.warn(`No executor found for rollback of ${action.provider}`);
         }
 
         await this.rollbackActionModel.findByIdAndUpdate(action._id, {

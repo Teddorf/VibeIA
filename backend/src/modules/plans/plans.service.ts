@@ -124,7 +124,7 @@ export class PlansService {
   async findOne(id: string, userId?: string): Promise<Plan | null> {
     const plan = await this.planModel.findById(id).exec();
     if (plan && userId && plan.userId !== userId) {
-      throw new BadRequestException('You do not have access to this plan'); // Or ForbiddenException if imported
+      throw new BadRequestException('You do not have access to this plan');
     }
     return plan;
   }
