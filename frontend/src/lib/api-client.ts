@@ -27,7 +27,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    logger.error('API Error', error.response?.data || error.message);
+    logger.error('API Error', error);
     return Promise.reject(error);
   }
 );
@@ -197,6 +197,21 @@ export const authApi = {
 
   getProfile: async () => {
     const response = await apiClient.get('/api/auth/me');
+    return response.data;
+  },
+
+  forgotPassword: async (email: string) => {
+    const response = await apiClient.post('/api/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  resetPassword: async (token: string, password: string) => {
+    const response = await apiClient.post('/api/auth/reset-password', { token, password });
+    return response.data;
+  },
+
+  verifyResetToken: async (token: string) => {
+    const response = await apiClient.get(`/api/auth/verify-reset-token/${token}`);
     return response.data;
   },
 };
