@@ -207,5 +207,55 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('authenticated').textContent).toBe('true');
       expect(screen.getByTestId('user').textContent).toBe('stored@test.com');
     });
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('true');
+      expect(screen.getByTestId('user').textContent).toBe('stored@test.com');
+    });
+  });
+
+  it('clears auth state when localStorage data is invalid (validation failure)', async () => {
+    // Set valid token but invalid user data (missing email)
+    localStorageMock.setItem('auth_token', 'valid-token');
+    localStorageMock.setItem('refresh_token', 'valid-refresh');
+    localStorageMock.setItem('auth_user', JSON.stringify({ id: '1', name: 'Incomplete User' })); // missing email and role
+
+    render(
+      <AuthProvider>
+        <TestComponent />
+      </AuthProvider>
+    );
+
+    // Should default to unauthenticated state because validation failed
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('false');
+    });
+
+    expect(screen.getByTestId('authenticated').textContent).toBe('false');
+    expect(screen.getByTestId('user').textContent).toBe('null');
+  });
+
+  it('clears auth state when localStorage data is malformed (JSON parse failure)', async () => {
+    // Set valid token but MALFORMED JSON
+    localStorageMock.setItem('auth_token', 'valid-token');
+    localStorageMock.setItem('refresh_token', 'valid-refresh');
+    localStorageMock.setItem('auth_user', '{ "id": 1, "name": "Broken JSON"'); // Missing closing brace
+
+    // Mock console.error to prevent pollution during test
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+    render(
+      <AuthProvider>
+        <TestComponent />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('false');
+    });
+
+    expect(screen.getByTestId('authenticated').textContent).toBe('false');
+    expect(screen.getByTestId('user').textContent).toBe('null');
+
+    consoleSpy.mockRestore();
   });
 });

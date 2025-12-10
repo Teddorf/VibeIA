@@ -3,12 +3,21 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import apiClient from '@/lib/api-client';
 
+import { z } from 'zod';
+
 interface User {
   id: string;
   email: string;
   name: string;
   role: string;
 }
+
+const UserSchema = z.object({
+  id: z.string(),
+  email: z.string().email(),
+  name: z.string(),
+  role: z.string(),
+});
 
 interface AuthState {
   user: User | null;
@@ -49,33 +58,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userStr = localStorage.getItem(USER_KEY);
 
         if (accessToken && userStr) {
-          const user = JSON.parse(userStr);
-          setState({
-            user,
-            accessToken,
-            refreshToken,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-
-          // Verify token is still valid
           try {
-            const response = await apiClient.get('/api/auth/me');
-            setState(prev => ({
-              ...prev,
-              user: response.data,
+            const rawUser = JSON.parse(userStr);
+            const validation = UserSchema.safeParse(rawUser);
+
+            if (!validation.success) {
+              console.error('Invalid user data in localStorage', validation.error);
+              clearAuthState();
+              return;
+            }
+
+            const user = validation.data;
+            setState({
+              user,
+              accessToken,
+              refreshToken,
+              isAuthenticated: true,
               isLoading: false,
-            }));
-          } catch {
-            // Token expired, try to refresh
-            if (refreshToken) {
-              const refreshed = await refreshAuth();
-              if (!refreshed) {
+            });
+
+            // Verify token is still valid
+            try {
+              const response = await apiClient.get('/api/auth/me');
+              setState(prev => ({
+                ...prev,
+                user: response.data,
+                isLoading: false,
+              }));
+            } catch {
+              // Token expired, try to refresh
+              if (refreshToken) {
+                const refreshed = await refreshAuth();
+                if (!refreshed) {
+                  clearAuthState();
+                }
+              } else {
                 clearAuthState();
               }
-            } else {
-              clearAuthState();
             }
+          } catch (error) {
+            console.error('Error parsing user data', error);
+            clearAuthState();
           }
         } else {
           setState(prev => ({ ...prev, isLoading: false }));
@@ -144,7 +167,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      const user = JSON.parse(userStr);
+      const rawUser = JSON.parse(userStr);
+      const validation = UserSchema.safeParse(rawUser);
+
+      if (!validation.success) {
+        throw new Error('Invalid user data');
+      }
+
+      const user = validation.data;
       const response = await apiClient.post('/api/auth/refresh', {
         userId: user.id,
         refreshToken,

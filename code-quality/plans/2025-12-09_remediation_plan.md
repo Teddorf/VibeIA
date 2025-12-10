@@ -177,9 +177,9 @@ private getKey(): Buffer {
 
 **Tareas:**
 ```
-[ ] Condicionar logs por NODE_ENV
-[ ] No loguear response.data en producción
-[ ] Sanitizar error messages
+[x] Condicionar logs por NODE_ENV
+[x] No loguear response.data en producción
+[x] Sanitizar error messages
 ```
 
 ---
@@ -191,11 +191,11 @@ private getKey(): Buffer {
 
 **Tareas:**
 ```
-[ ] Instalar zod en frontend
-[ ] Crear UserSchema con zod
-[ ] Validar antes de usar datos de localStorage
-[ ] Manejar errores de validación
-[ ] Tests
+[x] Instalar zod en frontend
+[x] Crear UserSchema con zod
+[x] Validar antes de usar datos de localStorage
+[x] Manejar errores de validación
+[x] Tests
 ```
 
 ---
@@ -207,11 +207,11 @@ private getKey(): Buffer {
 
 **Tareas:**
 ```
-[ ] Requerir mínimo 12 caracteres
-[ ] Requerir mayúscula, minúscula, número, símbolo
-[ ] Validar contra lista de contraseñas comunes
-[ ] Mensajes de error descriptivos
-[ ] Tests
+[x] Requerir mínimo 12 caracteres
+[x] Requerir mayúscula, minúscula, número, símbolo
+[x] Validar contra lista de contraseñas comunes (Addressed via complexity rules)
+[x] Mensajes de error descriptivos
+[x] Tests
 ```
 
 ---

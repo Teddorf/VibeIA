@@ -60,7 +60,7 @@ describe('AuthService', () => {
     it('should create a new user and return tokens', async () => {
       const registerDto: RegisterDto = {
         email: 'new@example.com',
-        password: 'password123',
+        password: 'Password123!',
         name: 'New User',
       };
 
@@ -87,7 +87,7 @@ describe('AuthService', () => {
     it('should throw BadRequestException for missing email', async () => {
       const registerDto = {
         email: '',
-        password: 'password123',
+        password: 'Password123!',
         name: 'New User',
       };
 
@@ -98,12 +98,31 @@ describe('AuthService', () => {
     it('should throw BadRequestException for short password', async () => {
       const registerDto: RegisterDto = {
         email: 'new@example.com',
-        password: 'short',
+        password: 'Short1!',
         name: 'New User',
       };
 
       await expect(service.register(registerDto))
         .rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException for password missing complexity', async () => {
+      const weakPasswords = [
+        'lowercaseonly123!', // Missing uppercase
+        'UPPERCASEONLY123!', // Missing lowercase
+        'NoNumbersHere!',    // Missing number
+        'NoSpecialChar123',  // Missing special char
+      ];
+
+      for (const password of weakPasswords) {
+        const registerDto: RegisterDto = {
+          email: 'new@example.com',
+          password,
+          name: 'New User',
+        };
+        await expect(service.register(registerDto))
+          .rejects.toThrow(BadRequestException);
+      }
     });
   });
 
