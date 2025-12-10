@@ -47,7 +47,6 @@ import { CodebaseAnalysisModule } from './modules/codebase-analysis/codebase-ana
     SecurityModule,
     BillingModule,
     TeamsModule,
-    TeamsModule,
     CodebaseAnalysisModule,
     ThrottlerModule.forRoot([{
       ttl: 60000,
