@@ -4,6 +4,32 @@ Registro de ADRs (Architecture Decision Records).
 
 ---
 
+## ADR-002: Sistema Centralizado de Errores HTTP
+
+**Fecha:** 2025-12-11
+**Estado:** Aceptado
+
+### Contexto
+Necesidad de manejo consistente de errores HTTP en todo el frontend con feedback al usuario y resiliencia ante fallos de red.
+
+### Decision
+Implementar sistema de 4 capas: ApiError class, useApiError hook, ToastProvider, ErrorBoundary.
+
+### Alternativas consideradas
+1. **Try/catch manual en cada componente** - Rechazado por inconsistencia y duplicacion
+2. **Axios interceptor solo** - Insuficiente, no provee UI feedback
+3. **React Query** - Considerado pero agrega dependencia innecesaria para MVP
+4. **Sistema centralizado custom** - Elegido por control total y cero dependencias extra
+
+### Consecuencias
+- (+) UX consistente en toda la app
+- (+) Retry automatico reduce errores percibidos
+- (+) Logging centralizado facilita debugging
+- (+) Accesible por defecto (WCAG 2.1 AA)
+- (-) ~1,200 LOC adicionales de codigo
+
+---
+
 ## ADR-001: Patron Strategy para Setup Executors
 
 **Fecha:** 2025-12-10
