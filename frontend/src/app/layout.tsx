@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ToastProvider } from "@/components/ui/toast";
+import { SkipLink } from "@/components/ui/skip-link";
 import { Header } from "@/components/layout/Header";
 
 const geistSans = Geist({
@@ -25,13 +27,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
-          <Header />
-          {children}
+          <ToastProvider>
+            <SkipLink />
+            <Header />
+            <main id="main-content" tabIndex={-1}>
+              {children}
+            </main>
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>

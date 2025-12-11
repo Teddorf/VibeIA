@@ -1,16 +1,33 @@
-﻿import axios from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { logger } from './logger';
+import { parseApiError, ErrorCode } from './api-error';
+
+// Configuración
+const API_TIMEOUT = 30000; // 30 segundos
+const MAX_RETRIES = 3;
+const RETRY_DELAY_BASE = 1000; // 1 segundo
+
+// Extender config de axios para tracking
+interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
+  __retryCount?: number;
+  __startTime?: number;
+  __skipRetry?: boolean;
+}
 
 const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: API_TIMEOUT,
 });
 
 // Request interceptor
 apiClient.interceptors.request.use(
-  (config) => {
+  (config: ExtendedAxiosRequestConfig) => {
+    // Tracking de tiempo para logging
+    config.__startTime = Date.now();
+
     // Add auth token if available
     const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
     if (token) {
@@ -23,14 +40,109 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor
+// Response interceptor con retry automático
 apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    logger.error('API Error', error);
+  (response) => {
+    // Log successful API calls
+    const config = response.config as ExtendedAxiosRequestConfig;
+    const duration = config.__startTime ? Date.now() - config.__startTime : undefined;
+    logger.apiCall(
+      config.method?.toUpperCase() || 'GET',
+      config.url || '',
+      response.status,
+      duration
+    );
+    return response;
+  },
+  async (error: AxiosError) => {
+    const config = error.config as ExtendedAxiosRequestConfig | undefined;
+
+    if (!config) {
+      logger.error('API Error without config', error);
+      return Promise.reject(error);
+    }
+
+    const retryCount = config.__retryCount || 0;
+    const duration = config.__startTime ? Date.now() - config.__startTime : undefined;
+
+    // Log el error
+    logger.apiCall(
+      config.method?.toUpperCase() || 'GET',
+      config.url || '',
+      error.response?.status,
+      duration,
+      error
+    );
+
+    // Parse el error para determinar si es retryable
+    const apiError = parseApiError(error);
+
+    // No retry para ciertos tipos de errores
+    if (config.__skipRetry) {
+      return Promise.reject(error);
+    }
+
+    // Retry automático para errores de red y algunos errores de servidor
+    const shouldRetry = (
+      apiError.isNetworkError ||
+      apiError.code === ErrorCode.GATEWAY_TIMEOUT ||
+      apiError.code === ErrorCode.BAD_GATEWAY ||
+      apiError.code === ErrorCode.SERVICE_UNAVAILABLE
+    );
+
+    if (shouldRetry && retryCount < MAX_RETRIES) {
+      config.__retryCount = retryCount + 1;
+
+      // Backoff exponencial: 1s, 2s, 4s
+      const delay = RETRY_DELAY_BASE * Math.pow(2, retryCount);
+
+      logger.info(`Retrying request (attempt ${retryCount + 1}/${MAX_RETRIES})`, {
+        url: config.url,
+        method: config.method,
+        delay,
+      });
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      return apiClient.request(config);
+    }
+
+    // Rate limit: esperar y reintentar
+    if (apiError.code === ErrorCode.RATE_LIMITED && apiError.retryAfter && retryCount < 1) {
+      config.__retryCount = retryCount + 1;
+      const waitTime = apiError.retryAfter * 1000;
+
+      logger.warn(`Rate limited. Retrying after ${apiError.retryAfter}s`, {
+        url: config.url,
+      });
+
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+
+      return apiClient.request(config);
+    }
+
     return Promise.reject(error);
   }
 );
+
+/**
+ * Crear una instancia de request que no hace retry
+ * Útil para requests que no deben reintentarse (ej: pagos)
+ */
+export function createNoRetryRequest<T>(requestFn: () => Promise<T>): Promise<T> {
+  return requestFn();
+}
+
+/**
+ * Helper para cancelar requests
+ */
+export function createCancelToken() {
+  const controller = new AbortController();
+  return {
+    token: controller.signal,
+    cancel: () => controller.abort(),
+  };
+}
 
 export default apiClient;
 
