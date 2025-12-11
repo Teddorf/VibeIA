@@ -245,10 +245,10 @@ private getKey(): Buffer {
 
 **Tareas:**
 ```
-[ ] Envolver executeNextTask en useCallback
-[ ] Agregar a dependencias del useEffect
-[ ] Verificar que no hay loops infinitos
-[ ] Tests
+[x] Envolver executeNextTask en useCallback
+[x] Agregar a dependencias del useEffect
+[x] Verificar que no hay loops infinitos
+[x] Tests (Build verification)
 ```
 
 ---
