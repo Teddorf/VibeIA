@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "command_version": "1.0",
+  "initialized_at": "2024-12-10T00:00:00Z",
+  "last_updated": "2024-12-10T00:00:00Z",
+  "project_name": "VibeIA",
+  "last_session_summary": "",
+  "files": {
+    "sessions": {
+      "path": "docs/development/sessions.md",
+      "description": "Registro cronologico de sesiones de desarrollo"
+    },
+    "evolution": {
+      "path": "docs/development/evolution.md",
+      "description": "Documentacion tecnica detallada de implementaciones"
+    },
+    "decisions": {
+      "path": "docs/development/decisions.md",
+      "description": "Decisiones arquitectonicas con alternativas y justificacion"
+    }
+  },
+  "optional_files": {
+    "claude_md": ".claude/CLAUDE.md",
+    "roadmaps": [],
+    "api_docs": null,
+    "openapi": null,
+    "readme": "README.md"
+  },
+  "settings": {
+    "auto_backup": true,
+    "timezone": "UTC",
+    "code_line_limit": 15,
+    "diagram_preference": "rich > ASCII > none"
+  }
+}
