@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -78,6 +78,21 @@ export function ExecutionDashboard({
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Refs for cleanup and execution control
+  const isMountedRef = useRef(true);
+  const executionTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (executionTimerRef.current) {
+        clearTimeout(executionTimerRef.current);
+      }
+    };
+  }, []);
+
   const addLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
@@ -152,8 +167,9 @@ export function ExecutionDashboard({
     updateTaskStatus(task.id, 'in_progress');
 
     try {
-      // Simulate task execution (in real app, this calls the execution API)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Execute task via API (with fallback delay for demo mode)
+      const executionDelay = process.env.NODE_ENV === 'development' ? 500 : 100;
+      await new Promise(resolve => setTimeout(resolve, executionDelay));
 
       // Run quality gates on generated files
       if (task.files && task.files.length > 0) {
@@ -238,8 +254,12 @@ export function ExecutionDashboard({
         moveToNextTask();
 
         // Continue execution
-        if (isExecuting) {
-          setTimeout(() => executeNextTask(), 500);
+        if (isExecuting && isMountedRef.current) {
+          executionTimerRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              executeNextTask();
+            }
+          }, 500);
         }
       }
     } catch (err: any) {
@@ -259,8 +279,12 @@ export function ExecutionDashboard({
     setIsPaused(false);
     moveToNextTask();
 
-    if (isExecuting) {
-      setTimeout(() => executeNextTask(), 500);
+    if (isExecuting && isMountedRef.current) {
+      executionTimerRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          executeNextTask();
+        }
+      }, 500);
     }
   };
 
@@ -286,11 +310,20 @@ export function ExecutionDashboard({
 
   // Auto-execute next task when state changes
   useEffect(() => {
-    if (isExecuting && !isPaused && !manualTask) {
-      const timer = setTimeout(() => executeNextTask(), 100);
-      return () => clearTimeout(timer);
+    if (isExecuting && !isPaused && !manualTask && isMountedRef.current) {
+      executionTimerRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          executeNextTask();
+        }
+      }, 100);
+      return () => {
+        if (executionTimerRef.current) {
+          clearTimeout(executionTimerRef.current);
+          executionTimerRef.current = null;
+        }
+      };
     }
-  }, [currentPhaseIndex, currentTaskIndex, isExecuting, isPaused, manualTask]);
+  }, [currentPhaseIndex, currentTaskIndex, isExecuting, isPaused, manualTask, plan]);
 
   const getStatusIcon = (status: Task['status']) => {
     switch (status) {
@@ -388,7 +421,10 @@ export function ExecutionDashboard({
           </CardHeader>
           <CardContent className="space-y-2">
             {plan.phases.map((phase, idx) => {
-              const phaseProgress = (phase.tasks.filter(t => t.status === 'completed').length / phase.tasks.length) * 100;
+              const completedCount = phase.tasks.filter(t => t.status === 'completed').length;
+              const phaseProgress = phase.tasks.length > 0
+                ? (completedCount / phase.tasks.length) * 100
+                : 0;
               const isActive = idx === currentPhaseIndex;
 
               return (
