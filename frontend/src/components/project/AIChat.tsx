@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { apiClient } from '@/lib/api-client';
+import apiClient from '@/lib/api-client';
 
 // ============================================
 // TYPES
@@ -122,7 +122,7 @@ export function AIChat({
     onMessageSent?.(messageText);
 
     try {
-      const response = await apiClient.ai.sendMessage({
+      const { data: response } = await apiClient.post('/api/llm/chat', {
         message: messageText,
         projectId,
         phaseId,
