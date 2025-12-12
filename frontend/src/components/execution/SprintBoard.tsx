@@ -221,6 +221,7 @@ export function SprintBoard({
   const tasksByStatus = useMemo(() => {
     const grouped: Record<TaskStatus, SprintTask[]> = {
       todo: [],
+      pending: [],
       in_progress: [],
       completed: [],
       failed: [],
