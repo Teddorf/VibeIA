@@ -13,18 +13,23 @@ export function Header() {
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Don't show header on auth pages
-  if (pathname?.startsWith('/login') || pathname?.startsWith('/register') || pathname?.startsWith('/forgot-password') || pathname?.startsWith('/reset-password')) {
-    return null;
-  }
-
   const navigation = [
     { name: 'Dashboard', href: '/dashboard' },
     { name: 'Nuevo Proyecto', href: '/new-project' },
   ];
 
-  // Cerrar menu con Escape
+  // Check if we should hide header on auth pages
+  const isAuthPage = pathname?.startsWith('/login') ||
+    pathname?.startsWith('/register') ||
+    pathname?.startsWith('/forgot-password') ||
+    pathname?.startsWith('/reset-password') ||
+    pathname?.startsWith('/verify-email') ||
+    pathname?.startsWith('/oauth');
+
+  // Cerrar menu con Escape - hook must be called unconditionally
   useEffect(() => {
+    if (isAuthPage) return; // Early return inside effect is fine
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsMenuOpen(false);
@@ -45,7 +50,12 @@ export function Header() {
       document.removeEventListener('keydown', handleEscape);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [isAuthPage]);
+
+  // Don't render header on auth pages
+  if (isAuthPage) {
+    return null;
+  }
 
   return (
     <header
