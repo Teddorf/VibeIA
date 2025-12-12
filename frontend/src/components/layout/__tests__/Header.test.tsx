@@ -58,8 +58,9 @@ describe('Header', () => {
 
     render(<Header />);
 
-    expect(screen.getByRole('link', { name: /sign in/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /get started/i })).toBeInTheDocument();
+    // Spanish text: "Iniciar Sesion" and "Comenzar"
+    expect(screen.getByRole('link', { name: /iniciar sesion/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /comenzar/i })).toBeInTheDocument();
   });
 
   it('shows user menu when authenticated', () => {
@@ -86,8 +87,16 @@ describe('Header', () => {
 
     render(<Header />);
 
-    expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /new project/i })).toBeInTheDocument();
+    // Get the main navigation container and check links within it
+    const nav = screen.getByRole('navigation', { name: /navegacion principal/i });
+    expect(nav).toBeInTheDocument();
+
+    // Check for Dashboard link (exact match to avoid logo link)
+    const dashboardLink = screen.getByRole('link', { name: 'Dashboard' });
+    expect(dashboardLink).toBeInTheDocument();
+
+    // Spanish text: "Nuevo Proyecto"
+    expect(screen.getByRole('link', { name: /nuevo proyecto/i })).toBeInTheDocument();
   });
 
   it('shows VibeCoding logo', () => {
@@ -114,7 +123,8 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const dashboardLink = screen.getByRole('link', { name: /dashboard/i });
+    // Use exact match to get only the navigation link, not the logo
+    const dashboardLink = screen.getByRole('link', { name: 'Dashboard' });
     expect(dashboardLink).toHaveClass('bg-purple-500/20');
   });
 
