@@ -10,6 +10,10 @@ interface User {
   email: string;
   name: string;
   role: string;
+  avatarUrl?: string;
+  githubId?: string;
+  googleId?: string;
+  gitlabId?: string;
 }
 
 const UserSchema = z.object({
@@ -17,6 +21,10 @@ const UserSchema = z.object({
   email: z.string().email(),
   name: z.string(),
   role: z.string(),
+  avatarUrl: z.string().optional(),
+  githubId: z.string().optional(),
+  googleId: z.string().optional(),
+  gitlabId: z.string().optional(),
 });
 
 interface AuthState {
@@ -32,6 +40,7 @@ interface AuthContextType extends AuthState {
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<boolean>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -189,6 +198,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshUser = useCallback(async (): Promise<void> => {
+    try {
+      const response = await apiClient.get('/api/auth/me');
+      const user = response.data;
+      const validation = UserSchema.safeParse(user);
+
+      if (validation.success) {
+        localStorage.setItem(USER_KEY, JSON.stringify(validation.data));
+        setState((prev) => ({
+          ...prev,
+          user: validation.data,
+        }));
+      }
+    } catch {
+      // Ignore errors, user data will stay as is
+    }
+  }, []);
+
   // Setup axios interceptor for token refresh
   useEffect(() => {
     const interceptor = apiClient.interceptors.response.use(
@@ -224,6 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         logout,
         refreshAuth,
+        refreshUser,
       }}
     >
       {children}
