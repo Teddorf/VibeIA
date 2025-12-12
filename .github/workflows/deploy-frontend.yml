@@ -1,0 +1,28 @@
+name: Deploy Frontend to Vercel
+
+on:
+  push:
+    branches:
+      - master
+      - Develop
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Vercel
+
+    steps:
+      - name: Deploy Production (master)
+        if: github.ref == 'refs/heads/master'
+        run: |
+          curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_xqAqp1bIVKaMcO4nrgBRjtl6DY02/qqTk6Osowz"
+          echo "Triggered production deployment"
+
+      - name: Deploy Preview (Develop)
+        if: github.ref == 'refs/heads/Develop'
+        run: |
+          curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_xqAqp1bIVKaMcO4nrgBRjtl6DY02/AuCNIwUBmn"
+          echo "Triggered preview deployment"
