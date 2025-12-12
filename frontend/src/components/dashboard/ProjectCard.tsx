@@ -2,12 +2,13 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatDate, type ProjectStatus } from '@/lib/utils';
 
 // ============================================
 // TYPES
 // ============================================
 
-export type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived';
+export type { ProjectStatus };
 
 export interface TeamMember {
   id: string;
@@ -113,14 +114,6 @@ const getVariantPadding = (variant: 'compact' | 'default' | 'expanded'): string 
     expanded: 'p-6',
   };
   return paddings[variant];
-};
-
-const formatDate = (date: Date): string => {
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
 };
 
 // ============================================

@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { formatDate, type TaskStatus, type TaskPriority } from '@/lib/utils';
 
 // ============================================
 // TYPES
 // ============================================
 
-export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'failed' | 'paused';
-export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+export type { TaskStatus, TaskPriority };
 
 export interface Assignee {
   id: string;
@@ -56,8 +56,9 @@ const FAILED_COLUMN = { id: 'failed' as TaskStatus, label: 'Failed' };
 // HELPER FUNCTIONS
 // ============================================
 
-const formatDate = (date: Date): string => {
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// Format date for sprint dates (short format)
+const formatSprintDate = (date: Date): string => {
+  return formatDate(date, { month: 'short', day: 'numeric' });
 };
 
 const getDaysRemaining = (endDate: Date): number => {
@@ -287,9 +288,9 @@ export function SprintBoard({
           <h2 className="text-xl font-bold text-white">{sprintName}</h2>
           {(startDate || endDate) && (
             <div data-testid="sprint-dates" className="text-sm text-slate-400 mt-1">
-              {startDate && formatDate(startDate)}
+              {startDate && formatSprintDate(startDate)}
               {startDate && endDate && ' - '}
-              {endDate && formatDate(endDate)}
+              {endDate && formatSprintDate(endDate)}
             </div>
           )}
         </div>

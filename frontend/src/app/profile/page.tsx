@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { profileApi, projectsApi } from '@/lib/api-client';
 import Header from '@/components/layout/Header';
+import { formatDate } from '@/lib/utils';
 
 interface UserProfile {
   id: string;
@@ -78,15 +79,16 @@ export default function ProfilePage() {
     }
   };
 
-  const formatDate = (dateString?: string) => {
+  // Format date with Spanish locale for profile page
+  const formatProfileDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('es-ES', {
+    return formatDate(dateString, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    });
+    }, 'es-ES');
   };
 
   if (authLoading || loading) {
@@ -255,7 +257,7 @@ export default function ProfilePage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Ultimo acceso</p>
                 <p className="text-sm font-semibold text-gray-900">
-                  {profile?.lastLoginAt ? formatDate(profile.lastLoginAt) : 'Primera sesion'}
+                  {profile?.lastLoginAt ? formatProfileDate(profile.lastLoginAt) : 'Primera sesion'}
                 </p>
               </div>
             </div>
@@ -279,11 +281,11 @@ export default function ProfilePage() {
               </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">Cuenta creada</dt>
-                <dd className="mt-1 text-sm text-gray-900">{formatDate(profile?.createdAt)}</dd>
+                <dd className="mt-1 text-sm text-gray-900">{formatProfileDate(profile?.createdAt)}</dd>
               </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">Ultima actualizacion</dt>
-                <dd className="mt-1 text-sm text-gray-900">{formatDate(profile?.updatedAt)}</dd>
+                <dd className="mt-1 text-sm text-gray-900">{formatProfileDate(profile?.updatedAt)}</dd>
               </div>
             </dl>
           </div>

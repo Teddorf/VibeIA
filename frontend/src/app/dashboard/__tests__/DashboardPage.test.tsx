@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import DashboardPage from '../page';
 import { useRequireAuth } from '@/contexts/AuthContext';
-import { projectsApi, plansApi } from '@/lib/api-client';
+import { projectsApi, plansApi, llmSettingsApi } from '@/lib/api-client';
 
 // Mock the auth context
 jest.mock('@/contexts/AuthContext', () => ({
@@ -28,11 +28,15 @@ jest.mock('@/lib/api-client', () => ({
   plansApi: {
     getAll: jest.fn(),
   },
+  llmSettingsApi: {
+    checkSetupRequired: jest.fn(),
+  },
 }));
 
 const mockUseRequireAuth = useRequireAuth as jest.Mock;
 const mockProjectsApi = projectsApi as jest.Mocked<typeof projectsApi>;
 const mockPlansApi = plansApi as jest.Mocked<typeof plansApi>;
+const mockLlmSettingsApi = llmSettingsApi as jest.Mocked<typeof llmSettingsApi>;
 
 describe('DashboardPage', () => {
   beforeEach(() => {
@@ -43,6 +47,7 @@ describe('DashboardPage', () => {
     });
     mockProjectsApi.getAll.mockResolvedValue([]);
     mockPlansApi.getAll.mockResolvedValue([]);
+    mockLlmSettingsApi.checkSetupRequired.mockResolvedValue({ setupRequired: false });
   });
 
   it('shows loading state while auth is loading', () => {

@@ -1,13 +1,19 @@
 'use client';
 
 import React from 'react';
+import {
+  getTaskStatusColor,
+  getPriorityStyle,
+  getInitials,
+  type TaskStatus,
+  type TaskPriority,
+} from '@/lib/utils';
 
 // ============================================
 // TYPES
 // ============================================
 
-export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'failed' | 'paused';
-export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+export type { TaskStatus, TaskPriority };
 export type QualityGateStatus = 'passed' | 'failed' | 'pending';
 
 export interface Assignee {
@@ -103,27 +109,6 @@ const AIBadge = () => (
 // HELPER FUNCTIONS
 // ============================================
 
-const getStatusColor = (status: TaskStatus): string => {
-  const colors: Record<TaskStatus, string> = {
-    todo: 'bg-slate-500',
-    in_progress: 'bg-blue-500',
-    completed: 'bg-green-500',
-    failed: 'bg-red-500',
-    paused: 'bg-yellow-500',
-  };
-  return colors[status];
-};
-
-const getPriorityStyle = (priority: TaskPriority): { bg: string; text: string; label: string } => {
-  const styles: Record<TaskPriority, { bg: string; text: string; label: string }> = {
-    low: { bg: 'bg-slate-500/20', text: 'text-slate-400', label: 'Low' },
-    medium: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Medium' },
-    high: { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'High' },
-    critical: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Critical' },
-  };
-  return styles[priority];
-};
-
 const getVariantPadding = (variant: 'compact' | 'default' | 'expanded'): string => {
   const paddings = {
     compact: 'p-2',
@@ -131,15 +116,6 @@ const getVariantPadding = (variant: 'compact' | 'default' | 'expanded'): string 
     expanded: 'p-6',
   };
   return paddings[variant];
-};
-
-const getInitials = (name: string): string => {
-  return name
-    .split(' ')
-    .map(part => part[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
 };
 
 // ============================================
@@ -209,7 +185,7 @@ export function TaskCard({
         {/* Status Indicator */}
         <div
           data-testid="status-indicator"
-          className={`w-3 h-3 rounded-full flex-shrink-0 mt-1 ${getStatusColor(task.status)}`}
+          className={`w-3 h-3 rounded-full flex-shrink-0 mt-1 ${getTaskStatusColor(task.status)}`}
         >
           {task.status === 'completed' && <CheckIcon />}
         </div>

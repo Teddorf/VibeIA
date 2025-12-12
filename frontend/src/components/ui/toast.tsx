@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { TOAST_DURATION } from '@/config/constants';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -30,7 +31,6 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
-const TOAST_DURATION = 5000;
 const MAX_TOASTS = 5;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -42,7 +42,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>): string => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const duration = toast.duration ?? TOAST_DURATION;
+    const duration = toast.duration ?? TOAST_DURATION.DEFAULT;
 
     setToasts((prev) => {
       const newToasts = [...prev, { ...toast, id }];
@@ -66,7 +66,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, [addToast]);
 
   const error = useCallback((message: string, options?: Partial<Omit<Toast, 'id' | 'type' | 'message'>>) => {
-    return addToast({ type: 'error', message, duration: 7000, ...options });
+    return addToast({ type: 'error', message, duration: TOAST_DURATION.ERROR, ...options });
   }, [addToast]);
 
   const warning = useCallback((message: string, options?: Partial<Omit<Toast, 'id' | 'type' | 'message'>>) => {

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRequireAuth } from '@/contexts/AuthContext';
 import { projectsApi, plansApi, llmSettingsApi } from '@/lib/api-client';
+import { formatDate, getStatusBadgeClasses } from '@/lib/utils';
 
 interface Project {
   _id: string;
@@ -58,29 +59,6 @@ export default function DashboardPage() {
 
     fetchData();
   }, [authLoading]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'in_progress':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'paused':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'failed':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default:
-        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
 
   if (authLoading || isLoading) {
     return (
@@ -295,7 +273,7 @@ export default function DashboardPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                       </svg>
                     </div>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(project.status)}`}>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClasses(project.status)}`}>
                       {project.status}
                     </span>
                   </div>
@@ -351,7 +329,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(plan.status)}`}>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClasses(plan.status)}`}>
                         {plan.status.replace('_', ' ')}
                       </span>
                       <span className="text-xs text-slate-500">{formatDate(plan.createdAt)}</span>

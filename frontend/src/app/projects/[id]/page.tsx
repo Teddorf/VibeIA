@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRequireAuth } from '@/contexts/AuthContext';
 import { projectsApi } from '@/lib/api-client';
 import apiClient from '@/lib/api-client';
+import { formatDate, getStatusBadgeClasses } from '@/lib/utils';
 
 interface Project {
   _id: string;
@@ -100,30 +101,14 @@ export default function ProjectDetailPage() {
     fetchProject();
   }, [projectId, authLoading, planIdFromUrl]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'in_progress':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'paused':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'failed':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default:
-        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  // Format date with time for this page
+  const formatDateTime = (dateString: string) => formatDate(dateString, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   const calculateProgress = (plan: Plan) => {
     if (!plan.phases || plan.phases.length === 0) return 0;
@@ -193,7 +178,7 @@ export default function ProjectDetailPage() {
                 <h1 className="text-2xl font-bold text-white mb-1">{project.name}</h1>
                 <p className="text-slate-400 mb-3">{project.description || 'No description'}</p>
                 <div className="flex items-center gap-4">
-                  <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor(project.status)}`}>
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusBadgeClasses(project.status)}`}>
                     {project.status}
                   </span>
                   {project.repositoryUrl && (
@@ -286,13 +271,13 @@ export default function ProjectDetailPage() {
                           <span className="text-sm font-medium text-white">
                             {plan.phases?.length || 0} Phases Plan
                           </span>
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusColor(plan.status)}`}>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClasses(plan.status)}`}>
                             {plan.status.replace('_', ' ')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-slate-400">
                           <span>Est. {plan.estimatedTime || 0} min</span>
-                          <span>{formatDate(plan.createdAt)}</span>
+                          <span>{formatDateTime(plan.createdAt)}</span>
                         </div>
                         {plan.status === 'in_progress' && (
                           <div className="mt-2">
@@ -322,7 +307,7 @@ export default function ProjectDetailPage() {
                 <div className="space-y-4">
                   <div>
                     <p className="text-xs text-slate-400 uppercase mb-1">Status</p>
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor(selectedPlan.status)}`}>
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusBadgeClasses(selectedPlan.status)}`}>
                       {selectedPlan.status.replace('_', ' ')}
                     </span>
                   </div>
@@ -342,7 +327,7 @@ export default function ProjectDetailPage() {
                   )}
                   <div>
                     <p className="text-xs text-slate-400 uppercase mb-1">Created</p>
-                    <p className="text-white">{formatDate(selectedPlan.createdAt)}</p>
+                    <p className="text-white">{formatDateTime(selectedPlan.createdAt)}</p>
                   </div>
 
                   {/* Phases List */}
@@ -429,13 +414,13 @@ export default function ProjectDetailPage() {
                         </p>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(plan.status)}`}>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClasses(plan.status)}`}>
                           {plan.status.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-300">{plan.phases?.length || 0}</td>
                       <td className="px-6 py-4 text-sm text-slate-300">{plan.estimatedTime || 0} min</td>
-                      <td className="px-6 py-4 text-sm text-slate-400">{formatDate(plan.createdAt)}</td>
+                      <td className="px-6 py-4 text-sm text-slate-400">{formatDateTime(plan.createdAt)}</td>
                       <td className="px-6 py-4">
                         <button
                           onClick={() => setSelectedPlan(plan)}
