@@ -93,6 +93,7 @@ const getStatusBadgeClasses = (status: ProjectStatus): { bg: string; text: strin
     paused: { bg: 'bg-yellow-500/20', text: 'text-yellow-400' },
     completed: { bg: 'bg-blue-500/20', text: 'text-blue-400' },
     archived: { bg: 'bg-slate-500/20', text: 'text-slate-400' },
+    failed: { bg: 'bg-red-500/20', text: 'text-red-400' },
   };
   return classes[status];
 };
@@ -103,6 +104,7 @@ const getStatusLabel = (status: ProjectStatus): string => {
     paused: 'Paused',
     completed: 'Completed',
     archived: 'Archived',
+    failed: 'Failed',
   };
   return labels[status];
 };
@@ -197,20 +199,20 @@ export function ProjectCard({
     setMenuOpen(!menuOpen);
   };
 
-  const handleEdit = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleEdit = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     onEdit?.(project.id);
     setMenuOpen(false);
   };
 
-  const handleArchive = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleArchive = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     onArchive?.(project.id);
     setMenuOpen(false);
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDelete = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     onDelete?.(project.id);
     setMenuOpen(false);
   };
