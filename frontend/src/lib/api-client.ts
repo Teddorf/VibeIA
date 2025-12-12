@@ -326,6 +326,65 @@ export const authApi = {
     const response = await apiClient.get(`/api/auth/verify-reset-token/${token}`);
     return response.data;
   },
+
+  // OAuth methods
+  getOAuthUrl: async (provider: string, redirectUri?: string) => {
+    const params = redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : '';
+    const response = await apiClient.get(`/api/auth/oauth/${provider}/url${params}`);
+    return response.data;
+  },
+
+  oauthCallback: async (provider: string, code: string) => {
+    const response = await apiClient.post(`/api/auth/oauth/${provider}/callback`, { code });
+    return response.data;
+  },
+
+  linkOAuthAccount: async (provider: string, code: string) => {
+    const response = await apiClient.post(`/api/auth/oauth/${provider}/link`, { code });
+    return response.data;
+  },
+
+  unlinkOAuthAccount: async (provider: string) => {
+    const response = await apiClient.post(`/api/auth/oauth/${provider}/unlink`);
+    return response.data;
+  },
+
+  getLinkedAccounts: async () => {
+    const response = await apiClient.get('/api/auth/oauth/linked');
+    return response.data;
+  },
+
+  // Email verification
+  verifyEmail: async (token: string) => {
+    const response = await apiClient.post('/api/auth/verify-email', { token });
+    return response.data;
+  },
+
+  resendVerificationEmail: async (email: string) => {
+    const response = await apiClient.post('/api/auth/resend-verification', { email });
+    return response.data;
+  },
+
+  // Two-Factor Authentication
+  setup2FA: async () => {
+    const response = await apiClient.post('/api/auth/2fa/setup');
+    return response.data;
+  },
+
+  verify2FA: async (code: string, secret: string) => {
+    const response = await apiClient.post('/api/auth/2fa/verify', { code, secret });
+    return response.data;
+  },
+
+  disable2FA: async (password: string) => {
+    const response = await apiClient.post('/api/auth/2fa/disable', { password });
+    return response.data;
+  },
+
+  validate2FACode: async (code: string) => {
+    const response = await apiClient.post('/api/auth/2fa/validate', { code });
+    return response.data;
+  },
 };
 
 export const profileApi = {
@@ -334,8 +393,31 @@ export const profileApi = {
     return response.data;
   },
 
-  updateProfile: async (data: { name?: string }) => {
+  updateProfile: async (data: { name?: string; avatarUrl?: string }) => {
     const response = await apiClient.patch('/api/users/me/profile', data);
+    return response.data;
+  },
+
+  updatePreferences: async (preferences: {
+    role?: string;
+    experienceLevel?: string;
+    interests?: string[];
+  }) => {
+    const response = await apiClient.patch('/api/users/me/preferences', preferences);
+    return response.data;
+  },
+
+  getPreferences: async () => {
+    const response = await apiClient.get('/api/users/me/preferences');
+    return response.data;
+  },
+
+  uploadAvatar: async (file: File) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    const response = await apiClient.post('/api/users/me/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return response.data;
   },
 };
