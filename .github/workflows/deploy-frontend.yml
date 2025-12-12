@@ -6,23 +6,22 @@ on:
       - master
       - Develop
     paths:
-      - 'frontend/**'
-      - '.github/workflows/deploy-frontend.yml'
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
 
 jobs:
-  deploy:
+  deploy-preview:
+    if: github.ref == 'refs/heads/Develop'
     runs-on: ubuntu-latest
-    name: Deploy to Vercel
-
+    name: Deploy Preview
     steps:
-      - name: Deploy Production (master)
-        if: github.ref == 'refs/heads/master'
-        run: |
-          curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_xqAqp1bIVKaMcO4nrgBRjtl6DY02/qqTk6Osowz"
-          echo "Triggered production deployment"
+      - name: Trigger Vercel Deploy
+        run: curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_xqAqp1bIVKaMcO4nrgBRjtl6DY02/AuCNIwUBmn"
 
-      - name: Deploy Preview (Develop)
-        if: github.ref == 'refs/heads/Develop'
-        run: |
-          curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_xqAqp1bIVKaMcO4nrgBRjtl6DY02/AuCNIwUBmn"
-          echo "Triggered preview deployment"
+  deploy-production:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    name: Deploy Production
+    steps:
+      - name: Trigger Vercel Deploy
+        run: curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_xqAqp1bIVKaMcO4nrgBRjtl6DY02/qqTk6Osowz"
