@@ -6,8 +6,34 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS for frontend
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ].filter(Boolean) as string[];
+
+  // Vercel preview URLs pattern (for branch deployments)
+  // Matches: vibeia.vercel.app, vibeia-*.vercel.app, frontend-*.vercel.app
+  const vercelPreviewPattern = /^https:\/\/(vibeia|frontend)[a-z0-9-]*\.vercel\.app$/;
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) return callback(null, true);
+
+      // Check exact matches
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Check Vercel preview URLs
+      if (vercelPreviewPattern.test(origin)) {
+        return callback(null, true);
+      }
+
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('CORS not allowed'), false);
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
     credentials: true,
