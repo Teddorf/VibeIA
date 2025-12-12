@@ -1384,3 +1384,79 @@ export const codebaseAnalysisApi = {
     return response.data;
   },
 };
+
+export const integrationsApi = {
+  // Get all integrations with their status
+  getIntegrations: async () => {
+    const response = await apiClient.get('/api/integrations');
+    return response.data;
+  },
+
+  // Connect an integration
+  connectIntegration: async (integrationId: string) => {
+    const response = await apiClient.post(`/api/integrations/${integrationId}/connect`);
+    return response.data;
+  },
+
+  // Disconnect an integration
+  disconnectIntegration: async (integrationId: string) => {
+    const response = await apiClient.post(`/api/integrations/${integrationId}/disconnect`);
+    return response.data;
+  },
+
+  // Refresh integration credentials
+  refreshIntegration: async (integrationId: string) => {
+    const response = await apiClient.post(`/api/integrations/${integrationId}/refresh`);
+    return response.data;
+  },
+
+  // Test connection
+  testConnection: async (integrationId: string) => {
+    const response = await apiClient.post(`/api/integrations/${integrationId}/test`);
+    return response.data;
+  },
+
+  // Get integration details
+  getIntegrationDetails: async (integrationId: string) => {
+    const response = await apiClient.get(`/api/integrations/${integrationId}`);
+    return response.data;
+  },
+
+  // Update integration settings
+  updateIntegrationSettings: async (integrationId: string, settings: Record<string, unknown>) => {
+    const response = await apiClient.patch(`/api/integrations/${integrationId}/settings`, settings);
+    return response.data;
+  },
+};
+
+export const rollbackApi = {
+  // Get all setup states
+  getSetupStates: async () => {
+    const response = await apiClient.get('/api/setup/states');
+    return response.data;
+  },
+
+  // Get rollback actions for a setup
+  getRollbackActions: async (setupId: string) => {
+    const response = await apiClient.get(`/api/setup/${setupId}/rollback-actions`);
+    return response.data;
+  },
+
+  // Execute rollback for a setup
+  executeRollback: async (setupId: string) => {
+    const response = await apiClient.post(`/api/setup/${setupId}/rollback`);
+    return response.data;
+  },
+
+  // Get rollback history
+  getRollbackHistory: async () => {
+    const response = await apiClient.get('/api/setup/rollback-history');
+    return response.data;
+  },
+
+  // Get setup details
+  getSetupDetails: async (setupId: string) => {
+    const response = await apiClient.get(`/api/setup/${setupId}`);
+    return response.data;
+  },
+};
