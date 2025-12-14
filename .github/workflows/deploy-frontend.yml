@@ -16,7 +16,7 @@ jobs:
     name: Deploy Preview
     steps:
       - name: Trigger Vercel Deploy
-        run: curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_xqAqp1bIVKaMcO4nrgBRjtl6DY02/AuCNIwUBmn"
+        run: curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_xqAqp1bIVKaMcO4nrgBRjtl6DY02/ddRj84QSm2"
 
   deploy-production:
     if: github.ref == 'refs/heads/master'
@@ -24,4 +24,4 @@ jobs:
     name: Deploy Production
     steps:
       - name: Trigger Vercel Deploy
-        run: curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_xqAqp1bIVKaMcO4nrgBRjtl6DY02/qqTk6Osowz"
+        run: curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_xqAqp1bIVKaMcO4nrgBRjtl6DY02/WTyMUgqvWZ"
