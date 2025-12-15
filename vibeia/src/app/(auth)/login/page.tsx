@@ -1,50 +1,43 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
 
 function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { login, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Handle OAuth callback
+  // Listen for OAuth popup messages
   useEffect(() => {
-    const oauthSuccess = searchParams.get('oauth_success');
-    const oauthError = searchParams.get('error');
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
-    const userBase64 = searchParams.get('user');
+    const handleOAuthMessage = (event: MessageEvent) => {
+      // Security: Only accept messages from same origin
+      if (event.origin !== window.location.origin) {
+        return;
+      }
 
-    if (oauthError) {
-      setError(decodeURIComponent(oauthError));
-      // Clean URL
-      window.history.replaceState({}, '', '/login');
-      return;
-    }
+      const { type, error: oauthError } = event.data || {};
 
-    if (oauthSuccess === 'true' && accessToken && refreshToken && userBase64) {
-      try {
-        const user = JSON.parse(atob(userBase64));
-        // Store tokens in localStorage
-        localStorage.setItem('auth_token', accessToken);
-        localStorage.setItem('refresh_token', refreshToken);
-        localStorage.setItem('auth_user', JSON.stringify(user));
+      if (type === 'oauth_success') {
+        // Tokens are already stored in localStorage by the callback page
         // Redirect to dashboard
         window.location.href = '/dashboard';
-      } catch (err) {
-        setError('Error processing OAuth response');
-        window.history.replaceState({}, '', '/login');
       }
-    }
-  }, [searchParams]);
+
+      if (type === 'oauth_error') {
+        setError(oauthError || 'Error de autenticacion');
+      }
+    };
+
+    window.addEventListener('message', handleOAuthMessage);
+    return () => window.removeEventListener('message', handleOAuthMessage);
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {

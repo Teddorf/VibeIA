@@ -1,9 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useRouter, useSearchParams, useParams } from 'next/navigation';
-import Link from 'next/link';
-import { authApi } from '@/lib/api-client';
+import React, { useEffect, useState, Suspense } from 'react';
+import { useSearchParams, useParams } from 'next/navigation';
 
 // ============================================
 // TYPES
@@ -11,11 +9,6 @@ import { authApi } from '@/lib/api-client';
 
 type OAuthStatus = 'loading' | 'success' | 'error';
 type OAuthProvider = 'github' | 'google' | 'gitlab';
-
-interface OAuthError {
-  code: string;
-  message: string;
-}
 
 const VALID_PROVIDERS: OAuthProvider[] = ['github', 'google', 'gitlab'];
 
@@ -49,186 +42,199 @@ const ErrorIcon = () => (
 );
 
 // ============================================
-// ERROR MESSAGES
+// CALLBACK CONTENT COMPONENT
 // ============================================
 
-const ERROR_MESSAGES: Record<string, string> = {
-  missing_code: 'Código de autorización no encontrado',
-  state_mismatch: 'Error de seguridad: El estado no coincide',
-  invalid_provider: 'Proveedor no soportado',
-  access_denied: 'Autenticación cancelada',
-  invalid_code: 'Error de autenticación: Código inválido',
-  server_error: 'Error del servidor',
-  network_error: 'Error de conexión',
-};
-
-// ============================================
-// MAIN COMPONENT
-// ============================================
-
-export default function OAuthCallbackPage() {
-  const router = useRouter();
+function OAuthCallbackContent() {
   const params = useParams();
   const searchParams = useSearchParams();
 
   const [status, setStatus] = useState<OAuthStatus>('loading');
-  const [error, setError] = useState<OAuthError | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const [providerName, setProviderName] = useState<string>('');
 
   useEffect(() => {
-    const processCallback = async () => {
+    const processCallback = () => {
       const provider = params?.provider as string;
-      const code = searchParams?.get('code');
-      const state = searchParams?.get('state');
+
+      // Get params from URL
+      const oauthSuccess = searchParams?.get('oauth_success');
       const errorParam = searchParams?.get('error');
-      const errorDescription = searchParams?.get('error_description');
+      const accessToken = searchParams?.get('access_token');
+      const refreshToken = searchParams?.get('refresh_token');
+      const userBase64 = searchParams?.get('user');
 
       // Validate provider
       if (!provider || !VALID_PROVIDERS.includes(provider as OAuthProvider)) {
-        setError({ code: 'invalid_provider', message: ERROR_MESSAGES.invalid_provider });
+        setErrorMessage('Proveedor no soportado');
         setStatus('error');
         return;
       }
 
       setProviderName(PROVIDER_NAMES[provider as OAuthProvider]);
 
-      // Check for OAuth errors from provider
+      // Check for OAuth errors
       if (errorParam) {
-        setError({
-          code: errorParam,
-          message: errorParam === 'access_denied'
-            ? ERROR_MESSAGES.access_denied
-            : errorDescription || ERROR_MESSAGES.server_error,
-        });
+        setErrorMessage(decodeURIComponent(errorParam));
         setStatus('error');
-        return;
-      }
 
-      // Validate code
-      if (!code) {
-        setError({ code: 'missing_code', message: ERROR_MESSAGES.missing_code });
-        setStatus('error');
-        return;
-      }
-
-      // Validate state (CSRF protection)
-      const storedState = localStorage.getItem('oauth_state');
-      if (!storedState || storedState !== state) {
-        setError({ code: 'state_mismatch', message: ERROR_MESSAGES.state_mismatch });
-        setStatus('error');
-        localStorage.removeItem('oauth_state');
-        return;
-      }
-
-      try {
-        // Exchange code for tokens
-        const result = await authApi.oauthCallback(provider, code);
-
-        // Store tokens
-        localStorage.setItem('auth_token', result.accessToken);
-        if (result.refreshToken) {
-          localStorage.setItem('refresh_token', result.refreshToken);
+        // Notify opener window of error
+        if (window.opener) {
+          window.opener.postMessage({
+            type: 'oauth_error',
+            provider,
+            error: decodeURIComponent(errorParam),
+          }, window.location.origin);
         }
+        return;
+      }
 
-        // Clean up OAuth state
-        localStorage.removeItem('oauth_state');
+      // Check for success with tokens
+      if (oauthSuccess === 'true' && accessToken && refreshToken && userBase64) {
+        try {
+          const user = JSON.parse(atob(userBase64));
 
-        // Update status
-        setStatus('success');
+          // Store tokens in localStorage
+          localStorage.setItem('auth_token', accessToken);
+          localStorage.setItem('refresh_token', refreshToken);
+          localStorage.setItem('auth_user', JSON.stringify(user));
 
-        // Redirect based on user status
-        setTimeout(() => {
-          if (result.isNewUser) {
-            router.replace('/onboarding');
+          // Clean up OAuth state
+          localStorage.removeItem('oauth_state');
+
+          setStatus('success');
+
+          // Notify opener window of success
+          if (window.opener) {
+            window.opener.postMessage({
+              type: 'oauth_success',
+              provider,
+              user,
+            }, window.location.origin);
+
+            // Close popup after delay
+            setTimeout(() => {
+              window.close();
+            }, 2000);
           } else {
-            router.replace('/dashboard');
+            // If no opener (direct navigation), redirect to dashboard
+            setTimeout(() => {
+              window.location.href = '/dashboard';
+            }, 2000);
           }
-        }, 1500);
-      } catch (err: any) {
-        localStorage.removeItem('oauth_state');
-
-        const errorCode = err?.response?.status === 400 ? 'invalid_code' : 'server_error';
-        setError({
-          code: errorCode,
-          message: err?.response?.data?.message || ERROR_MESSAGES[errorCode],
-        });
+        } catch (err) {
+          setErrorMessage('Error al procesar la respuesta de autenticacion');
+          setStatus('error');
+        }
+      } else {
+        setErrorMessage('Respuesta de autenticacion incompleta');
         setStatus('error');
       }
     };
 
     processCallback();
-  }, [params, searchParams, router]);
+  }, [params, searchParams]);
 
-  const handleRetry = () => {
-    router.push('/login');
+  const handleClose = () => {
+    if (window.opener) {
+      window.close();
+    } else {
+      window.location.href = '/login';
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="w-full max-w-md p-8 space-y-6 bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl text-center">
-        {/* Loading State */}
-        {status === 'loading' && (
-          <div data-testid="oauth-loading" className="space-y-4">
-            <div className="flex justify-center">
-              <LoadingSpinner />
-            </div>
-            <h1 className="text-xl font-semibold text-white">
-              Verificando autenticación
-            </h1>
-            {providerName && (
-              <p className="text-slate-400">
-                Conectando con {providerName}...
-              </p>
-            )}
+    <div className="w-full max-w-md p-8 space-y-6 bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl text-center">
+      {/* Loading State */}
+      {status === 'loading' && (
+        <div data-testid="oauth-loading" className="space-y-4">
+          <div className="flex justify-center">
+            <LoadingSpinner />
           </div>
-        )}
-
-        {/* Success State */}
-        {status === 'success' && (
-          <div className="space-y-4">
-            <div className="flex justify-center">
-              <SuccessIcon />
-            </div>
-            <h1 className="text-xl font-semibold text-white">
-              ¡Autenticación exitosa!
-            </h1>
+          <h1 className="text-xl font-semibold text-white">
+            Verificando autenticacion
+          </h1>
+          {providerName && (
             <p className="text-slate-400">
-              Redirigiendo...
+              Conectando con {providerName}...
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Success State */}
+      {status === 'success' && (
+        <div className="space-y-4">
+          <div className="flex justify-center">
+            <SuccessIcon />
+          </div>
+          <h1 className="text-xl font-semibold text-white">
+            Autenticacion exitosa!
+          </h1>
+          <p className="text-slate-400">
+            {window.opener
+              ? 'Puedes cerrar esta ventana. Seras redirigido automaticamente...'
+              : 'Redirigiendo al dashboard...'}
+          </p>
+          <p className="text-green-400 text-sm">
+            Conectado con {providerName}
+          </p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {status === 'error' && (
+        <div className="space-y-6">
+          <div className="flex justify-center">
+            <ErrorIcon />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-semibold text-white">
+              Error de autenticacion
+            </h1>
+            <p className="text-red-400">
+              {errorMessage}
             </p>
           </div>
-        )}
+          <button
+            onClick={handleClose}
+            className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-semibold hover:from-purple-500 hover:to-cyan-500 transition-all"
+          >
+            {window.opener ? 'Cerrar ventana' : 'Volver al inicio'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
-        {/* Error State */}
-        {status === 'error' && error && (
-          <div className="space-y-6">
-            <div className="flex justify-center">
-              <ErrorIcon />
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-xl font-semibold text-white">
-                Error de autenticación
-              </h1>
-              <p className="text-red-400">
-                {error.message}
-              </p>
-            </div>
-            <div className="space-y-3">
-              <button
-                onClick={handleRetry}
-                className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-semibold hover:from-purple-500 hover:to-cyan-500 transition-all"
-              >
-                Intentar de nuevo
-              </button>
-              <Link
-                href="/login"
-                className="block text-purple-400 hover:text-purple-300 transition-colors"
-              >
-                Volver al inicio de sesión
-              </Link>
-            </div>
-          </div>
-        )}
+// ============================================
+// FALLBACK COMPONENT
+// ============================================
+
+function CallbackFallback() {
+  return (
+    <div className="w-full max-w-md p-8 space-y-6 bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl text-center">
+      <div className="flex justify-center">
+        <LoadingSpinner />
       </div>
+      <h1 className="text-xl font-semibold text-white">
+        Procesando autenticacion...
+      </h1>
+    </div>
+  );
+}
+
+// ============================================
+// MAIN PAGE COMPONENT
+// ============================================
+
+export default function OAuthCallbackPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <Suspense fallback={<CallbackFallback />}>
+        <OAuthCallbackContent />
+      </Suspense>
     </div>
   );
 }

@@ -115,14 +115,14 @@ export class GitLabAuthController {
   ): Promise<void> {
     // Handle OAuth errors
     if (error) {
-      const errorUrl = new URL(`${this.frontendUrl}/login`);
+      const errorUrl = new URL(`${this.frontendUrl}/oauth/callback/gitlab`);
       errorUrl.searchParams.set('error', errorDescription || error);
       res.redirect(errorUrl.toString());
       return;
     }
 
     if (!code) {
-      const errorUrl = new URL(`${this.frontendUrl}/login`);
+      const errorUrl = new URL(`${this.frontendUrl}/oauth/callback/gitlab`);
       errorUrl.searchParams.set('error', 'No authorization code received');
       res.redirect(errorUrl.toString());
       return;
@@ -133,7 +133,7 @@ export class GitLabAuthController {
       const tokenResponse = await this.exchangeCodeForToken(code);
 
       if (tokenResponse.error) {
-        const errorUrl = new URL(`${this.frontendUrl}/login`);
+        const errorUrl = new URL(`${this.frontendUrl}/oauth/callback/gitlab`);
         errorUrl.searchParams.set('error', tokenResponse.error_description || tokenResponse.error);
         res.redirect(errorUrl.toString());
         return;
@@ -181,8 +181,8 @@ export class GitLabAuthController {
         gitlabUser.username,
       );
 
-      // Redirect to frontend with tokens
-      const successUrl = new URL(`${this.frontendUrl}/login`);
+      // Redirect to frontend OAuth callback page with tokens
+      const successUrl = new URL(`${this.frontendUrl}/oauth/callback/gitlab`);
       successUrl.searchParams.set('oauth_success', 'true');
       successUrl.searchParams.set('access_token', tokens.accessToken);
       successUrl.searchParams.set('refresh_token', tokens.refreshToken);
@@ -190,7 +190,7 @@ export class GitLabAuthController {
       res.redirect(successUrl.toString());
     } catch (error: any) {
       console.error('GitLab OAuth callback error:', error);
-      const errorUrl = new URL(`${this.frontendUrl}/login`);
+      const errorUrl = new URL(`${this.frontendUrl}/oauth/callback/gitlab`);
       errorUrl.searchParams.set('error', 'Failed to authenticate with GitLab');
       res.redirect(errorUrl.toString());
     }
