@@ -551,4 +551,176 @@ export class UsersService {
   async findByGitHubId(githubId: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ githubId });
   }
+
+  // ==================== Google Integration ====================
+
+  async connectGoogle(
+    userId: string,
+    googleId: string,
+    accessToken: string,
+    email: string,
+    name: string,
+  ): Promise<void> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Encrypt the access token
+    const encryptedToken = this.encryptionService.encrypt(accessToken);
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      googleId,
+      googleAccessToken: encryptedToken,
+      googleEmail: email,
+      googleName: name,
+      googleConnectedAt: new Date(),
+    });
+  }
+
+  async disconnectGoogle(userId: string): Promise<void> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      $unset: {
+        googleId: '',
+        googleAccessToken: '',
+        googleEmail: '',
+        googleName: '',
+        googleConnectedAt: '',
+      },
+    });
+  }
+
+  async getGoogleConnectionStatus(userId: string): Promise<{
+    connected: boolean;
+    email?: string;
+    name?: string;
+    connectedAt?: Date;
+  }> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.googleId && user.googleAccessToken) {
+      return {
+        connected: true,
+        email: user.googleEmail,
+        name: user.googleName,
+        connectedAt: user.googleConnectedAt,
+      };
+    }
+
+    return { connected: false };
+  }
+
+  async getGoogleAccessToken(userId: string): Promise<string | null> {
+    const user = await this.userModel.findById(userId);
+    if (!user?.googleAccessToken) return null;
+
+    try {
+      return this.encryptionService.decrypt(user.googleAccessToken);
+    } catch (error) {
+      const parts = user.googleAccessToken.split(':');
+      if (parts.length === 3) {
+        console.error('Failed to decrypt Google token for user', userId, error);
+        return null;
+      }
+      return user.googleAccessToken;
+    }
+  }
+
+  async findByGoogleId(googleId: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ googleId });
+  }
+
+  // ==================== GitLab Integration ====================
+
+  async connectGitLab(
+    userId: string,
+    gitlabId: string,
+    accessToken: string,
+    username: string,
+    email: string,
+  ): Promise<void> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Encrypt the access token
+    const encryptedToken = this.encryptionService.encrypt(accessToken);
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      gitlabId,
+      gitlabAccessToken: encryptedToken,
+      gitlabUsername: username,
+      gitlabEmail: email,
+      gitlabConnectedAt: new Date(),
+    });
+  }
+
+  async disconnectGitLab(userId: string): Promise<void> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.userModel.findByIdAndUpdate(userId, {
+      $unset: {
+        gitlabId: '',
+        gitlabAccessToken: '',
+        gitlabUsername: '',
+        gitlabEmail: '',
+        gitlabConnectedAt: '',
+      },
+    });
+  }
+
+  async getGitLabConnectionStatus(userId: string): Promise<{
+    connected: boolean;
+    username?: string;
+    email?: string;
+    connectedAt?: Date;
+  }> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.gitlabId && user.gitlabAccessToken) {
+      return {
+        connected: true,
+        username: user.gitlabUsername,
+        email: user.gitlabEmail,
+        connectedAt: user.gitlabConnectedAt,
+      };
+    }
+
+    return { connected: false };
+  }
+
+  async getGitLabAccessToken(userId: string): Promise<string | null> {
+    const user = await this.userModel.findById(userId);
+    if (!user?.gitlabAccessToken) return null;
+
+    try {
+      return this.encryptionService.decrypt(user.gitlabAccessToken);
+    } catch (error) {
+      const parts = user.gitlabAccessToken.split(':');
+      if (parts.length === 3) {
+        console.error('Failed to decrypt GitLab token for user', userId, error);
+        return null;
+      }
+      return user.gitlabAccessToken;
+    }
+  }
+
+  async findByGitLabId(gitlabId: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ gitlabId });
+  }
 }

@@ -59,6 +59,38 @@ export class User {
   @Prop()
   githubConnectedAt?: Date;
 
+  // Google OAuth fields
+  @Prop({ sparse: true })
+  googleId?: string;
+
+  @Prop()
+  googleAccessToken?: string;
+
+  @Prop()
+  googleEmail?: string;
+
+  @Prop()
+  googleName?: string;
+
+  @Prop()
+  googleConnectedAt?: Date;
+
+  // GitLab OAuth fields
+  @Prop({ sparse: true })
+  gitlabId?: string;
+
+  @Prop()
+  gitlabAccessToken?: string;
+
+  @Prop()
+  gitlabUsername?: string;
+
+  @Prop()
+  gitlabEmail?: string;
+
+  @Prop()
+  gitlabConnectedAt?: Date;
+
   // LLM API Keys - stored encrypted
   @Prop({ type: Object, default: {} })
   llmApiKeys: Record<string, LLMProviderConfig>;
