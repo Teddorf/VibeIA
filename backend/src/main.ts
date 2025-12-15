@@ -40,6 +40,9 @@ async function bootstrap() {
     maxAge: 3600, // 1 hour
   });
 
+  // Set global prefix for all routes
+  app.setGlobalPrefix('api');
+
   // Enable global validation
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
