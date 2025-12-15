@@ -171,4 +171,85 @@ export class AuthService {
   async verifyResetToken(token: string): Promise<boolean> {
     return this.usersService.verifyResetToken(token);
   }
+
+  /**
+   * OAuth Login/Register - finds or creates user and generates tokens
+   */
+  async loginWithOAuth(
+    provider: 'github' | 'google' | 'gitlab',
+    providerUserId: string,
+    email: string,
+    name: string,
+    accessToken: string,
+    username?: string,
+  ): Promise<TokenResponse> {
+    let user: UserDocument | null = null;
+
+    // Try to find existing user by provider ID
+    if (provider === 'github') {
+      user = await this.usersService.findByGitHubId(providerUserId);
+    } else if (provider === 'google') {
+      user = await this.usersService.findByGoogleId(providerUserId);
+    } else if (provider === 'gitlab') {
+      user = await this.usersService.findByGitLabId(providerUserId);
+    }
+
+    // If not found by provider ID, try by email
+    if (!user && email) {
+      user = await this.usersService.findByEmail(email);
+    }
+
+    // If still no user, create a new one
+    if (!user) {
+      // Generate a random password for OAuth users (they won't use it)
+      const randomPassword = this.generateSecurePassword();
+
+      user = await this.usersService.create({
+        email: email || `${provider}-${providerUserId}@oauth.local`,
+        password: randomPassword,
+        name: name || username || 'OAuth User',
+      });
+    }
+
+    // Connect the OAuth provider to the user
+    if (provider === 'github') {
+      await this.usersService.connectGitHub(
+        user._id.toString(),
+        providerUserId,
+        accessToken,
+        username || '',
+      );
+    } else if (provider === 'google') {
+      await this.usersService.connectGoogle(
+        user._id.toString(),
+        providerUserId,
+        accessToken,
+        email,
+        name,
+      );
+    } else if (provider === 'gitlab') {
+      await this.usersService.connectGitLab(
+        user._id.toString(),
+        providerUserId,
+        accessToken,
+        username || '',
+        email,
+      );
+    }
+
+    // Update last login
+    await this.usersService.updateLastLogin(user._id.toString());
+
+    // Generate tokens
+    return this.generateTokens(user);
+  }
+
+  private generateSecurePassword(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < 32; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  }
 }

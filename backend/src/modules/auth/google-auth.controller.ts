@@ -11,6 +11,7 @@ import {
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
+import { AuthService } from './auth.service';
 import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 
@@ -52,6 +53,7 @@ export class GoogleAuthController {
   constructor(
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
+    private readonly authService: AuthService,
   ) {
     this.clientId = this.configService.get<string>('GOOGLE_CLIENT_ID') || '';
     this.clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET') || '';
@@ -62,16 +64,29 @@ export class GoogleAuthController {
   /**
    * GET /api/auth/google
    * Initiates Google OAuth flow - redirects user to Google
+   * @param state - CSRF state from frontend (for login flow)
+   * @param userId - User ID (for connect flow)
    */
   @Public()
   @Get()
-  async initiateOAuth(@Res() res: Response, @Query('userId') userId?: string): Promise<void> {
+  async initiateOAuth(
+    @Res() res: Response,
+    @Query('state') state?: string,
+    @Query('userId') userId?: string,
+  ): Promise<void> {
     if (!this.clientId) {
       throw new BadRequestException('Google OAuth is not configured');
     }
 
-    // Store userId in state for the callback
-    const state = userId ? Buffer.from(JSON.stringify({ userId })).toString('base64') : '';
+    // If userId is provided (connect flow), encode it in state
+    // Otherwise, pass through the state from frontend (login flow)
+    let oauthState = '';
+    if (userId) {
+      oauthState = Buffer.from(JSON.stringify({ userId, type: 'connect' })).toString('base64');
+    } else if (state) {
+      // Wrap the frontend state to identify login flow
+      oauthState = Buffer.from(JSON.stringify({ csrfState: state, type: 'login' })).toString('base64');
+    }
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', this.clientId);
@@ -80,8 +95,8 @@ export class GoogleAuthController {
     authUrl.searchParams.set('scope', this.scopes);
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
-    if (state) {
-      authUrl.searchParams.set('state', state);
+    if (oauthState) {
+      authUrl.searchParams.set('state', oauthState);
     }
 
     res.redirect(authUrl.toString());
@@ -102,43 +117,25 @@ export class GoogleAuthController {
   ): Promise<void> {
     // Handle OAuth errors
     if (error) {
-      const errorUrl = new URL(`${this.frontendUrl}/settings/google`);
+      const errorUrl = new URL(`${this.frontendUrl}/login`);
       errorUrl.searchParams.set('error', errorDescription || error);
       res.redirect(errorUrl.toString());
       return;
     }
 
     if (!code) {
-      const errorUrl = new URL(`${this.frontendUrl}/settings/google`);
+      const errorUrl = new URL(`${this.frontendUrl}/login`);
       errorUrl.searchParams.set('error', 'No authorization code received');
       res.redirect(errorUrl.toString());
       return;
     }
 
     try {
-      // Parse state to get userId
-      let userId: string | undefined;
-      if (state) {
-        try {
-          const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-          userId = stateData.userId;
-        } catch {
-          // Ignore state parsing errors
-        }
-      }
-
-      if (!userId) {
-        const errorUrl = new URL(`${this.frontendUrl}/settings/google`);
-        errorUrl.searchParams.set('error', 'Invalid OAuth state - please try again');
-        res.redirect(errorUrl.toString());
-        return;
-      }
-
       // Exchange code for access token
       const tokenResponse = await this.exchangeCodeForToken(code);
 
       if (tokenResponse.error) {
-        const errorUrl = new URL(`${this.frontendUrl}/settings/google`);
+        const errorUrl = new URL(`${this.frontendUrl}/login`);
         errorUrl.searchParams.set('error', tokenResponse.error_description || tokenResponse.error);
         res.redirect(errorUrl.toString());
         return;
@@ -149,24 +146,53 @@ export class GoogleAuthController {
       // Get Google user info
       const googleUser = await this.getGoogleUser(accessToken);
 
-      // Store the Google connection
-      await this.usersService.connectGoogle(
-        userId,
+      // Parse state to determine flow type
+      let stateData: { userId?: string; csrfState?: string; type?: string } = {};
+      if (state) {
+        try {
+          stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+        } catch {
+          // If state is not base64 JSON, it might be a plain CSRF token
+          stateData = { csrfState: state, type: 'login' };
+        }
+      }
+
+      // Connect flow - user is connecting Google to existing account
+      if (stateData.type === 'connect' && stateData.userId) {
+        await this.usersService.connectGoogle(
+          stateData.userId,
+          googleUser.id,
+          accessToken,
+          googleUser.email,
+          googleUser.name,
+        );
+
+        const successUrl = new URL(`${this.frontendUrl}/dashboard`);
+        successUrl.searchParams.set('google_connected', 'true');
+        res.redirect(successUrl.toString());
+        return;
+      }
+
+      // Login/Register flow - user is logging in with Google
+      const tokens = await this.authService.loginWithOAuth(
+        'google',
         googleUser.id,
-        accessToken,
         googleUser.email,
         googleUser.name,
+        accessToken,
       );
 
-      // Redirect to success page
-      const successUrl = new URL(`${this.frontendUrl}/settings/google`);
-      successUrl.searchParams.set('success', 'true');
-      successUrl.searchParams.set('email', googleUser.email);
+      // Redirect to frontend with tokens
+      const successUrl = new URL(`${this.frontendUrl}/login`);
+      successUrl.searchParams.set('oauth_success', 'true');
+      successUrl.searchParams.set('access_token', tokens.accessToken);
+      successUrl.searchParams.set('refresh_token', tokens.refreshToken);
+      successUrl.searchParams.set('user', Buffer.from(JSON.stringify(tokens.user)).toString('base64'));
       res.redirect(successUrl.toString());
     } catch (error: any) {
       console.error('Google OAuth callback error:', error);
-      const errorUrl = new URL(`${this.frontendUrl}/settings/google`);
-      errorUrl.searchParams.set('error', 'Failed to connect Google account');
+      const errorUrl = new URL(`${this.frontendUrl}/login`);
+      errorUrl.searchParams.set('error', 'Failed to authenticate with Google');
       res.redirect(errorUrl.toString());
     }
   }

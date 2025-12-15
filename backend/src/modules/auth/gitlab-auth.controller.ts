@@ -11,6 +11,7 @@ import {
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
+import { AuthService } from './auth.service';
 import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 
@@ -52,6 +53,7 @@ export class GitLabAuthController {
   constructor(
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
+    private readonly authService: AuthService,
   ) {
     this.clientId = this.configService.get<string>('GITLAB_CLIENT_ID') || '';
     this.clientSecret = this.configService.get<string>('GITLAB_CLIENT_SECRET') || '';
@@ -62,24 +64,37 @@ export class GitLabAuthController {
   /**
    * GET /api/auth/gitlab
    * Initiates GitLab OAuth flow - redirects user to GitLab
+   * @param state - CSRF state from frontend (for login flow)
+   * @param userId - User ID (for connect flow)
    */
   @Public()
   @Get()
-  async initiateOAuth(@Res() res: Response, @Query('userId') userId?: string): Promise<void> {
+  async initiateOAuth(
+    @Res() res: Response,
+    @Query('state') state?: string,
+    @Query('userId') userId?: string,
+  ): Promise<void> {
     if (!this.clientId) {
       throw new BadRequestException('GitLab OAuth is not configured');
     }
 
-    // Store userId in state for the callback
-    const state = userId ? Buffer.from(JSON.stringify({ userId })).toString('base64') : '';
+    // If userId is provided (connect flow), encode it in state
+    // Otherwise, pass through the state from frontend (login flow)
+    let oauthState = '';
+    if (userId) {
+      oauthState = Buffer.from(JSON.stringify({ userId, type: 'connect' })).toString('base64');
+    } else if (state) {
+      // Wrap the frontend state to identify login flow
+      oauthState = Buffer.from(JSON.stringify({ csrfState: state, type: 'login' })).toString('base64');
+    }
 
     const authUrl = new URL('https://gitlab.com/oauth/authorize');
     authUrl.searchParams.set('client_id', this.clientId);
     authUrl.searchParams.set('redirect_uri', this.callbackUrl);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('scope', this.scopes);
-    if (state) {
-      authUrl.searchParams.set('state', state);
+    if (oauthState) {
+      authUrl.searchParams.set('state', oauthState);
     }
 
     res.redirect(authUrl.toString());
@@ -100,43 +115,25 @@ export class GitLabAuthController {
   ): Promise<void> {
     // Handle OAuth errors
     if (error) {
-      const errorUrl = new URL(`${this.frontendUrl}/settings/gitlab`);
+      const errorUrl = new URL(`${this.frontendUrl}/login`);
       errorUrl.searchParams.set('error', errorDescription || error);
       res.redirect(errorUrl.toString());
       return;
     }
 
     if (!code) {
-      const errorUrl = new URL(`${this.frontendUrl}/settings/gitlab`);
+      const errorUrl = new URL(`${this.frontendUrl}/login`);
       errorUrl.searchParams.set('error', 'No authorization code received');
       res.redirect(errorUrl.toString());
       return;
     }
 
     try {
-      // Parse state to get userId
-      let userId: string | undefined;
-      if (state) {
-        try {
-          const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-          userId = stateData.userId;
-        } catch {
-          // Ignore state parsing errors
-        }
-      }
-
-      if (!userId) {
-        const errorUrl = new URL(`${this.frontendUrl}/settings/gitlab`);
-        errorUrl.searchParams.set('error', 'Invalid OAuth state - please try again');
-        res.redirect(errorUrl.toString());
-        return;
-      }
-
       // Exchange code for access token
       const tokenResponse = await this.exchangeCodeForToken(code);
 
       if (tokenResponse.error) {
-        const errorUrl = new URL(`${this.frontendUrl}/settings/gitlab`);
+        const errorUrl = new URL(`${this.frontendUrl}/login`);
         errorUrl.searchParams.set('error', tokenResponse.error_description || tokenResponse.error);
         res.redirect(errorUrl.toString());
         return;
@@ -147,24 +144,54 @@ export class GitLabAuthController {
       // Get GitLab user info
       const gitlabUser = await this.getGitLabUser(accessToken);
 
-      // Store the GitLab connection
-      await this.usersService.connectGitLab(
-        userId,
+      // Parse state to determine flow type
+      let stateData: { userId?: string; csrfState?: string; type?: string } = {};
+      if (state) {
+        try {
+          stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+        } catch {
+          // If state is not base64 JSON, it might be a plain CSRF token
+          stateData = { csrfState: state, type: 'login' };
+        }
+      }
+
+      // Connect flow - user is connecting GitLab to existing account
+      if (stateData.type === 'connect' && stateData.userId) {
+        await this.usersService.connectGitLab(
+          stateData.userId,
+          gitlabUser.id.toString(),
+          accessToken,
+          gitlabUser.username,
+          gitlabUser.email,
+        );
+
+        const successUrl = new URL(`${this.frontendUrl}/dashboard`);
+        successUrl.searchParams.set('gitlab_connected', 'true');
+        res.redirect(successUrl.toString());
+        return;
+      }
+
+      // Login/Register flow - user is logging in with GitLab
+      const tokens = await this.authService.loginWithOAuth(
+        'gitlab',
         gitlabUser.id.toString(),
+        gitlabUser.email,
+        gitlabUser.name || gitlabUser.username,
         accessToken,
         gitlabUser.username,
-        gitlabUser.email,
       );
 
-      // Redirect to success page
-      const successUrl = new URL(`${this.frontendUrl}/settings/gitlab`);
-      successUrl.searchParams.set('success', 'true');
-      successUrl.searchParams.set('username', gitlabUser.username);
+      // Redirect to frontend with tokens
+      const successUrl = new URL(`${this.frontendUrl}/login`);
+      successUrl.searchParams.set('oauth_success', 'true');
+      successUrl.searchParams.set('access_token', tokens.accessToken);
+      successUrl.searchParams.set('refresh_token', tokens.refreshToken);
+      successUrl.searchParams.set('user', Buffer.from(JSON.stringify(tokens.user)).toString('base64'));
       res.redirect(successUrl.toString());
     } catch (error: any) {
       console.error('GitLab OAuth callback error:', error);
-      const errorUrl = new URL(`${this.frontendUrl}/settings/gitlab`);
-      errorUrl.searchParams.set('error', 'Failed to connect GitLab account');
+      const errorUrl = new URL(`${this.frontendUrl}/login`);
+      errorUrl.searchParams.set('error', 'Failed to authenticate with GitLab');
       res.redirect(errorUrl.toString());
     }
   }
