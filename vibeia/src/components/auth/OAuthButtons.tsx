@@ -94,7 +94,7 @@ const getOAuthUrl = (provider: OAuthProvider, state: string, redirectUri?: strin
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
   const encodedRedirectUri = redirectUri ? encodeURIComponent(redirectUri) : '';
   const redirectParam = encodedRedirectUri ? `&redirect_uri=${encodedRedirectUri}` : '';
-  return `${baseUrl}/api/auth/oauth/${provider}?state=${state}${redirectParam}`;
+  return `${baseUrl}/api/auth/${provider}?state=${state}${redirectParam}`;
 };
 
 // ============================================
