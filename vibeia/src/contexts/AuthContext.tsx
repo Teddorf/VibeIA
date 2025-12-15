@@ -41,6 +41,7 @@ interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   refreshAuth: () => Promise<boolean>;
   refreshUser: () => Promise<void>;
+  initFromStorage: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -216,6 +217,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Re-initialize auth state from localStorage (used after OAuth popup flow)
+  const initFromStorage = useCallback((): boolean => {
+    try {
+      const accessToken = localStorage.getItem(AUTH_TOKEN_KEY);
+      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+      const userStr = localStorage.getItem(USER_KEY);
+
+      if (accessToken && userStr) {
+        const rawUser = JSON.parse(userStr);
+        const validation = UserSchema.safeParse(rawUser);
+
+        if (validation.success) {
+          setState({
+            user: validation.data,
+            accessToken,
+            refreshToken,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+          return true;
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // Setup axios interceptor for token refresh
   useEffect(() => {
     const interceptor = apiClient.interceptors.response.use(
@@ -252,6 +281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         refreshAuth,
         refreshUser,
+        initFromStorage,
       }}
     >
       {children}

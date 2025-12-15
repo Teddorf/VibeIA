@@ -4,6 +4,37 @@ Registro cronologico de sesiones de desarrollo.
 
 ---
 
+## 2025-12-15 - OAuth Multi-Provider Implementation
+
+**Duracion:** ~4h
+**Commits:** 6
+
+### Cambios principales
+- Implementacion completa de OAuth para GitHub, Google y GitLab
+- Soporte dual: flujo "connect" (vincular cuenta) y "login" (autenticar/registrar)
+- Flujo OAuth con popup: mensaje de exito y comunicacion via postMessage
+- Metodo `loginWithOAuth` en AuthService para crear/encontrar usuarios
+- Variables de entorno OAuth configuradas en Render
+- Fix de redirect_uri y correccion de rutas 404
+
+### Archivos creados/modificados
+- `backend/src/modules/auth/google-auth.controller.ts` - +279 lineas (nuevo)
+- `backend/src/modules/auth/gitlab-auth.controller.ts` - +277 lineas (nuevo)
+- `backend/src/modules/auth/github-auth.controller.ts` - Refactorizado para dual flow
+- `backend/src/modules/auth/auth.service.ts` - +81 lineas (`loginWithOAuth`)
+- `backend/src/modules/users/users.service.ts` - +172 lineas (connect methods)
+- `backend/src/modules/users/user.schema.ts` - +32 lineas (OAuth fields)
+- `vibeia/src/app/(auth)/oauth/callback/[provider]/page.tsx` - Popup con postMessage
+- `vibeia/src/app/(auth)/login/page.tsx` - Listener para mensajes OAuth
+
+### Notas tecnicas
+- OAuth state codificado en base64 con tipo `connect` o `login`
+- Popup se auto-cierra en 2s despues de exito
+- Tokens almacenados en localStorage desde callback page
+- Build verificado en backend y frontend
+
+---
+
 ## 2025-12-11 - Frontend UX/UI & HTTP Error Handling Audit
 
 **Duracion:** ~3h

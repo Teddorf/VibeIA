@@ -8,13 +8,36 @@ import { OAuthButtons } from '@/components/auth/OAuthButtons';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, isAuthenticated } = useAuth();
+  const { register, isAuthenticated, initFromStorage } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Listen for OAuth popup messages
+  React.useEffect(() => {
+    const handleOAuthMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      const { type, error: oauthError } = event.data || {};
+
+      if (type === 'oauth_success') {
+        initFromStorage();
+        router.push('/dashboard');
+      }
+
+      if (type === 'oauth_error') {
+        setError(oauthError || 'Error de autenticacion');
+      }
+    };
+
+    window.addEventListener('message', handleOAuthMessage);
+    return () => window.removeEventListener('message', handleOAuthMessage);
+  }, [initFromStorage, router]);
 
   // Redirect if already authenticated
   React.useEffect(() => {

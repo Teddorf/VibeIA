@@ -36,7 +36,7 @@
 - **Hosting**: Render (free tier)
 
 ### Frontend
-- **Framework**: Next.js 15.1.3 (React 19, App Router)
+- **Framework**: Next.js 16.x (React 19, App Router)
 - **Lenguaje**: TypeScript 5
 - **Estilos**: Tailwind CSS v3.4.18, shadcn/ui (Radix)
 - **Estado**: React Context API (AuthContext)

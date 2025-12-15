@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { llmSettingsApi, githubApi } from '@/lib/api-client';
-import Header from '@/components/layout/Header';
 
 interface ProviderInfo {
   name: string;
@@ -192,7 +191,6 @@ export default function SettingsPage() {
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header />
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
@@ -202,9 +200,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
-
-      <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Configuración</h1>
           <p className="mt-2 text-gray-600">
@@ -569,7 +565,7 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

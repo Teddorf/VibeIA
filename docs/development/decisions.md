@@ -4,6 +4,35 @@ Registro de ADRs (Architecture Decision Records).
 
 ---
 
+## ADR-003: OAuth Popup Flow con postMessage
+
+**Fecha:** 2025-12-15
+**Estado:** Aceptado
+
+### Contexto
+OAuth requeria UX donde el popup de autorizacion no reemplazara la pagina de login, permitiendo feedback visual al usuario y redireccion desde la ventana principal.
+
+### Decision
+Implementar flujo con popup que comunica resultado via `window.postMessage()`:
+1. Login page abre popup con URL de OAuth provider
+2. Backend redirige a `/oauth/callback/[provider]` con tokens
+3. Callback page muestra mensaje de exito y envia postMessage
+4. Login page escucha mensaje y redirige a dashboard
+
+### Alternativas consideradas
+1. **Redirect directo** - Rechazado porque pierde contexto de la pagina
+2. **localStorage polling** - Considerado pero postMessage es mas eficiente
+3. **WebSocket** - Sobreingenieria para flujo one-time
+4. **postMessage** - Elegido por ser nativo, seguro (origin check) y sincrono
+
+### Consecuencias
+- (+) UX mejorada con feedback visual en popup
+- (+) Seguro con validacion de origin
+- (+) Funciona si usuario navega directamente a callback (fallback a redirect)
+- (-) Popup blockers pueden interferir
+
+---
+
 ## ADR-002: Sistema Centralizado de Errores HTTP
 
 **Fecha:** 2025-12-11

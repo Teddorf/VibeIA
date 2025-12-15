@@ -8,7 +8,7 @@ import { OAuthButtons } from '@/components/auth/OAuthButtons';
 
 function LoginForm() {
   const router = useRouter();
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, initFromStorage } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,8 +26,9 @@ function LoginForm() {
 
       if (type === 'oauth_success') {
         // Tokens are already stored in localStorage by the callback page
-        // Redirect to dashboard
-        window.location.href = '/dashboard';
+        // Re-initialize AuthContext from localStorage before redirecting
+        initFromStorage();
+        router.push('/dashboard');
       }
 
       if (type === 'oauth_error') {
@@ -37,7 +38,7 @@ function LoginForm() {
 
     window.addEventListener('message', handleOAuthMessage);
     return () => window.removeEventListener('message', handleOAuthMessage);
-  }, []);
+  }, [initFromStorage, router]);
 
   // Redirect if already authenticated
   useEffect(() => {
