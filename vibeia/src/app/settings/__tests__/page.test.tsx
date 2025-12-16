@@ -117,7 +117,7 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(/settings/i)).toBeInTheDocument();
+        expect(screen.getByText(/configuración/i)).toBeInTheDocument();
       });
     });
 
@@ -406,7 +406,7 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(/settings/i)).toBeInTheDocument();
+        expect(screen.getByText(/configuración/i)).toBeInTheDocument();
       });
     });
 

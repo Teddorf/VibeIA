@@ -146,9 +146,9 @@ export default function SettingsPage() {
     try {
       setGithubLoading(true);
       setGithubError(null);
-      const { authUrl } = await githubApi.getAuthUrl();
+      const { url } = await githubApi.getAuthUrl();
       // Redirect to GitHub OAuth
-      window.location.href = authUrl;
+      window.location.href = url;
     } catch (err: any) {
       setGithubError(err.response?.data?.message || 'Error al conectar con GitHub');
       setGithubLoading(false);
