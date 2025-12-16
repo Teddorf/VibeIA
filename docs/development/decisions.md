@@ -4,6 +4,31 @@ Registro de ADRs (Architecture Decision Records).
 
 ---
 
+## ADR-004: AuthContext initFromStorage para Sync Cross-Window
+
+**Fecha:** 2025-12-15
+**Estado:** Aceptado
+
+### Contexto
+OAuth popup flow guardaba tokens en localStorage, pero AuthContext no se actualizaba porque su useEffect solo ejecuta al montar (dependency array vacio).
+
+### Decision
+Agregar funcion `initFromStorage()` al AuthContext que re-lee localStorage y actualiza el estado de autenticacion. Las paginas login/register llaman esta funcion al recibir `oauth_success` via postMessage.
+
+### Alternativas consideradas
+1. **Storage event listener** - Rechazado porque solo funciona entre tabs, no dentro de la misma tab
+2. **Re-montar AuthProvider** - Complejo y causa re-render innecesario de toda la app
+3. **Pasar tokens via postMessage** - Duplica datos ya en localStorage
+4. **initFromStorage()** - Elegido por simplicidad y reutilizabilidad
+
+### Consecuencias
+- (+) Solucion minima y reutilizable
+- (+) No requiere cambios en el popup callback
+- (+) Patron extensible para otros flujos cross-window
+- (-) Requiere llamar manualmente despues de operaciones que modifican localStorage
+
+---
+
 ## ADR-003: OAuth Popup Flow con postMessage
 
 **Fecha:** 2025-12-15

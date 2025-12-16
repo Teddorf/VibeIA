@@ -27,22 +27,19 @@ import { PlansService } from '../plans/plans.service';
 import { ProjectsService } from '../projects/projects.service';
 import { GitService } from '../git/git.service';
 import { LlmService } from '../llm/llm.service';
+import { UsersService } from '../users/users.service';
 import { QualityGatesService } from '../quality-gates/quality-gates.service';
 import { ManualTasksService } from '../manual-tasks/manual-tasks.service';
+import { EventsGateway } from '../events/events.gateway';
 
 describe('ExecutionService', () => {
   let service: ExecutionService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let plansService: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let projectsService: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let gitService: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let llmService: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let usersService: any;
   let qualityGatesService: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let manualTasksService: any;
 
   const mockPlan = {
@@ -93,6 +90,8 @@ describe('ExecutionService', () => {
     blockers: [],
   };
 
+  const mockUserId = 'user-123';
+
   beforeEach(async () => {
     const mockPlansService = {
       findOne: jest.fn(),
@@ -112,6 +111,16 @@ describe('ExecutionService', () => {
       generateCode: jest.fn(),
     };
 
+    const mockUsersService = {
+      hasLLMConfigured: jest.fn().mockResolvedValue(true),
+      getActiveLLMApiKeys: jest.fn().mockResolvedValue({ anthropic: 'sk-test-key' }),
+      getLLMPreferences: jest.fn().mockResolvedValue({
+        primaryProvider: 'anthropic',
+        fallbackEnabled: true,
+        fallbackOrder: ['anthropic', 'openai'],
+      }),
+    };
+
     const mockQualityGatesService = {
       runAllChecks: jest.fn(),
       generateReport: jest.fn().mockReturnValue('Quality Report'),
@@ -121,6 +130,17 @@ describe('ExecutionService', () => {
       detectManualTasks: jest.fn(),
     };
 
+    const mockEventsGateway = {
+      emitToRoom: jest.fn(),
+      emitStatusUpdate: jest.fn(),
+      emitLog: jest.fn(),
+      emitTaskStarted: jest.fn(),
+      emitTaskCompleted: jest.fn(),
+      emitTaskFailed: jest.fn(),
+      emitPhaseCompleted: jest.fn(),
+      emitExecutionCompleted: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExecutionService,
@@ -128,8 +148,10 @@ describe('ExecutionService', () => {
         { provide: ProjectsService, useValue: mockProjectsService },
         { provide: GitService, useValue: mockGitService },
         { provide: LlmService, useValue: mockLlmService },
+        { provide: UsersService, useValue: mockUsersService },
         { provide: QualityGatesService, useValue: mockQualityGatesService },
         { provide: ManualTasksService, useValue: mockManualTasksService },
+        { provide: EventsGateway, useValue: mockEventsGateway },
       ],
     }).compile();
 
@@ -138,6 +160,7 @@ describe('ExecutionService', () => {
     projectsService = module.get(ProjectsService);
     gitService = module.get(GitService);
     llmService = module.get(LlmService);
+    usersService = module.get(UsersService);
     qualityGatesService = module.get(QualityGatesService);
     manualTasksService = module.get(ManualTasksService);
   });
@@ -154,14 +177,14 @@ describe('ExecutionService', () => {
     it('should throw error if plan not found', async () => {
       plansService.findOne.mockResolvedValue(null);
 
-      await expect(service.executePlan('invalid-id')).rejects.toThrow('Plan not found');
+      await expect(service.executePlan('invalid-id', mockUserId)).rejects.toThrow('Plan not found');
     });
 
     it('should throw error if project not found', async () => {
       plansService.findOne.mockResolvedValue(mockPlan);
       projectsService.findOne.mockResolvedValue(null);
 
-      await expect(service.executePlan('plan-123')).rejects.toThrow('Project not found');
+      await expect(service.executePlan('plan-123', mockUserId)).rejects.toThrow('Project not found');
     });
 
     it('should execute all automated tasks in plan', async () => {
@@ -172,9 +195,9 @@ describe('ExecutionService', () => {
       manualTasksService.detectManualTasks.mockReturnValue(null);
       gitService.createCommit.mockResolvedValue({});
 
-      await service.executePlan('plan-123');
+      await service.executePlan('plan-123', mockUserId);
 
-      expect(plansService.updateStatus).toHaveBeenCalledWith('plan-123', 'in_progress');
+      expect(plansService.updateStatus).toHaveBeenCalledWith('plan-123', 'in_progress', mockUserId);
       expect(llmService.generateCode).toHaveBeenCalled();
       expect(qualityGatesService.runAllChecks).toHaveBeenCalled();
     });
@@ -207,13 +230,14 @@ describe('ExecutionService', () => {
         category: 'api_setup',
       });
 
-      await service.executePlan('plan-123');
+      await service.executePlan('plan-123', mockUserId);
 
       expect(plansService.updateTaskStatus).toHaveBeenCalledWith(
         'plan-123',
         0,
         'task-1',
-        'paused'
+        'paused',
+        mockUserId
       );
     });
 
@@ -235,15 +259,16 @@ describe('ExecutionService', () => {
       qualityGatesService.runAllChecks.mockResolvedValue(mockQualityResult);
       manualTasksService.detectManualTasks.mockReturnValue(null);
 
-      await service.executePlan('plan-123');
+      await service.executePlan('plan-123', mockUserId);
 
       expect(plansService.updateTaskStatus).toHaveBeenCalledWith(
         'plan-123',
         0,
         'task-1',
-        'completed'
+        'completed',
+        mockUserId
       );
-      expect(plansService.updateStatus).toHaveBeenCalledWith('plan-123', 'completed');
+      expect(plansService.updateStatus).toHaveBeenCalledWith('plan-123', 'completed', mockUserId);
     });
 
     it('should mark task as failed when quality gates fail', async () => {
@@ -271,13 +296,14 @@ describe('ExecutionService', () => {
       qualityGatesService.runAllChecks.mockResolvedValue(failedQualityResult);
       manualTasksService.detectManualTasks.mockReturnValue(null);
 
-      await service.executePlan('plan-123');
+      await service.executePlan('plan-123', mockUserId);
 
       expect(plansService.updateTaskStatus).toHaveBeenCalledWith(
         'plan-123',
         0,
         'task-1',
-        'failed'
+        'failed',
+        mockUserId
       );
     });
 
@@ -302,7 +328,7 @@ describe('ExecutionService', () => {
       qualityGatesService.runAllChecks.mockResolvedValue(mockQualityResult);
       manualTasksService.detectManualTasks.mockReturnValue(null);
 
-      await service.executePlan('plan-123');
+      await service.executePlan('plan-123', mockUserId);
 
       // Should only be called once for the pending task
       expect(llmService.generateCode).toHaveBeenCalledTimes(1);
@@ -313,7 +339,7 @@ describe('ExecutionService', () => {
     it('should return plan with execution state', async () => {
       plansService.findOne.mockResolvedValue(mockPlan);
 
-      const result = await service.getExecutionStatus('plan-123');
+      const result = await service.getExecutionStatus('plan-123', mockUserId);
 
       expect(result).toHaveProperty('executionState');
       expect(result.executionState.planId).toBe('plan-123');
@@ -322,7 +348,7 @@ describe('ExecutionService', () => {
     it('should throw error if plan not found', async () => {
       plansService.findOne.mockResolvedValue(null);
 
-      await expect(service.getExecutionStatus('invalid-id')).rejects.toThrow('Plan not found');
+      await expect(service.getExecutionStatus('invalid-id', mockUserId)).rejects.toThrow('Plan not found');
     });
   });
 
@@ -343,18 +369,18 @@ describe('ExecutionService', () => {
         category: 'api_setup',
       });
 
-      await service.executePlan('plan-123');
+      await service.executePlan('plan-123', mockUserId);
 
-      const result = await service.pauseExecution('plan-123');
+      const result = await service.pauseExecution('plan-123', mockUserId);
 
       expect(result.message).toBe('Execution paused');
-      expect(plansService.updateStatus).toHaveBeenCalledWith('plan-123', 'paused');
+      expect(plansService.updateStatus).toHaveBeenCalledWith('plan-123', 'paused', mockUserId);
     });
   });
 
   describe('resumeExecution', () => {
     it('should throw error if no execution state found', async () => {
-      await expect(service.resumeExecution('unknown-plan')).rejects.toThrow('No execution state found');
+      await expect(service.resumeExecution('unknown-plan', mockUserId)).rejects.toThrow('No execution state found');
     });
 
     it('should resume from paused state', async () => {
@@ -373,16 +399,16 @@ describe('ExecutionService', () => {
         category: 'api_setup',
       });
 
-      await service.executePlan('plan-123');
+      await service.executePlan('plan-123', mockUserId);
 
       // Now resume - manual task should be skipped on resume
       manualTasksService.detectManualTasks.mockReturnValue(null);
       llmService.generateCode.mockResolvedValue(mockGeneratedCode);
       qualityGatesService.runAllChecks.mockResolvedValue(mockQualityResult);
 
-      await service.resumeExecution('plan-123');
+      await service.resumeExecution('plan-123', mockUserId);
 
-      expect(plansService.updateStatus).toHaveBeenCalledWith('plan-123', 'in_progress');
+      expect(plansService.updateStatus).toHaveBeenCalledWith('plan-123', 'in_progress', mockUserId);
     });
   });
 
@@ -404,13 +430,14 @@ describe('ExecutionService', () => {
       llmService.generateCode.mockResolvedValue({ files: [] });
       manualTasksService.detectManualTasks.mockReturnValue(null);
 
-      await service.executePlan('plan-123');
+      await service.executePlan('plan-123', mockUserId);
 
       expect(plansService.updateTaskStatus).toHaveBeenCalledWith(
         'plan-123',
         0,
         'task-1',
-        'completed'
+        'completed',
+        mockUserId
       );
       expect(qualityGatesService.runAllChecks).not.toHaveBeenCalled();
     });
@@ -436,14 +463,15 @@ describe('ExecutionService', () => {
       manualTasksService.detectManualTasks.mockReturnValue(null);
       gitService.createCommit.mockRejectedValue(new Error('Git error'));
 
-      await service.executePlan('plan-123');
+      await service.executePlan('plan-123', mockUserId);
 
       // Task should still be marked as completed
       expect(plansService.updateTaskStatus).toHaveBeenCalledWith(
         'plan-123',
         0,
         'task-1',
-        'completed'
+        'completed',
+        mockUserId
       );
     });
   });

@@ -4,6 +4,28 @@ Registro cronologico de sesiones de desarrollo.
 
 ---
 
+## 2025-12-15 - Fix OAuth AuthContext Sync Issue
+
+**Duracion:** ~30min
+**Commits:** 0 (pendiente)
+
+### Cambios principales
+- Fix critico: OAuth popup mostraba exito pero no redirigía al dashboard
+- Agregada funcion `initFromStorage()` al AuthContext
+- Login y Register pages ahora sincronizan AuthContext antes de redirigir
+
+### Archivos modificados
+- `vibeia/src/contexts/AuthContext.tsx` - +27 lineas (`initFromStorage`)
+- `vibeia/src/app/(auth)/login/page.tsx` - Llama `initFromStorage()` en OAuth success
+- `vibeia/src/app/(auth)/register/page.tsx` - Agregado listener OAuth con `initFromStorage()`
+
+### Notas tecnicas
+- Root cause: useEffect de AuthProvider solo ejecutaba una vez al montar
+- Popup guardaba tokens en localStorage pero AuthContext no re-leia
+- Solucion: funcion que permite re-inicializar desde localStorage bajo demanda
+
+---
+
 ## 2025-12-15 - OAuth Multi-Provider Implementation
 
 **Duracion:** ~4h

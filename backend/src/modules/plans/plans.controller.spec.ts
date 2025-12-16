@@ -74,18 +74,18 @@ describe('PlansController', () => {
 
   describe('findOne', () => {
     it('should return a plan by id', async () => {
-      const result = await controller.findOne('plan123');
+      const result = await controller.findOne('user123', 'plan123');
 
-      expect(service.findOne).toHaveBeenCalledWith('plan123');
+      expect(service.findOne).toHaveBeenCalledWith('plan123', 'user123');
       expect(result).toEqual(mockPlan);
     });
   });
 
   describe('updateStatus', () => {
     it('should update plan status', async () => {
-      const result = await controller.updateStatus('plan123', 'completed');
+      const result = await controller.updateStatus('user123', 'plan123', 'completed');
 
-      expect(service.updateStatus).toHaveBeenCalledWith('plan123', 'completed');
+      expect(service.updateStatus).toHaveBeenCalledWith('plan123', 'completed', 'user123');
       expect(result!.status).toBe('completed');
     });
   });
