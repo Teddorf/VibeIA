@@ -1363,6 +1363,56 @@ export const githubApi = {
   },
 };
 
+// Google OAuth API
+export const googleApi = {
+  // Get Google OAuth URL for connect flow
+  getAuthUrl: async (userId?: string) => {
+    const params = userId ? `?userId=${userId}` : '';
+    const response = await apiClient.get(`/api/auth/google/auth-url${params}`);
+    return response.data;
+  },
+
+  // Get Google connection status
+  getConnectionStatus: async () => {
+    const response = await apiClient.get('/api/auth/google/status');
+    return response.data;
+  },
+
+  // Disconnect Google
+  disconnect: async () => {
+    const response = await apiClient.delete('/api/auth/google');
+    return response.data;
+  },
+};
+
+// GitLab OAuth API
+export const gitlabApi = {
+  // Get GitLab OAuth URL for connect flow
+  getAuthUrl: async (userId?: string) => {
+    const params = userId ? `?userId=${userId}` : '';
+    const response = await apiClient.get(`/api/auth/gitlab/auth-url${params}`);
+    return response.data;
+  },
+
+  // Get GitLab connection status
+  getConnectionStatus: async () => {
+    const response = await apiClient.get('/api/auth/gitlab/status');
+    return response.data;
+  },
+
+  // Disconnect GitLab
+  disconnect: async () => {
+    const response = await apiClient.delete('/api/auth/gitlab');
+    return response.data;
+  },
+
+  // List GitLab projects
+  listProjects: async () => {
+    const response = await apiClient.get('/api/git/gitlab/projects');
+    return response.data;
+  },
+};
+
 // Codebase Analysis API
 export const codebaseAnalysisApi = {
   // Analyze a repository
