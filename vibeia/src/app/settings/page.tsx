@@ -366,17 +366,6 @@ export default function SettingsPage() {
               onDisconnect={handleDisconnectGitLab}
             />
 
-            {/* Import project button if GitHub is connected */}
-            {githubStatus?.connected && (
-              <div className="pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => router.push('/import-project')}
-                  className="w-full px-4 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Importar proyecto desde GitHub
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
