@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { ManualTasksService, ManualTaskType } from './manual-tasks.service';
 
-@Controller('manual-tasks')
+@Controller('api/manual-tasks')
 export class ManualTasksController {
   constructor(private readonly manualTasksService: ManualTasksService) {}
 

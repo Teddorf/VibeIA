@@ -17,7 +17,7 @@ import {
   LLM_PROVIDERS_INFO,
 } from './users.service';
 
-@Controller('users')
+@Controller('api/users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
