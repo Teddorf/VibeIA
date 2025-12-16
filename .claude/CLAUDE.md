@@ -78,10 +78,10 @@ VibeIA/
 │           ├── error-handling/# Manejo de errores
 │           └── events/        # WebSocket gateway
 │
-├── frontend/                   # App Next.js
+├── vibeia/                     # App Next.js (Frontend)
 │   └── src/
 │       ├── app/               # App Router pages
-│       │   ├── (auth)/        # Login/Register
+│       │   ├── (auth)/        # Login/Register/OAuth callback
 │       │   ├── dashboard/     # Dashboard principal
 │       │   ├── new-project/   # Crear proyecto
 │       │   └── projects/      # Detalle proyecto
@@ -105,12 +105,21 @@ VibeIA/
 - Password hashing con bcrypt
 - Guards globales con decorador `@Public()` para opt-out
 - Role-based access control con `@Roles()`
+- OAuth multi-proveedor (GitHub, Google, GitLab) con popup flow
 
 **Endpoints** (Base: `https://vibeia.onrender.com`):
 - `POST /api/auth/register` - Registro
 - `POST /api/auth/login` - Login
 - `POST /api/auth/refresh` - Refresh token
 - `GET /api/auth/me` - Usuario actual
+
+**OAuth Endpoints**:
+- `GET /api/auth/github` - Iniciar OAuth GitHub
+- `GET /api/auth/github/callback` - Callback GitHub
+- `GET /api/auth/google` - Iniciar OAuth Google
+- `GET /api/auth/google/callback` - Callback Google
+- `GET /api/auth/gitlab` - Iniciar OAuth GitLab
+- `GET /api/auth/gitlab/callback` - Callback GitLab
 
 ### Plans Module (`backend/src/modules/plans/`)
 - Generación de planes ultra-granulares vía LLM
@@ -184,7 +193,7 @@ El sistema utiliza las siguientes colecciones en MongoDB Atlas. Las colecciones 
 
 | Colección | Schema | Descripción |
 |-----------|--------|-------------|
-| `users` | `backend/src/schemas/user.schema.ts` | Usuarios del sistema |
+| `users` | `backend/src/modules/users/user.schema.ts` | Usuarios del sistema |
 | `projects` | `backend/src/schemas/project.schema.ts` | Proyectos de usuarios |
 | `plans` | `backend/src/schemas/plan.schema.ts` | Planes de ejecución generados |
 
@@ -218,8 +227,14 @@ El sistema utiliza las siguientes colecciones en MongoDB Atlas. Las colecciones 
   email: string (unique)
   name: string
   password: string (bcrypt)
+  // OAuth providers
   githubId?: string
   githubAccessToken?: string
+  googleId?: string
+  googleAccessToken?: string
+  gitlabId?: string
+  gitlabAccessToken?: string
+  // General
   projects: string[]
   refreshTokens?: string[]
   isActive: boolean
@@ -338,7 +353,7 @@ npm run test           # Tests unitarios
 npm run test:cov       # Coverage
 
 # Frontend (desarrollo local)
-cd frontend
+cd vibeia
 npm install
 npm run dev            # http://localhost:3000
 npm run build          # Build producción
@@ -397,7 +412,7 @@ NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 - **Port**: 10000
 
 ### Vercel Config
-- **Root Directory**: `frontend`
+- **Root Directory**: `vibeia`
 - **Framework**: Next.js (auto-detectado)
 - **Build Command**: `npm run build`
 
@@ -493,7 +508,7 @@ NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 
 ---
 
-**Última actualización**: Deployment completo a producción (Vercel + Render + MongoDB Atlas)
+**Última actualización**: 2025-12-15 - OAuth multi-provider (GitHub, Google, GitLab) con popup flow y postMessage
 
 **Próximos pasos sugeridos**:
 - Configurar dominio personalizado
