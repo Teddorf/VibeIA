@@ -1,10 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getModelToken } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 import { TeamsService } from './teams.service';
 import { MembersService } from './members.service';
 import { InvitationsService } from './invitations.service';
 import { GitConnectionsService } from './git-connections.service';
 import { GitLabProvider } from './git-providers/gitlab.provider';
 import { BitbucketProvider } from './git-providers/bitbucket.provider';
+import { Team } from './schemas/team.schema';
+import { TeamActivity } from './schemas/team-activity.schema';
+import { TeamMember } from './schemas/team-member.schema';
+import { TeamInvitation } from './schemas/team-invitation.schema';
+import { GitConnection } from './schemas/git-connection.schema';
 import {
   TeamRole,
   Permission,
@@ -12,17 +19,29 @@ import {
   GitProvider,
   ROLE_PERMISSIONS,
 } from './dto/teams.dto';
+import { createMockModel, createMockDocument, MockModelInstance } from '../../test/mongoose-mock.factory';
 
-// TODO: These tests need Mongoose model mocks to work properly.
-// The services now use @InjectModel decorators, requiring proper mock setup.
-// Skipping until model mocks are implemented.
-
-describe.skip('TeamsService', () => {
+describe('TeamsService', () => {
   let teamsService: TeamsService;
+  let teamModel: MockModelInstance;
+  let activityModel: MockModelInstance;
 
   beforeEach(async () => {
+    teamModel = createMockModel();
+    activityModel = createMockModel();
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [TeamsService],
+      providers: [
+        TeamsService,
+        {
+          provide: getModelToken(Team.name),
+          useValue: teamModel,
+        },
+        {
+          provide: getModelToken(TeamActivity.name),
+          useValue: activityModel,
+        },
+      ],
     }).compile();
 
     teamsService = module.get<TeamsService>(TeamsService);
@@ -30,6 +49,10 @@ describe.skip('TeamsService', () => {
 
   describe('createTeam', () => {
     it('should create a team with default settings', async () => {
+      teamModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
       const team = await teamsService.createTeam('user-1', {
         name: 'My Team',
         description: 'Test team',
@@ -43,24 +66,45 @@ describe.skip('TeamsService', () => {
     });
 
     it('should generate unique slugs', async () => {
-      const team1 = await teamsService.createTeam('user-1', { name: 'Test Team' });
-      const team2 = await teamsService.createTeam('user-2', { name: 'Test Team' });
+      // First team - slug available
+      teamModel.findOne = jest.fn()
+        .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(null) });
 
+      const team1 = await teamsService.createTeam('user-1', { name: 'Test Team' });
       expect(team1.slug).toBe('test-team');
+
+      // Second team - slug taken, should get -1 suffix
+      teamModel.findOne = jest.fn()
+        .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue({ slug: 'test-team' }) })
+        .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(null) });
+
+      const team2 = await teamsService.createTeam('user-2', { name: 'Test Team' });
       expect(team2.slug).toBe('test-team-1');
     });
   });
 
   describe('getTeam', () => {
     it('should return team by id', async () => {
-      const created = await teamsService.createTeam('user-1', { name: 'Test' });
-      const team = await teamsService.getTeam(created.id);
+      const mockTeam = createMockDocument({
+        name: 'Test',
+        slug: 'test',
+        ownerId: 'user-1',
+      });
 
+      teamModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockTeam),
+      });
+
+      const team = await teamsService.getTeam(mockTeam._id.toString());
       expect(team).toBeDefined();
-      expect(team!.id).toBe(created.id);
+      expect(team!.name).toBe('Test');
     });
 
     it('should return null for non-existent team', async () => {
+      teamModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
       const team = await teamsService.getTeam('non-existent');
       expect(team).toBeNull();
     });
@@ -68,9 +112,17 @@ describe.skip('TeamsService', () => {
 
   describe('getTeamBySlug', () => {
     it('should find team by slug', async () => {
-      await teamsService.createTeam('user-1', { name: 'My Awesome Team' });
-      const team = await teamsService.getTeamBySlug('my-awesome-team');
+      const mockTeam = createMockDocument({
+        name: 'My Awesome Team',
+        slug: 'my-awesome-team',
+        ownerId: 'user-1',
+      });
 
+      teamModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockTeam),
+      });
+
+      const team = await teamsService.getTeamBySlug('my-awesome-team');
       expect(team).toBeDefined();
       expect(team!.name).toBe('My Awesome Team');
     });
@@ -78,66 +130,154 @@ describe.skip('TeamsService', () => {
 
   describe('updateTeam', () => {
     it('should update team properties', async () => {
-      const created = await teamsService.createTeam('user-1', { name: 'Test' });
-      const updated = await teamsService.updateTeam(created.id, {
+      const mockTeam = createMockDocument({
+        name: 'Test',
+        slug: 'test',
+        ownerId: 'user-1',
+        settings: { defaultRole: TeamRole.MEMBER },
+      });
+
+      teamModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockTeam),
+      });
+
+      const updatedTeam = createMockDocument({
+        ...mockTeam,
         name: 'Updated Name',
         description: 'New description',
       });
 
-      expect(updated).toBeDefined();
-      expect(updated!.name).toBe('Updated Name');
-      expect(updated!.description).toBe('New description');
+      teamModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(updatedTeam),
+      });
+
+      teamModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      const result = await teamsService.updateTeam(mockTeam._id.toString(), {
+        name: 'Updated Name',
+        description: 'New description',
+      });
+
+      expect(result).toBeDefined();
+      expect(result!.name).toBe('Updated Name');
+      expect(result!.description).toBe('New description');
     });
   });
 
   describe('deleteTeam', () => {
     it('should delete a team', async () => {
-      const created = await teamsService.createTeam('user-1', { name: 'Test' });
-      const deleted = await teamsService.deleteTeam(created.id, 'user-1');
+      const mockTeam = createMockDocument({
+        name: 'Test',
+        slug: 'test',
+        ownerId: 'user-1',
+      });
 
+      teamModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockTeam),
+      });
+
+      teamModel.findByIdAndDelete = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockTeam),
+      });
+
+      activityModel.deleteMany = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ deletedCount: 1 }),
+      });
+
+      const deleted = await teamsService.deleteTeam(mockTeam._id.toString(), 'user-1');
       expect(deleted).toBe(true);
-      expect(await teamsService.getTeam(created.id)).toBeNull();
     });
   });
 
   describe('activity logging', () => {
     it('should log team activity', async () => {
-      const team = await teamsService.createTeam('user-1', { name: 'Test' });
-      const activity = await teamsService.getActivityLog(team.id);
+      const teamId = new Types.ObjectId().toString();
 
-      expect(activity.length).toBeGreaterThan(0);
-      expect(activity[0].action).toBe('team.created');
+      const activity = await teamsService.logActivity(
+        teamId,
+        'user-1',
+        'team.created',
+        'team',
+        teamId,
+      );
+
+      expect(activity).toBeDefined();
+      expect(activity.teamId).toBe(teamId);
+      expect(activity.action).toBe('team.created');
+    });
+
+    it('should get activity log', async () => {
+      const teamId = new Types.ObjectId().toString();
+      const mockActivities = [
+        createMockDocument({ teamId, action: 'team.created', userId: 'user-1' }),
+      ];
+
+      activityModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockActivities),
+      });
+
+      const activities = await teamsService.getActivityLog(teamId);
+      expect(activities.length).toBeGreaterThan(0);
     });
 
     it('should get recent activity', async () => {
-      const team = await teamsService.createTeam('user-1', { name: 'Test' });
-      await teamsService.logActivity(team.id, 'user-1', 'member.invited', 'user', 'user-2');
+      const teamId = new Types.ObjectId().toString();
+      const mockActivities = [
+        createMockDocument({ teamId, action: 'member.invited', userId: 'user-1' }),
+      ];
 
-      const recent = await teamsService.getRecentActivity(team.id, 24);
+      activityModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockActivities),
+      });
+
+      const recent = await teamsService.getRecentActivity(teamId, 24);
       expect(recent.length).toBeGreaterThan(0);
     });
   });
 
   describe('member counts', () => {
-    it('should increment and decrement member count', async () => {
-      const team = await teamsService.createTeam('user-1', { name: 'Test' });
-      expect(team.memberCount).toBe(1);
+    it('should increment member count', async () => {
+      teamModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
 
-      await teamsService.incrementMemberCount(team.id);
-      let updated = await teamsService.getTeam(team.id);
-      expect(updated!.memberCount).toBe(2);
+      await teamsService.incrementMemberCount('team-id');
+      expect(teamModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        'team-id',
+        { $inc: { memberCount: 1 } },
+      );
+    });
 
-      await teamsService.decrementMemberCount(team.id);
-      updated = await teamsService.getTeam(team.id);
-      expect(updated!.memberCount).toBe(1);
+    it('should decrement member count', async () => {
+      teamModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      await teamsService.decrementMemberCount('team-id');
+      expect(teamModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        'team-id',
+        { $inc: { memberCount: -1 } },
+      );
     });
   });
 
   describe('searchTeams', () => {
     it('should search teams by name', async () => {
-      await teamsService.createTeam('user-1', { name: 'Alpha Team' });
-      await teamsService.createTeam('user-1', { name: 'Beta Team' });
-      await teamsService.createTeam('user-1', { name: 'Gamma Project' });
+      const mockTeams = [
+        createMockDocument({ name: 'Alpha Team', slug: 'alpha-team' }),
+        createMockDocument({ name: 'Beta Team', slug: 'beta-team' }),
+      ];
+
+      teamModel.find = jest.fn().mockReturnValue({
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockTeams),
+      });
 
       const results = await teamsService.searchTeams('team');
       expect(results.length).toBe(2);
@@ -145,12 +285,21 @@ describe.skip('TeamsService', () => {
   });
 });
 
-describe.skip('MembersService', () => {
+describe('MembersService', () => {
   let membersService: MembersService;
+  let memberModel: MockModelInstance;
 
   beforeEach(async () => {
+    memberModel = createMockModel();
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [MembersService],
+      providers: [
+        MembersService,
+        {
+          provide: getModelToken(TeamMember.name),
+          useValue: memberModel,
+        },
+      ],
     }).compile();
 
     membersService = module.get<MembersService>(MembersService);
@@ -158,6 +307,10 @@ describe.skip('MembersService', () => {
 
   describe('addMember', () => {
     it('should add a member to a team', async () => {
+      memberModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
       const member = await membersService.addMember('team-1', 'user-1', TeamRole.MEMBER);
 
       expect(member).toBeDefined();
@@ -167,7 +320,16 @@ describe.skip('MembersService', () => {
     });
 
     it('should not duplicate members', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.MEMBER);
+      const existingMember = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-1',
+        role: TeamRole.MEMBER,
+      });
+
+      memberModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(existingMember),
+      });
+
       const duplicate = await membersService.addMember('team-1', 'user-1', TeamRole.ADMIN);
 
       // Should return existing member
@@ -177,64 +339,136 @@ describe.skip('MembersService', () => {
 
   describe('removeMember', () => {
     it('should remove a member', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.MEMBER);
-      const removed = await membersService.removeMember('team-1', 'user-1');
+      const member = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-1',
+        role: TeamRole.MEMBER,
+      });
 
+      memberModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(member),
+      });
+
+      memberModel.findByIdAndDelete = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(member),
+      });
+
+      const removed = await membersService.removeMember('team-1', 'user-1');
       expect(removed).toBe(true);
-      expect(await membersService.isMember('team-1', 'user-1')).toBe(false);
     });
 
     it('should not remove owner', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.OWNER);
-      const removed = await membersService.removeMember('team-1', 'user-1');
+      const ownerMember = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-1',
+        role: TeamRole.OWNER,
+      });
 
+      memberModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(ownerMember),
+      });
+
+      const removed = await membersService.removeMember('team-1', 'user-1');
       expect(removed).toBe(false);
     });
   });
 
   describe('getTeamMembers', () => {
     it('should return all team members sorted by role', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.VIEWER);
-      await membersService.addMember('team-1', 'user-2', TeamRole.OWNER);
-      await membersService.addMember('team-1', 'user-3', TeamRole.ADMIN);
+      const members = [
+        createMockDocument({ teamId: 'team-1', userId: 'user-1', role: TeamRole.VIEWER }),
+        createMockDocument({ teamId: 'team-1', userId: 'user-2', role: TeamRole.OWNER }),
+        createMockDocument({ teamId: 'team-1', userId: 'user-3', role: TeamRole.ADMIN }),
+      ];
 
-      const members = await membersService.getTeamMembers('team-1');
+      memberModel.find = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(members),
+      });
 
-      expect(members.length).toBe(3);
-      expect(members[0].role).toBe(TeamRole.OWNER);
-      expect(members[1].role).toBe(TeamRole.ADMIN);
-      expect(members[2].role).toBe(TeamRole.VIEWER);
+      const result = await membersService.getTeamMembers('team-1');
+
+      expect(result.length).toBe(3);
+      expect(result[0].role).toBe(TeamRole.OWNER);
+      expect(result[1].role).toBe(TeamRole.ADMIN);
+      expect(result[2].role).toBe(TeamRole.VIEWER);
     });
   });
 
   describe('updateRole', () => {
     it('should update member role', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.MEMBER);
-      const updated = await membersService.updateRole('team-1', 'user-1', TeamRole.ADMIN);
+      const member = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-1',
+        role: TeamRole.MEMBER,
+      });
 
+      memberModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(member),
+      });
+
+      const updatedMember = createMockDocument({
+        ...member,
+        role: TeamRole.ADMIN,
+      });
+
+      memberModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(updatedMember),
+      });
+
+      const updated = await membersService.updateRole('team-1', 'user-1', TeamRole.ADMIN);
       expect(updated).toBeDefined();
       expect(updated!.role).toBe(TeamRole.ADMIN);
     });
 
     it('should not update owner role', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.OWNER);
-      const updated = await membersService.updateRole('team-1', 'user-1', TeamRole.ADMIN);
+      const ownerMember = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-1',
+        role: TeamRole.OWNER,
+      });
 
+      memberModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(ownerMember),
+      });
+
+      const updated = await membersService.updateRole('team-1', 'user-1', TeamRole.ADMIN);
       expect(updated).toBeNull();
     });
 
     it('should not promote to owner', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.ADMIN);
-      const updated = await membersService.updateRole('team-1', 'user-1', TeamRole.OWNER);
+      const member = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-1',
+        role: TeamRole.ADMIN,
+      });
 
+      memberModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(member),
+      });
+
+      const updated = await membersService.updateRole('team-1', 'user-1', TeamRole.OWNER);
       expect(updated).toBeNull();
     });
   });
 
   describe('hasPermission', () => {
     it('should check permissions correctly', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.OWNER);
-      await membersService.addMember('team-1', 'user-2', TeamRole.VIEWER);
+      const ownerMember = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-1',
+        role: TeamRole.OWNER,
+      });
+
+      const viewerMember = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-2',
+        role: TeamRole.VIEWER,
+      });
+
+      memberModel.findOne = jest.fn()
+        .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(ownerMember) })
+        .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(viewerMember) })
+        .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(viewerMember) });
 
       expect(await membersService.hasPermission('team-1', 'user-1', Permission.TEAM_MANAGE)).toBe(true);
       expect(await membersService.hasPermission('team-1', 'user-2', Permission.TEAM_MANAGE)).toBe(false);
@@ -244,7 +478,15 @@ describe.skip('MembersService', () => {
 
   describe('hasRole', () => {
     it('should check role hierarchy', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.ADMIN);
+      const adminMember = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-1',
+        role: TeamRole.ADMIN,
+      });
+
+      memberModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(adminMember),
+      });
 
       expect(await membersService.hasRole('team-1', 'user-1', TeamRole.MEMBER)).toBe(true);
       expect(await membersService.hasRole('team-1', 'user-1', TeamRole.ADMIN)).toBe(true);
@@ -254,26 +496,42 @@ describe.skip('MembersService', () => {
 
   describe('transferOwnership', () => {
     it('should transfer ownership', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.OWNER);
-      await membersService.addMember('team-1', 'user-2', TeamRole.ADMIN);
+      const currentOwner = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-1',
+        role: TeamRole.OWNER,
+      });
+
+      const newOwner = createMockDocument({
+        teamId: 'team-1',
+        userId: 'user-2',
+        role: TeamRole.ADMIN,
+      });
+
+      memberModel.findOne = jest.fn()
+        .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(currentOwner) })
+        .mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(newOwner) });
+
+      memberModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
 
       const transferred = await membersService.transferOwnership('team-1', 'user-1', 'user-2');
-
       expect(transferred).toBe(true);
-
-      const oldOwner = await membersService.getMemberByUserAndTeam('team-1', 'user-1');
-      const newOwner = await membersService.getMemberByUserAndTeam('team-1', 'user-2');
-
-      expect(oldOwner!.role).toBe(TeamRole.ADMIN);
-      expect(newOwner!.role).toBe(TeamRole.OWNER);
     });
   });
 
   describe('getUserTeams', () => {
     it('should return all teams for a user', async () => {
-      await membersService.addMember('team-1', 'user-1', TeamRole.OWNER);
-      await membersService.addMember('team-2', 'user-1', TeamRole.MEMBER);
-      await membersService.addMember('team-3', 'user-1', TeamRole.ADMIN);
+      const memberships = [
+        createMockDocument({ teamId: 'team-1', userId: 'user-1', role: TeamRole.OWNER }),
+        createMockDocument({ teamId: 'team-2', userId: 'user-1', role: TeamRole.MEMBER }),
+        createMockDocument({ teamId: 'team-3', userId: 'user-1', role: TeamRole.ADMIN }),
+      ];
+
+      memberModel.find = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(memberships),
+      });
 
       const teams = await membersService.getUserTeams('user-1');
       expect(teams.length).toBe(3);
@@ -281,12 +539,21 @@ describe.skip('MembersService', () => {
   });
 });
 
-describe.skip('InvitationsService', () => {
+describe('InvitationsService', () => {
   let invitationsService: InvitationsService;
+  let invitationModel: MockModelInstance;
 
   beforeEach(async () => {
+    invitationModel = createMockModel();
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [InvitationsService],
+      providers: [
+        InvitationsService,
+        {
+          provide: getModelToken(TeamInvitation.name),
+          useValue: invitationModel,
+        },
+      ],
     }).compile();
 
     invitationsService = module.get<InvitationsService>(InvitationsService);
@@ -294,6 +561,10 @@ describe.skip('InvitationsService', () => {
 
   describe('createInvitation', () => {
     it('should create an invitation', async () => {
+      invitationModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
       const invitation = await invitationsService.createInvitation(
         'team-1',
         'test@example.com',
@@ -309,41 +580,76 @@ describe.skip('InvitationsService', () => {
     });
 
     it('should update existing pending invitation', async () => {
-      const first = await invitationsService.createInvitation(
-        'team-1',
-        'test@example.com',
-        TeamRole.MEMBER,
-        'user-1',
-      );
-      const second = await invitationsService.createInvitation(
+      const existingInvitation = createMockDocument({
+        teamId: 'team-1',
+        email: 'test@example.com',
+        role: TeamRole.MEMBER,
+        status: InvitationStatus.PENDING,
+        token: 'old-token',
+      });
+
+      invitationModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(existingInvitation),
+      });
+
+      const updatedInvitation = createMockDocument({
+        ...existingInvitation,
+        role: TeamRole.ADMIN,
+        token: 'new-token',
+      });
+
+      invitationModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(updatedInvitation),
+      });
+
+      const result = await invitationsService.createInvitation(
         'team-1',
         'test@example.com',
         TeamRole.ADMIN,
         'user-2',
       );
 
-      expect(second.id).toBe(first.id);
-      expect(second.role).toBe(TeamRole.ADMIN);
+      expect(result._id).toEqual(existingInvitation._id);
+      expect(result.role).toBe(TeamRole.ADMIN);
     });
   });
 
   describe('acceptInvitation', () => {
     it('should accept a pending invitation', async () => {
-      const created = await invitationsService.createInvitation(
-        'team-1',
-        'test@example.com',
-        TeamRole.MEMBER,
-        'user-1',
-      );
+      const invitation = createMockDocument({
+        teamId: 'team-1',
+        email: 'test@example.com',
+        role: TeamRole.MEMBER,
+        status: InvitationStatus.PENDING,
+        token: 'valid-token',
+        expiresAt: new Date(Date.now() + 86400000),
+      });
 
-      const accepted = await invitationsService.acceptInvitation(created.token);
+      invitationModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(invitation),
+      });
 
+      const acceptedInvitation = createMockDocument({
+        ...invitation,
+        status: InvitationStatus.ACCEPTED,
+        acceptedAt: new Date(),
+      });
+
+      invitationModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(acceptedInvitation),
+      });
+
+      const accepted = await invitationsService.acceptInvitation('valid-token');
       expect(accepted).toBeDefined();
       expect(accepted!.status).toBe(InvitationStatus.ACCEPTED);
       expect(accepted!.acceptedAt).toBeDefined();
     });
 
     it('should return null for invalid token', async () => {
+      invitationModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
       const result = await invitationsService.acceptInvitation('invalid-token');
       expect(result).toBeNull();
     });
@@ -351,15 +657,29 @@ describe.skip('InvitationsService', () => {
 
   describe('declineInvitation', () => {
     it('should decline a pending invitation', async () => {
-      const created = await invitationsService.createInvitation(
-        'team-1',
-        'test@example.com',
-        TeamRole.MEMBER,
-        'user-1',
-      );
+      const invitation = createMockDocument({
+        teamId: 'team-1',
+        email: 'test@example.com',
+        role: TeamRole.MEMBER,
+        status: InvitationStatus.PENDING,
+        token: 'valid-token',
+        expiresAt: new Date(Date.now() + 86400000),
+      });
 
-      const declined = await invitationsService.declineInvitation(created.token);
+      invitationModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(invitation),
+      });
 
+      const declinedInvitation = createMockDocument({
+        ...invitation,
+        status: InvitationStatus.DECLINED,
+      });
+
+      invitationModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(declinedInvitation),
+      });
+
+      const declined = await invitationsService.declineInvitation('valid-token');
       expect(declined).toBeDefined();
       expect(declined!.status).toBe(InvitationStatus.DECLINED);
     });
@@ -367,52 +687,81 @@ describe.skip('InvitationsService', () => {
 
   describe('revokeInvitation', () => {
     it('should revoke a pending invitation', async () => {
-      const created = await invitationsService.createInvitation(
-        'team-1',
-        'test@example.com',
-        TeamRole.MEMBER,
-        'user-1',
-      );
+      const invitation = createMockDocument({
+        teamId: 'team-1',
+        email: 'test@example.com',
+        role: TeamRole.MEMBER,
+        status: InvitationStatus.PENDING,
+        token: 'token',
+      });
 
-      const revoked = await invitationsService.revokeInvitation(created.id);
+      invitationModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(invitation),
+      });
+
+      invitationModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ ...invitation, status: InvitationStatus.REVOKED }),
+      });
+
+      const revoked = await invitationsService.revokeInvitation(invitation._id.toString());
       expect(revoked).toBe(true);
-
-      const invitation = await invitationsService.getInvitation(created.id);
-      expect(invitation!.status).toBe(InvitationStatus.REVOKED);
     });
   });
 
   describe('resendInvitation', () => {
     it('should resend and generate new token', async () => {
-      const created = await invitationsService.createInvitation(
-        'team-1',
-        'test@example.com',
-        TeamRole.MEMBER,
-        'user-1',
-      );
-      const originalToken = created.token;
+      const invitation = createMockDocument({
+        teamId: 'team-1',
+        email: 'test@example.com',
+        role: TeamRole.MEMBER,
+        status: InvitationStatus.PENDING,
+        token: 'original-token',
+      });
 
-      const resent = await invitationsService.resendInvitation(created.id);
+      invitationModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(invitation),
+      });
 
+      const resentInvitation = createMockDocument({
+        ...invitation,
+        token: 'new-token',
+      });
+
+      invitationModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(resentInvitation),
+      });
+
+      const resent = await invitationsService.resendInvitation(invitation._id.toString());
       expect(resent).toBeDefined();
-      expect(resent!.token).not.toBe(originalToken);
+      expect(resent!.token).not.toBe('original-token');
     });
   });
 
   describe('getTeamInvitations', () => {
     it('should get all team invitations', async () => {
-      await invitationsService.createInvitation('team-1', 'a@test.com', TeamRole.MEMBER, 'user-1');
-      await invitationsService.createInvitation('team-1', 'b@test.com', TeamRole.ADMIN, 'user-1');
-      await invitationsService.createInvitation('team-2', 'c@test.com', TeamRole.MEMBER, 'user-1');
+      const invitations = [
+        createMockDocument({ teamId: 'team-1', email: 'a@test.com', role: TeamRole.MEMBER }),
+        createMockDocument({ teamId: 'team-1', email: 'b@test.com', role: TeamRole.ADMIN }),
+      ];
 
-      const invitations = await invitationsService.getTeamInvitations('team-1');
-      expect(invitations.length).toBe(2);
+      invitationModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(invitations),
+      });
+
+      const result = await invitationsService.getTeamInvitations('team-1');
+      expect(result.length).toBe(2);
     });
 
     it('should filter by status', async () => {
-      const inv = await invitationsService.createInvitation('team-1', 'a@test.com', TeamRole.MEMBER, 'user-1');
-      await invitationsService.createInvitation('team-1', 'b@test.com', TeamRole.ADMIN, 'user-1');
-      await invitationsService.acceptInvitation(inv.token);
+      const pendingInvitations = [
+        createMockDocument({ teamId: 'team-1', email: 'b@test.com', status: InvitationStatus.PENDING }),
+      ];
+
+      invitationModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(pendingInvitations),
+      });
 
       const pending = await invitationsService.getTeamInvitations('team-1', InvitationStatus.PENDING);
       expect(pending.length).toBe(1);
@@ -421,6 +770,10 @@ describe.skip('InvitationsService', () => {
 
   describe('bulkInvite', () => {
     it('should create multiple invitations', async () => {
+      invitationModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
       const invitations = await invitationsService.bulkInvite(
         'team-1',
         ['a@test.com', 'b@test.com', 'c@test.com'],
@@ -434,9 +787,12 @@ describe.skip('InvitationsService', () => {
 
   describe('getInvitationStats', () => {
     it('should return invitation statistics', async () => {
-      const inv1 = await invitationsService.createInvitation('team-1', 'a@test.com', TeamRole.MEMBER, 'user-1');
-      await invitationsService.createInvitation('team-1', 'b@test.com', TeamRole.MEMBER, 'user-1');
-      await invitationsService.acceptInvitation(inv1.token);
+      invitationModel.aggregate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          { _id: InvitationStatus.ACCEPTED, count: 1 },
+          { _id: InvitationStatus.PENDING, count: 1 },
+        ]),
+      });
 
       const stats = await invitationsService.getInvitationStats('team-1');
 
@@ -446,15 +802,22 @@ describe.skip('InvitationsService', () => {
   });
 });
 
-describe.skip('GitConnectionsService', () => {
+describe('GitConnectionsService', () => {
   let gitConnectionsService: GitConnectionsService;
+  let connectionModel: MockModelInstance;
   let gitlabProvider: GitLabProvider;
   let bitbucketProvider: BitbucketProvider;
 
   beforeEach(async () => {
+    connectionModel = createMockModel();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GitConnectionsService,
+        {
+          provide: getModelToken(GitConnection.name),
+          useValue: connectionModel,
+        },
         {
           provide: GitLabProvider,
           useValue: {
@@ -466,6 +829,11 @@ describe.skip('GitConnectionsService', () => {
             getGroups: jest.fn().mockResolvedValue([]),
             validateToken: jest.fn().mockResolvedValue(true),
             getOAuthUrl: jest.fn().mockReturnValue('https://gitlab.com/oauth'),
+            refreshToken: jest.fn().mockResolvedValue({
+              access_token: 'new-gitlab-token',
+              refresh_token: 'new-gitlab-refresh',
+              expires_in: 7200,
+            }),
           },
         },
         {
@@ -479,6 +847,11 @@ describe.skip('GitConnectionsService', () => {
             getWorkspaces: jest.fn().mockResolvedValue([]),
             validateToken: jest.fn().mockResolvedValue(true),
             getOAuthUrl: jest.fn().mockReturnValue('https://bitbucket.org/oauth'),
+            refreshToken: jest.fn().mockResolvedValue({
+              access_token: 'new-bitbucket-token',
+              refresh_token: 'new-bitbucket-refresh',
+              expires_in: 7200,
+            }),
           },
         },
       ],
@@ -491,6 +864,10 @@ describe.skip('GitConnectionsService', () => {
 
   describe('connectProvider', () => {
     it('should connect GitLab provider', async () => {
+      connectionModel.updateMany = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+      });
+
       const connection = await gitConnectionsService.connectProvider('team-1', {
         provider: GitProvider.GITLAB,
         code: 'auth-code',
@@ -503,6 +880,10 @@ describe.skip('GitConnectionsService', () => {
     });
 
     it('should connect Bitbucket provider', async () => {
+      connectionModel.updateMany = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+      });
+
       const connection = await gitConnectionsService.connectProvider('team-1', {
         provider: GitProvider.BITBUCKET,
         code: 'auth-code',
@@ -516,10 +897,15 @@ describe.skip('GitConnectionsService', () => {
 
   describe('getTeamConnections', () => {
     it('should return team connections without tokens', async () => {
-      await gitConnectionsService.connectProvider('team-1', {
+      const connection = createMockDocument({
+        teamId: 'team-1',
         provider: GitProvider.GITLAB,
-        code: 'code',
-        redirectUri: 'http://localhost/callback',
+        accessToken: 'secret-token',
+        refreshToken: 'secret-refresh',
+      });
+
+      connectionModel.find = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([connection]),
       });
 
       const connections = await gitConnectionsService.getTeamConnections('team-1');
@@ -532,46 +918,64 @@ describe.skip('GitConnectionsService', () => {
 
   describe('setDefault', () => {
     it('should set default connection', async () => {
-      const conn1 = await gitConnectionsService.connectProvider('team-1', {
+      const connection = createMockDocument({
+        teamId: 'team-1',
         provider: GitProvider.GITLAB,
-        code: 'code1',
-        redirectUri: 'http://localhost/callback',
+        isDefault: false,
       });
 
-      const set = await gitConnectionsService.setDefault('team-1', conn1.id);
-      expect(set).toBe(true);
+      connectionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(connection),
+      });
 
-      const defaultConn = await gitConnectionsService.getDefaultConnection('team-1');
-      expect(defaultConn!.id).toBe(conn1.id);
+      connectionModel.updateMany = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+      });
+
+      connectionModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ ...connection, isDefault: true }),
+      });
+
+      const set = await gitConnectionsService.setDefault('team-1', connection._id.toString());
+      expect(set).toBe(true);
     });
   });
 
   describe('validateConnection', () => {
     it('should validate connection token', async () => {
-      const conn = await gitConnectionsService.connectProvider('team-1', {
+      const connection = createMockDocument({
+        teamId: 'team-1',
         provider: GitProvider.GITLAB,
-        code: 'code',
-        redirectUri: 'http://localhost/callback',
+        accessToken: 'valid-token',
+        expiresAt: new Date(Date.now() + 86400000),
       });
 
-      const valid = await gitConnectionsService.validateConnection(conn.id);
+      connectionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(connection),
+      });
+
+      const valid = await gitConnectionsService.validateConnection(connection._id.toString());
       expect(valid).toBe(true);
     });
   });
 
   describe('disconnectProvider', () => {
     it('should disconnect a provider', async () => {
-      const conn = await gitConnectionsService.connectProvider('team-1', {
+      const connection = createMockDocument({
+        teamId: 'team-1',
         provider: GitProvider.GITLAB,
-        code: 'code',
-        redirectUri: 'http://localhost/callback',
       });
 
-      const disconnected = await gitConnectionsService.disconnectProvider('team-1', conn.id);
-      expect(disconnected).toBe(true);
+      connectionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(connection),
+      });
 
-      const connections = await gitConnectionsService.getTeamConnections('team-1');
-      expect(connections.length).toBe(0);
+      connectionModel.findByIdAndDelete = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(connection),
+      });
+
+      const disconnected = await gitConnectionsService.disconnectProvider('team-1', connection._id.toString());
+      expect(disconnected).toBe(true);
     });
   });
 });

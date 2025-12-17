@@ -13,6 +13,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { UsersModule } from '../users/users.module';
 import { GitModule } from '../git/git.module';
+import { ACCESS_TOKEN_EXPIRY, DEFAULT_JWT_SECRET } from './auth.constants';
 
 @Module({
   imports: [
@@ -21,9 +22,9 @@ import { GitModule } from '../git/git.module';
     forwardRef(() => GitModule),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+      secret: process.env.JWT_SECRET || DEFAULT_JWT_SECRET,
       signOptions: {
-        expiresIn: '15m',
+        expiresIn: ACCESS_TOKEN_EXPIRY,
       },
     }),
   ],

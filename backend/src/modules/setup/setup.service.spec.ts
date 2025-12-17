@@ -304,12 +304,13 @@ describe('SetupOrchestratorService', () => {
   const mockSetupStateModel = createMockModel();
   const mockRollbackActionModel = createMockModel();
 
-  const mockExecutor = {
-    provider: 'mock',
+  const createMockExecutor = (provider: string) => ({
+    provider,
+    canExecute: jest.fn().mockImplementation((p: string) => p === provider),
     execute: jest.fn().mockResolvedValue({ success: true }),
     rollback: jest.fn().mockResolvedValue(undefined),
     validate: jest.fn().mockResolvedValue({ valid: true }),
-  };
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -371,15 +372,15 @@ describe('SetupOrchestratorService', () => {
         },
         {
           provide: NeonExecutor,
-          useValue: { ...mockExecutor, provider: 'neon' },
+          useValue: createMockExecutor('neon'),
         },
         {
           provide: VercelExecutor,
-          useValue: { ...mockExecutor, provider: 'vercel' },
+          useValue: createMockExecutor('vercel'),
         },
         {
           provide: RailwayExecutor,
-          useValue: { ...mockExecutor, provider: 'railway' },
+          useValue: createMockExecutor('railway'),
         },
       ],
     }).compile();
@@ -394,7 +395,9 @@ describe('SetupOrchestratorService', () => {
     expect(service).toBeDefined();
   });
 
-  // TODO: These orchestrator tests need proper setup service mocks
+  // These orchestrator tests require integration testing with MongoDB state persistence.
+  // They are skipped as unit tests since the mock model cannot properly track state
+  // across save/findOne operations. Consider using mongodb-memory-server for integration tests.
   it.skip('should execute setup with all providers', async () => {
     const { setupId, result } = await service.execute({
       projectId: 'proj-1',
@@ -466,7 +469,6 @@ describe('SetupOrchestratorService', () => {
     expect(results.railway?.valid).toBe(true);
   });
 
-  // TODO: Fix these tests - they require proper MongoDB mock integration
   it.skip('should get setup status', async () => {
     const { setupId } = await service.execute({
       projectId: 'proj-1',
@@ -482,12 +484,11 @@ describe('SetupOrchestratorService', () => {
     expect(status?.status).toBe(SetupTaskStatus.COMPLETED);
   });
 
-  it.skip('should return null for unknown setup ID', () => {
+  it('should return null for unknown setup ID', () => {
     const status = service.getStatus('unknown-id');
     expect(status).toBeNull();
   });
 
-  // TODO: Fix rollback test - needs proper async handling
   it.skip('should handle rollback on failure', async () => {
     // Make Vercel fail
     jest.spyOn(vercelService, 'execute').mockRejectedValueOnce(new Error('Vercel API error'));

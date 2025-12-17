@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Plan, PlanDocument } from '../../schemas/plan.schema';
@@ -10,6 +10,8 @@ import { UserLLMConfig, ImportedProjectWizardData } from '../llm/interfaces/llm-
 
 @Injectable()
 export class PlansService {
+  private readonly logger = new Logger(PlansService.name);
+
   constructor(
     @InjectModel(Plan.name) private planModel: Model<PlanDocument>,
     private llmService: LlmService,
@@ -41,7 +43,7 @@ export class PlansService {
   }
 
   async generatePlan(createPlanDto: CreatePlanDto): Promise<Plan> {
-    console.log('Generating plan with LLM...');
+    this.logger.log('Generating plan with LLM...');
 
     // Get user's LLM configuration
     const userLLMConfig = await this.getUserLLMConfig(createPlanDto.userId);
@@ -101,7 +103,7 @@ export class PlansService {
     }
 
     // This is an imported project - enrich with codebase analysis
-    console.log(`Enriching wizard data for imported project: ${project.name}`);
+    this.logger.log(`Enriching wizard data for imported project: ${project.name}`);
 
     return {
       stage1: wizardData.stage1,

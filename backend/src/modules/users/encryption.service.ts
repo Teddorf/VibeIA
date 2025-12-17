@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { ENCRYPTED_TOKEN_PARTS } from '../auth/auth.constants';
 
 @Injectable()
 export class EncryptionService {
+  private readonly logger = new Logger(EncryptionService.name);
   private readonly algorithm = 'aes-256-gcm';
   private readonly keyLength = 32;
   private readonly ivLength = 16;
@@ -31,7 +33,7 @@ export class EncryptionService {
   decrypt(encryptedData: string): string {
     try {
       const parts = encryptedData.split(':');
-      if (parts.length !== 3) {
+      if (parts.length !== ENCRYPTED_TOKEN_PARTS) {
         throw new Error('Invalid encrypted data format');
       }
 
@@ -48,7 +50,7 @@ export class EncryptionService {
 
       return decrypted;
     } catch (error) {
-      console.error('Decryption failed:', error);
+      this.logger.error('Decryption failed', error instanceof Error ? error.stack : String(error));
       throw new Error('Failed to decrypt data');
     }
   }

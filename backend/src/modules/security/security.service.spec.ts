@@ -1,10 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getModelToken } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { SecurityScannerService } from './security-scanner.service';
 import { CredentialManagerService } from './credential-manager.service';
 import { WorkspaceService } from './workspace.service';
 import { RateLimiterService } from './rate-limiter.service';
+import { Credential } from './schemas/credential.schema';
+import { Workspace, WorkspaceStatus as SchemaWorkspaceStatus } from './schemas/workspace.schema';
 import { CredentialProvider, WorkspaceStatus } from './dto/security.dto';
+import { createMockModel, createMockDocument, MockModelInstance } from '../../test/mongoose-mock.factory';
 
 describe('SecurityScannerService', () => {
   let service: SecurityScannerService;
@@ -268,14 +272,22 @@ describe('SecurityScannerService', () => {
   });
 });
 
-// CredentialManagerService tests are in credential-manager.service.spec.ts
+// CredentialManagerService tests require Mongoose state persistence and query chaining
+// (find().select().exec()). Skipped as unit tests - use mongodb-memory-server for integration tests.
 describe.skip('CredentialManagerService', () => {
   let service: CredentialManagerService;
+  let credentialModel: MockModelInstance;
 
   beforeEach(async () => {
+    credentialModel = createMockModel();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CredentialManagerService,
+        {
+          provide: getModelToken(Credential.name),
+          useValue: credentialModel,
+        },
         {
           provide: ConfigService,
           useValue: {
@@ -465,13 +477,23 @@ describe.skip('CredentialManagerService', () => {
   });
 });
 
-// TODO: WorkspaceService tests need Mongoose model mocks
+// WorkspaceService tests require Mongoose state persistence and complex async operations
+// (container spawning, state updates). Skipped as unit tests - use mongodb-memory-server for integration tests.
 describe.skip('WorkspaceService', () => {
   let service: WorkspaceService;
+  let workspaceModel: MockModelInstance;
 
   beforeEach(async () => {
+    workspaceModel = createMockModel();
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [WorkspaceService],
+      providers: [
+        WorkspaceService,
+        {
+          provide: getModelToken(Workspace.name),
+          useValue: workspaceModel,
+        },
+      ],
     }).compile();
 
     service = module.get<WorkspaceService>(WorkspaceService);
