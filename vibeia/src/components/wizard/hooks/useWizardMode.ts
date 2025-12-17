@@ -83,7 +83,7 @@ export function useWizardMode(): UseWizardModeReturn {
     async function fetchUserExperience() {
       try {
         setIsLoading(true);
-        const user = await authApi.getMe();
+        const user = await authApi.getProfile();
         if (user?.experienceLevel && ['beginner', 'intermediate', 'advanced'].includes(user.experienceLevel)) {
           setUserExperience(user.experienceLevel as ExperienceLevel);
         }
