@@ -386,6 +386,79 @@ describe('Stage4ExecutionPreview', () => {
   });
 
   // ============================================
+  // EDIT MODE (PlanEditor Integration)
+  // ============================================
+
+  describe('Edit mode', () => {
+    it('should show "Edit Plan" button', () => {
+      render(<Stage4ExecutionPreview {...defaultProps} />);
+
+      expect(screen.getByRole('button', { name: /editar plan/i })).toBeInTheDocument();
+    });
+
+    it('should switch to edit mode when "Edit Plan" is clicked', async () => {
+      const user = userEvent.setup();
+      render(<Stage4ExecutionPreview {...defaultProps} />);
+
+      await user.click(screen.getByRole('button', { name: /editar plan/i }));
+
+      // Should show PlanEditor component (has save button)
+      expect(screen.getByRole('button', { name: /guardar/i })).toBeInTheDocument();
+    });
+
+    it('should hide preview content in edit mode', async () => {
+      const user = userEvent.setup();
+      render(<Stage4ExecutionPreview {...defaultProps} />);
+
+      await user.click(screen.getByRole('button', { name: /editar plan/i }));
+
+      // What happens next section should be hidden in edit mode
+      expect(screen.queryByText(/what happens when you click start/i)).not.toBeInTheDocument();
+    });
+
+    it('should show "Back to Preview" button in edit mode', async () => {
+      const user = userEvent.setup();
+      render(<Stage4ExecutionPreview {...defaultProps} />);
+
+      await user.click(screen.getByRole('button', { name: /editar plan/i }));
+
+      expect(screen.getByRole('button', { name: /volver a vista previa/i })).toBeInTheDocument();
+    });
+
+    it('should return to preview mode when "Back to Preview" is clicked', async () => {
+      const user = userEvent.setup();
+      render(<Stage4ExecutionPreview {...defaultProps} />);
+
+      await user.click(screen.getByRole('button', { name: /editar plan/i }));
+      await user.click(screen.getByRole('button', { name: /volver a vista previa/i }));
+
+      expect(screen.getByRole('button', { name: /editar plan/i })).toBeInTheDocument();
+    });
+
+    it('should update plan when saved in edit mode', async () => {
+      const user = userEvent.setup();
+      render(<Stage4ExecutionPreview {...defaultProps} />);
+
+      await user.click(screen.getByRole('button', { name: /editar plan/i }));
+      await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+      // Should return to preview mode after saving
+      expect(screen.getByRole('button', { name: /editar plan/i })).toBeInTheDocument();
+    });
+
+    it('should not show edit button when no plan exists', () => {
+      const wizardDataNoPlan = {
+        ...mockWizardData,
+        stage3: { selectedArchetypes: ['REST API'], plan: undefined },
+      };
+
+      render(<Stage4ExecutionPreview {...defaultProps} wizardData={wizardDataNoPlan} />);
+
+      expect(screen.queryByRole('button', { name: /editar plan/i })).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================================
   // EDGE CASES
   // ============================================
 

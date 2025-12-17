@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { projectsApi, executionApi } from '@/lib/api-client';
+import { PlanEditor, Plan } from './PlanEditor';
+import { Edit2, ArrowLeft } from 'lucide-react';
 
 type WizardData = {
   stage1?: { projectName: string; description: string };
@@ -21,9 +23,10 @@ export function Stage4ExecutionPreview({
   onStartExecution: (projectId: string, planId: string) => void;
 }) {
   const { stage1, stage2, stage3 } = wizardData;
-  const plan = stage3?.plan;
+  const [plan, setPlan] = useState(stage3?.plan);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const handleStart = async () => {
     if (!stage1 || !plan) return;
@@ -53,6 +56,42 @@ export function Stage4ExecutionPreview({
       setIsStarting(false);
     }
   };
+
+  const handleSavePlan = (updatedPlan: Plan) => {
+    setPlan({
+      ...plan,
+      ...updatedPlan,
+    });
+    setIsEditMode(false);
+  };
+
+  // Edit mode view
+  if (isEditMode && plan) {
+    return (
+      <Card className="w-full max-w-4xl mx-auto">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-2xl">Editar Plan</CardTitle>
+              <CardDescription>
+                Modifica las fases y tareas del plan
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditMode(false)}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Volver a Vista Previa
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <PlanEditor plan={plan} onSave={handleSavePlan} />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -104,9 +143,19 @@ export function Stage4ExecutionPreview({
           <div className="border rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold">📅 Execution Plan</h4>
-              <span className="text-sm font-medium text-primary">
-                Total: {plan.estimatedTime} min (~{Math.round(plan.estimatedTime / 60)} hours)
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-primary">
+                  Total: {plan.estimatedTime} min (~{Math.round(plan.estimatedTime / 60)} hours)
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditMode(true)}
+                >
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  Editar Plan
+                </Button>
+              </div>
             </div>
             <div className="space-y-3">
               {plan.phases.map((phase: any, idx: number) => (
