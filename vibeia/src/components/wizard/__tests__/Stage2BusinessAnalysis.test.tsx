@@ -347,3 +347,343 @@ describe('Stage2BusinessAnalysis', () => {
     expect(screen.getByText('All of the above')).toBeInTheDocument();
   });
 });
+
+// ============================================
+// ALL QUESTIONS VIEW MODE (NEW)
+// TDD: Tests written BEFORE implementation
+// ============================================
+describe('Stage2BusinessAnalysis - All Questions View', () => {
+  const defaultProps = {
+    onNext: jest.fn(),
+    onBack: jest.fn(),
+    viewMode: 'all' as const, // New prop to enable all-questions view
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // ============================================
+  // RENDERING ALL QUESTIONS
+  // ============================================
+  describe('Visualizacion de todas las preguntas', () => {
+    it('should render all 5 questions visible at once when viewMode is "all"', () => {
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      // All questions should be visible
+      expect(screen.getByText(/usuarios objetivo/i)).toBeInTheDocument();
+      expect(screen.getByText(/funcionalidades principales/i)).toBeInTheDocument();
+      expect(screen.getByText(/cuantos usuarios/i)).toBeInTheDocument();
+      expect(screen.getByText(/integraciones/i)).toBeInTheDocument();
+      expect(screen.getByText(/autenticacion/i)).toBeInTheDocument();
+    });
+
+    it('should render questions as expandable accordion sections', () => {
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      // Each question should be in an accordion
+      const accordions = screen.getAllByTestId(/question-section-/);
+      expect(accordions).toHaveLength(5);
+    });
+
+    it('should have first question expanded by default', () => {
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      const firstSection = screen.getByTestId('question-section-0');
+      expect(firstSection).toHaveAttribute('data-expanded', 'true');
+    });
+
+    it('should collapse/expand sections when clicked', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      const firstHeader = screen.getByTestId('question-header-0');
+      const firstSection = screen.getByTestId('question-section-0');
+
+      // Initially expanded
+      expect(firstSection).toHaveAttribute('data-expanded', 'true');
+
+      // Click to collapse
+      await user.click(firstHeader);
+      expect(firstSection).toHaveAttribute('data-expanded', 'false');
+
+      // Click to expand again
+      await user.click(firstHeader);
+      expect(firstSection).toHaveAttribute('data-expanded', 'true');
+    });
+  });
+
+  // ============================================
+  // COMPLETION INDICATORS
+  // ============================================
+  describe('Indicadores de completitud', () => {
+    it('should show completion indicator for each question', () => {
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      const indicators = screen.getAllByTestId(/completion-indicator-/);
+      expect(indicators).toHaveLength(5);
+    });
+
+    it('should mark question as incomplete initially', () => {
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      const indicator = screen.getByTestId('completion-indicator-0');
+      expect(indicator).not.toHaveClass('completed');
+    });
+
+    it('should mark question as complete when answered', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      // Answer first question
+      await user.type(screen.getByTestId('answer-input-0'), 'Developers');
+
+      const indicator = screen.getByTestId('completion-indicator-0');
+      expect(indicator).toHaveClass('completed');
+    });
+
+    it('should show green checkmark for completed questions', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      await user.type(screen.getByTestId('answer-input-0'), 'Test answer');
+
+      const checkmark = screen.getByTestId('checkmark-0');
+      expect(checkmark).toBeInTheDocument();
+    });
+  });
+
+  // ============================================
+  // PROGRESS BAR
+  // ============================================
+  describe('Barra de progreso', () => {
+    it('should show progress bar with initial 0%', () => {
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      const progressBar = screen.getByRole('progressbar');
+      expect(progressBar).toHaveAttribute('aria-valuenow', '0');
+    });
+
+    it('should update progress bar to 20% when 1 question answered', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      await user.type(screen.getByTestId('answer-input-0'), 'Answer 1');
+
+      const progressBar = screen.getByRole('progressbar');
+      expect(progressBar).toHaveAttribute('aria-valuenow', '20');
+    });
+
+    it('should update progress bar to 100% when all questions answered', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      // Answer all 5 questions
+      await user.type(screen.getByTestId('answer-input-0'), 'A1');
+      await user.type(screen.getByTestId('answer-input-1'), 'A2');
+      await user.selectOptions(screen.getByTestId('answer-select-2'), '100-1000');
+      await user.type(screen.getByTestId('answer-input-3'), 'A4');
+      await user.selectOptions(screen.getByTestId('answer-select-4'), 'Email/Password');
+
+      const progressBar = screen.getByRole('progressbar');
+      expect(progressBar).toHaveAttribute('aria-valuenow', '100');
+    });
+
+    it('should show progress text (e.g., "3/5 completadas")', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      await user.type(screen.getByTestId('answer-input-0'), 'A1');
+      await user.type(screen.getByTestId('answer-input-1'), 'A2');
+      await user.selectOptions(screen.getByTestId('answer-select-2'), '1-100');
+
+      expect(screen.getByText(/3\/5/)).toBeInTheDocument();
+    });
+  });
+
+  // ============================================
+  // MINIMUM REQUIRED
+  // ============================================
+  describe('Minimo requerido', () => {
+    it('should require minimum 3 questions answered to proceed', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      // Answer only 2 questions
+      await user.type(screen.getByTestId('answer-input-0'), 'A1');
+      await user.type(screen.getByTestId('answer-input-1'), 'A2');
+
+      const nextButton = screen.getByRole('button', { name: /siguiente/i });
+      expect(nextButton).toBeDisabled();
+    });
+
+    it('should enable Next button when minimum 3 questions answered', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      // Answer 3 questions (minimum)
+      await user.type(screen.getByTestId('answer-input-0'), 'A1');
+      await user.type(screen.getByTestId('answer-input-1'), 'A2');
+      await user.selectOptions(screen.getByTestId('answer-select-2'), '1-100');
+
+      const nextButton = screen.getByRole('button', { name: /siguiente/i });
+      expect(nextButton).not.toBeDisabled();
+    });
+
+    it('should show helper text about minimum questions', () => {
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      expect(screen.getByText(/responde al menos 3/i)).toBeInTheDocument();
+    });
+  });
+
+  // ============================================
+  // SKIP OPTIONAL QUESTIONS
+  // ============================================
+  describe('Skip preguntas opcionales', () => {
+    it('should show skip button for optional questions (4 and 5)', () => {
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      expect(screen.getByTestId('skip-question-3')).toBeInTheDocument();
+      expect(screen.getByTestId('skip-question-4')).toBeInTheDocument();
+    });
+
+    it('should NOT show skip button for required questions (1, 2, 3)', () => {
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      expect(screen.queryByTestId('skip-question-0')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('skip-question-1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('skip-question-2')).not.toBeInTheDocument();
+    });
+
+    it('should mark question as skipped when skip is clicked', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      await user.click(screen.getByTestId('skip-question-3'));
+
+      const section = screen.getByTestId('question-section-3');
+      expect(section).toHaveClass('skipped');
+    });
+
+    it('should collapse skipped question', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      await user.click(screen.getByTestId('skip-question-3'));
+
+      const section = screen.getByTestId('question-section-3');
+      expect(section).toHaveAttribute('data-expanded', 'false');
+    });
+
+    it('should allow unskipping a question', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      // Skip
+      await user.click(screen.getByTestId('skip-question-3'));
+      expect(screen.getByTestId('question-section-3')).toHaveClass('skipped');
+
+      // Unskip by clicking header
+      await user.click(screen.getByTestId('question-header-3'));
+      expect(screen.getByTestId('question-section-3')).not.toHaveClass('skipped');
+    });
+  });
+
+  // ============================================
+  // SUBMIT DATA
+  // ============================================
+  describe('Envio de datos', () => {
+    it('should call onNext with all answered data', async () => {
+      const user = userEvent.setup();
+      const onNext = jest.fn();
+      render(<Stage2BusinessAnalysis {...defaultProps} onNext={onNext} />);
+
+      // Answer required questions
+      await user.type(screen.getByTestId('answer-input-0'), 'Developers');
+      await user.type(screen.getByTestId('answer-input-1'), 'Feature A, Feature B');
+      await user.selectOptions(screen.getByTestId('answer-select-2'), '1000-10000');
+
+      // Click next
+      await user.click(screen.getByRole('button', { name: /siguiente/i }));
+
+      expect(onNext).toHaveBeenCalledWith(expect.objectContaining({
+        target_users: 'Developers',
+        main_features: 'Feature A, Feature B',
+        scalability: '1000-10000',
+      }));
+    });
+
+    it('should NOT include skipped questions in data', async () => {
+      const user = userEvent.setup();
+      const onNext = jest.fn();
+      render(<Stage2BusinessAnalysis {...defaultProps} onNext={onNext} />);
+
+      // Answer required + skip optional
+      await user.type(screen.getByTestId('answer-input-0'), 'Users');
+      await user.type(screen.getByTestId('answer-input-1'), 'Features');
+      await user.selectOptions(screen.getByTestId('answer-select-2'), '1-100');
+      await user.click(screen.getByTestId('skip-question-3'));
+      await user.click(screen.getByTestId('skip-question-4'));
+
+      await user.click(screen.getByRole('button', { name: /siguiente/i }));
+
+      expect(onNext).toHaveBeenCalledWith({
+        target_users: 'Users',
+        main_features: 'Features',
+        scalability: '1-100',
+      });
+    });
+  });
+
+  // ============================================
+  // AUTO-EXPAND NEXT
+  // ============================================
+  describe('Auto-expandir siguiente', () => {
+    it('should auto-expand next question when current is answered', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      // First question is expanded
+      expect(screen.getByTestId('question-section-0')).toHaveAttribute('data-expanded', 'true');
+      expect(screen.getByTestId('question-section-1')).toHaveAttribute('data-expanded', 'false');
+
+      // Answer first question
+      await user.type(screen.getByTestId('answer-input-0'), 'Test answer');
+
+      // Second question should auto-expand
+      expect(screen.getByTestId('question-section-1')).toHaveAttribute('data-expanded', 'true');
+    });
+  });
+
+  // ============================================
+  // KEYBOARD NAVIGATION
+  // ============================================
+  describe('Navegacion por teclado', () => {
+    it('should allow Tab navigation between questions', async () => {
+      const user = userEvent.setup();
+      render(<Stage2BusinessAnalysis {...defaultProps} />);
+
+      // Tab through elements
+      await user.tab();
+      expect(screen.getByTestId('answer-input-0')).toHaveFocus();
+    });
+
+    it('should submit with Enter on last input when form is valid', async () => {
+      const user = userEvent.setup();
+      const onNext = jest.fn();
+      render(<Stage2BusinessAnalysis {...defaultProps} onNext={onNext} />);
+
+      // Fill minimum questions
+      await user.type(screen.getByTestId('answer-input-0'), 'A1');
+      await user.type(screen.getByTestId('answer-input-1'), 'A2');
+      await user.selectOptions(screen.getByTestId('answer-select-2'), '1-100');
+
+      // Press Enter on last focused element
+      await user.keyboard('{Enter}');
+
+      // Should NOT submit on Enter (need to click button)
+      expect(onNext).not.toHaveBeenCalled();
+    });
+  });
+});
