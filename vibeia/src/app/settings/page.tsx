@@ -369,14 +369,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* LLM Configuration Section Header */}
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">Proveedores de IA</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Configura tu proveedor de Inteligencia Artificial para generar planes y código
-          </p>
-        </div>
-
         {!hasAnyConfigured && (
           <div className="mb-6 bg-amber-50 border border-amber-200 px-4 py-4 rounded-lg">
             <div className="flex items-start">
@@ -397,7 +389,10 @@ export default function SettingsPage() {
         {/* Current Configuration */}
         <div className="bg-white shadow rounded-lg overflow-hidden mb-8">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Tus Proveedores de IA</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Proveedores de IA</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Configura tu proveedor de Inteligencia Artificial para generar planes y código
+            </p>
           </div>
 
           <div className="divide-y divide-gray-200">
