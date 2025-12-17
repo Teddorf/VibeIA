@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Stage1IntentDeclaration } from './Stage1IntentDeclaration';
 import { Stage2BusinessAnalysis } from './Stage2BusinessAnalysis';
@@ -10,6 +10,10 @@ import { Stage4ExecutionPreview } from './Stage4ExecutionPreview';
 import { ExecutionDashboard } from '@/components/execution/ExecutionDashboard';
 import { Progress } from '@/components/ui/progress';
 import { useWizardProgress } from './hooks/useWizardProgress';
+import { useWizardMode, WizardMode } from './hooks/useWizardMode';
+import { WizardModeSelector } from './WizardModeSelector';
+import { ExpertMode, ExpertModeConfig } from './ExpertMode';
+import { GuidedMode, GuidedModeConfig } from './GuidedMode';
 import { Button } from '@/components/ui/button';
 
 interface WizardContainerProps {
@@ -20,10 +24,19 @@ const TOTAL_STAGES = 5; // 1: Intent, 2: Business, 3: Technical, 3.5: Infra, 4: 
 
 export function WizardContainer({ existingProjectId }: WizardContainerProps) {
   const router = useRouter();
-  const [stage, setStage] = useState(1);
+  const [stage, setStage] = useState(0); // 0 = mode selection
   const [wizardData, setWizardData] = useState<any>({});
   const [executionInfo, setExecutionInfo] = useState<{ projectId: string; planId: string } | null>(null);
   const [showRestorePrompt, setShowRestorePrompt] = useState(false);
+
+  // Wizard mode management
+  const {
+    mode,
+    setMode,
+    hasPreference,
+    userExperience,
+    clearPreference,
+  } = useWizardMode();
 
   // Auto-save progress
   const {
@@ -33,6 +46,13 @@ export function WizardContainer({ existingProjectId }: WizardContainerProps) {
     restoreProgress,
     clearProgress,
   } = useWizardProgress();
+
+  // Skip mode selection if user has preference
+  useEffect(() => {
+    if (hasPreference && mode && stage === 0) {
+      setStage(1);
+    }
+  }, [hasPreference, mode, stage]);
 
   // Show restore prompt on mount if there's saved progress
   useEffect(() => {
@@ -64,6 +84,65 @@ export function WizardContainer({ existingProjectId }: WizardContainerProps) {
     setShowRestorePrompt(false);
   };
 
+  // Mode selection handler
+  const handleModeSelect = useCallback((selectedMode: WizardMode) => {
+    setMode(selectedMode);
+    setStage(1);
+  }, [setMode]);
+
+  // Expert mode completion handler
+  const handleExpertComplete = useCallback((config: ExpertModeConfig) => {
+    setWizardData({
+      stage1: {
+        projectName: config.projectName,
+        description: config.description,
+      },
+      stage2: {
+        features: config.features.join(', '),
+      },
+      stage3: {
+        selectedArchetypes: [config.stack],
+      },
+      stage4: {
+        infra: config.infra,
+      },
+      autoExecute: config.autoExecute,
+    });
+    // Go directly to execution preview or start execution
+    if (config.autoExecute) {
+      setStage(5); // Go to preview then auto-start
+    } else {
+      setStage(5); // Go to preview
+    }
+  }, []);
+
+  // Guided mode completion handler
+  const handleGuidedComplete = useCallback((config: GuidedModeConfig) => {
+    setWizardData({
+      stage1: {
+        projectName: config.projectName,
+        description: config.description,
+      },
+      stage2: {
+        features: config.features.join(', '),
+        projectType: config.projectType,
+      },
+      stage3: {
+        selectedArchetypes: [config.stack],
+      },
+      stage4: {
+        infra: config.infra,
+      },
+    });
+    setStage(5); // Go to preview
+  }, []);
+
+  // Back to mode selection
+  const handleBackToModeSelection = useCallback(() => {
+    clearPreference();
+    setStage(0);
+  }, [clearPreference]);
+
   const handleStageComplete = (data: any) => {
     setWizardData((prev: any) => ({ ...prev, [`stage${stage}`]: data }));
     setStage((prev) => prev + 1);
@@ -88,7 +167,43 @@ export function WizardContainer({ existingProjectId }: WizardContainerProps) {
     }
   };
 
-  const progress = Math.min((stage / TOTAL_STAGES) * 100, 100);
+  const progress = Math.min((Math.max(stage - 1, 0) / TOTAL_STAGES) * 100, 100);
+
+  // Mode selection screen (stage 0)
+  if (stage === 0) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <WizardModeSelector
+          onSelect={handleModeSelect}
+          userExperience={userExperience}
+        />
+      </div>
+    );
+  }
+
+  // Expert mode (single page)
+  if (mode === 'expert' && stage === 1) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <ExpertMode
+          onComplete={handleExpertComplete}
+          onBack={handleBackToModeSelection}
+        />
+      </div>
+    );
+  }
+
+  // Guided mode (tutorial style)
+  if (mode === 'guided' && stage === 1) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <GuidedMode
+          onComplete={handleGuidedComplete}
+          onBack={handleBackToModeSelection}
+        />
+      </div>
+    );
+  }
 
   // Execution view
   if (stage === 6 && executionInfo) {
@@ -134,12 +249,21 @@ export function WizardContainer({ existingProjectId }: WizardContainerProps) {
     );
   }
 
+  // Standard mode (multi-step wizard)
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-8">
         <div className="flex justify-between text-sm text-muted-foreground mb-2">
           <span>Paso {stage} de {TOTAL_STAGES}</span>
-          <span>{Math.round(progress)}% Completo</span>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleBackToModeSelection}
+              className="text-xs hover:underline"
+            >
+              Cambiar modo
+            </button>
+            <span>{Math.round(progress)}% Completo</span>
+          </div>
         </div>
         <Progress value={progress} className="h-2" />
       </div>
