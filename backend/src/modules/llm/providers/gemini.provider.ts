@@ -21,8 +21,16 @@ export class GeminiProvider implements LLMProvider {
   async validateApiKey(apiKey: string): Promise<boolean> {
     try {
       const client = this.createClient(apiKey);
-      const model = client.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      await model.generateContent('Hi');
+      // Use gemini-2.0-flash with fallback to gemini-pro
+      let model;
+      try {
+        model = client.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        await model.generateContent('Hi');
+      } catch {
+        // Fallback to gemini-pro if flash not available
+        model = client.getGenerativeModel({ model: 'gemini-pro' });
+        await model.generateContent('Hi');
+      }
       return true;
     } catch {
       return false;
@@ -39,7 +47,7 @@ export class GeminiProvider implements LLMProvider {
       : this.buildPrompt(wizardData);
 
     const model = client.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp', // Gemini 2.0 Flash (latest experimental)
+      model: 'gemini-2.0-flash', // Gemini 2.0 Flash (stable)
       generationConfig: {
         temperature: isImportedProject ? 0.5 : 0.7, // Lower temperature for imported projects
         maxOutputTokens: 8192,
@@ -70,7 +78,7 @@ export class GeminiProvider implements LLMProvider {
     const prompt = this.buildCodePrompt(task, context);
 
     const model = client.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.0-flash', // Gemini 2.0 Flash (stable)
       generationConfig: {
         temperature: 0.2, // Lower temperature for code
         maxOutputTokens: 8192,

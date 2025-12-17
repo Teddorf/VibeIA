@@ -195,8 +195,16 @@ export class UsersController {
         case 'gemini':
           const { GoogleGenerativeAI } = require('@google/generative-ai');
           const genAI = new GoogleGenerativeAI(apiKey);
-          const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-          await model.generateContent('Hi');
+          // Use gemini-2.0-flash (current model) with fallback to gemini-pro
+          let geminiModel;
+          try {
+            geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            await geminiModel.generateContent('Hi');
+          } catch {
+            // Fallback to gemini-pro if flash not available
+            geminiModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
+            await geminiModel.generateContent('Hi');
+          }
           break;
 
         default:
