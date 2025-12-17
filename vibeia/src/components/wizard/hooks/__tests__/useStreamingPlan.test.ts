@@ -1,5 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useStreamingPlan } from './useStreamingPlan';
+import { useStreamingPlan } from '../useStreamingPlan';
 
 describe('useStreamingPlan', () => {
   const mockWizardData = {
