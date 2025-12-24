@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, HttpCode, HttpStatus, Param, Res, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, HttpCode, HttpStatus, Param, Res, Req, UnauthorizedException } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
@@ -14,21 +14,41 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
 import { setAuthCookies, clearAuthCookies, COOKIE_NAMES } from './utils/cookie.utils';
+import { SecurityAuditService } from '../security/security-audit.service';
 
 @Controller('api/auth')
 @UseGuards(ThrottlerGuard)
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(
+    private readonly authService: AuthService,
+    private readonly auditService: SecurityAuditService,
+  ) {}
+
+  private getClientIp(req: Request): string {
+    return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      'unknown';
+  }
 
   @Public()
   @Throttle({ default: { limit: 5, ttl: 900000 } }) // 5 requests per 15 minutes
   @Post('register')
   async register(
     @Body() registerDto: RegisterDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<TokenResponse> {
     const tokens = await this.authService.register(registerDto);
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user.id);
+
+    // Log successful registration
+    await this.auditService.logLogin(
+      tokens.user.id,
+      registerDto.email,
+      this.getClientIp(req),
+      req.headers['user-agent'],
+    );
+
     return tokens;
   }
 
@@ -38,11 +58,35 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: LoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<TokenResponse> {
-    const tokens = await this.authService.login(loginDto);
-    setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user.id);
-    return tokens;
+    const ipAddress = this.getClientIp(req);
+    const userAgent = req.headers['user-agent'];
+
+    try {
+      const tokens = await this.authService.login(loginDto);
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user.id);
+
+      // Log successful login
+      await this.auditService.logLogin(
+        tokens.user.id,
+        loginDto.email,
+        ipAddress,
+        userAgent,
+      );
+
+      return tokens;
+    } catch (error) {
+      // Log failed login attempt
+      await this.auditService.logLoginFailure(
+        loginDto.email,
+        ipAddress,
+        error instanceof Error ? error.message : 'Unknown error',
+        userAgent,
+      );
+      throw error;
+    }
   }
 
   @Public()
@@ -72,10 +116,15 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logout(
     @CurrentUser('userId') userId: string,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ message: string }> {
     await this.authService.logout(userId);
     clearAuthCookies(res);
+
+    // Log logout
+    await this.auditService.logLogout(userId, this.getClientIp(req));
+
     return { message: 'Logged out successfully' };
   }
 

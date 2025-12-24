@@ -7,6 +7,7 @@ import { CredentialManagerService } from './credential-manager.service';
 import { WorkspaceService } from './workspace.service';
 import { RateLimiterService } from './rate-limiter.service';
 import { SecurityAuditService } from './security-audit.service';
+import { TokenEncryptionService } from './token-encryption.service';
 import { Credential, CredentialSchema } from './schemas/credential.schema';
 import { Workspace, WorkspaceSchema } from './schemas/workspace.schema';
 import { SecurityAudit, SecurityAuditSchema } from './schemas/security-audit.schema';
@@ -27,6 +28,7 @@ import { SecurityAudit, SecurityAuditSchema } from './schemas/security-audit.sch
     WorkspaceService,
     RateLimiterService,
     SecurityAuditService,
+    TokenEncryptionService,
   ],
   exports: [
     SecurityScannerService,
@@ -34,6 +36,7 @@ import { SecurityAudit, SecurityAuditSchema } from './schemas/security-audit.sch
     WorkspaceService,
     RateLimiterService,
     SecurityAuditService,
+    TokenEncryptionService,
   ],
 })
 export class SecurityModule {}

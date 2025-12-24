@@ -12,6 +12,7 @@ import { TeamMember, TeamMemberSchema } from './schemas/team-member.schema';
 import { TeamInvitation, TeamInvitationSchema } from './schemas/team-invitation.schema';
 import { GitConnection, GitConnectionSchema } from './schemas/git-connection.schema';
 import { TeamActivity, TeamActivitySchema } from './schemas/team-activity.schema';
+import { SecurityModule } from '../security/security.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TeamActivity, TeamActivitySchema } from './schemas/team-activity.schema
       { name: GitConnection.name, schema: GitConnectionSchema },
       { name: TeamActivity.name, schema: TeamActivitySchema },
     ]),
+    SecurityModule,
   ],
   controllers: [TeamsController],
   providers: [

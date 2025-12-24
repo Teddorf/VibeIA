@@ -14,12 +14,14 @@ import { RolesGuard } from './guards/roles.guard';
 import { OAuthStateService } from './services/oauth-state.service';
 import { UsersModule } from '../users/users.module';
 import { GitModule } from '../git/git.module';
+import { SecurityModule } from '../security/security.module';
 
 @Module({
   imports: [
     ConfigModule,
     UsersModule,
     forwardRef(() => GitModule),
+    SecurityModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',

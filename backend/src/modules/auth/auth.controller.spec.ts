@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Response, Request } from 'express';
+import { SecurityAuditService } from '../security/security-audit.service';
 
 describe('AuthController', () => {
     let controller: AuthController;
@@ -16,15 +17,26 @@ describe('AuthController', () => {
         logout: jest.fn(),
     };
 
+    const mockSecurityAuditService = {
+        logLogin: jest.fn(),
+        logLoginFailure: jest.fn(),
+        logLogout: jest.fn(),
+        logOAuthLogin: jest.fn(),
+        logPasswordResetRequest: jest.fn(),
+        logAccessDenied: jest.fn(),
+    };
+
     // Mock Response object for cookie operations
     const createMockResponse = (): Partial<Response> => ({
         cookie: jest.fn(),
         clearCookie: jest.fn(),
     });
 
-    // Mock Request object with cookies
+    // Mock Request object with cookies and headers
     const createMockRequest = (cookies: Record<string, string> = {}): Partial<Request> => ({
         cookies,
+        headers: { 'user-agent': 'test-agent' },
+        socket: { remoteAddress: '127.0.0.1' } as any,
     });
 
     beforeEach(async () => {
@@ -40,6 +52,10 @@ describe('AuthController', () => {
                 {
                     provide: AuthService,
                     useValue: mockAuthService,
+                },
+                {
+                    provide: SecurityAuditService,
+                    useValue: mockSecurityAuditService,
                 },
             ],
         })
@@ -68,8 +84,9 @@ describe('AuthController', () => {
             };
             mockAuthService.register.mockResolvedValue(mockTokens);
 
+            const req = createMockRequest({}) as Request;
             const res = createMockResponse() as Response;
-            await controller.register(dto, res);
+            await controller.register(dto, req, res);
 
             expect(authService.register).toHaveBeenCalledWith(dto);
             expect(res.cookie).toHaveBeenCalled();
@@ -86,8 +103,9 @@ describe('AuthController', () => {
             };
             mockAuthService.login.mockResolvedValue(mockTokens);
 
+            const req = createMockRequest({}) as Request;
             const res = createMockResponse() as Response;
-            await controller.login(dto, res);
+            await controller.login(dto, req, res);
 
             expect(authService.login).toHaveBeenCalledWith(dto);
             expect(res.cookie).toHaveBeenCalled();
@@ -142,8 +160,9 @@ describe('AuthController', () => {
 
     describe('logout', () => {
         it('should call authService.logout and clear cookies', async () => {
+            const req = createMockRequest({}) as Request;
             const res = createMockResponse() as Response;
-            await controller.logout('user-id', res);
+            await controller.logout('user-id', req, res);
 
             expect(authService.logout).toHaveBeenCalledWith('user-id');
             expect(res.clearCookie).toHaveBeenCalled();
