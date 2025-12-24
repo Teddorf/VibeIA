@@ -1,3 +1,15 @@
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsBoolean,
+  IsInt,
+  IsPositive,
+  MaxLength,
+  IsDateString,
+} from 'class-validator';
+
 // Subscription Plans based on spec section 15.2
 export enum SubscriptionPlan {
   FREE = 'free',
@@ -290,30 +302,75 @@ export interface TimeSeriesData {
   }[];
 }
 
-// DTOs
-export interface CreateSubscriptionDto {
+// DTOs with validation
+export class CreateSubscriptionDto {
+  @IsString({ message: 'User ID must be a string' })
+  @IsNotEmpty({ message: 'User ID is required' })
+  @MaxLength(100, { message: 'User ID must not exceed 100 characters' })
   userId: string;
+
+  @IsEnum(SubscriptionPlan, { message: 'Invalid subscription plan' })
+  @IsNotEmpty({ message: 'Plan is required' })
   plan: SubscriptionPlan;
+
+  @IsEnum(BillingCycle, { message: 'Invalid billing cycle' })
+  @IsNotEmpty({ message: 'Billing cycle is required' })
   billingCycle: BillingCycle;
+
+  @IsString({ message: 'Payment method ID must be a string' })
+  @IsOptional()
+  @MaxLength(100, { message: 'Payment method ID must not exceed 100 characters' })
   paymentMethodId?: string;
 }
 
-export interface UpdateSubscriptionDto {
+export class UpdateSubscriptionDto {
+  @IsEnum(SubscriptionPlan, { message: 'Invalid subscription plan' })
+  @IsOptional()
   plan?: SubscriptionPlan;
+
+  @IsEnum(BillingCycle, { message: 'Invalid billing cycle' })
+  @IsOptional()
   billingCycle?: BillingCycle;
+
+  @IsBoolean({ message: 'cancelAtPeriodEnd must be a boolean' })
+  @IsOptional()
   cancelAtPeriodEnd?: boolean;
 }
 
-export interface RecordUsageDto {
+export class RecordUsageDto {
+  @IsString({ message: 'User ID must be a string' })
+  @IsNotEmpty({ message: 'User ID is required' })
+  @MaxLength(100, { message: 'User ID must not exceed 100 characters' })
   userId: string;
+
+  @IsEnum(UsageType, { message: 'Invalid usage type' })
+  @IsNotEmpty({ message: 'Usage type is required' })
   type: UsageType;
+
+  @IsInt({ message: 'Count must be an integer' })
+  @IsPositive({ message: 'Count must be a positive number' })
+  @IsOptional()
   count?: number;
 }
 
-export interface GetAnalyticsDto {
+export enum AnalyticsGranularity {
+  DAY = 'day',
+  WEEK = 'week',
+  MONTH = 'month',
+}
+
+export class GetAnalyticsDto {
+  @IsDateString({}, { message: 'Start date must be a valid ISO date string' })
+  @IsNotEmpty({ message: 'Start date is required' })
   startDate: string;
+
+  @IsDateString({}, { message: 'End date must be a valid ISO date string' })
+  @IsNotEmpty({ message: 'End date is required' })
   endDate: string;
-  granularity?: 'day' | 'week' | 'month';
+
+  @IsEnum(AnalyticsGranularity, { message: 'Invalid granularity' })
+  @IsOptional()
+  granularity?: AnalyticsGranularity;
 }
 
 export interface ROICalculation {

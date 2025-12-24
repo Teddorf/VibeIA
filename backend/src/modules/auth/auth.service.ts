@@ -2,34 +2,11 @@ import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import { UsersService, CreateUserDto } from '../users/users.service';
 import { UserDocument } from '../users/user.schema';
+import { LoginDto, RegisterDto, TokenResponse, JwtPayload } from './dto/auth.dto';
 
-export interface JwtPayload {
-  sub: string;
-  email: string;
-  role: string;
-}
-
-export interface TokenResponse {
-  accessToken: string;
-  refreshToken: string;
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-  };
-}
-
-export interface LoginDto {
-  email: string;
-  password: string;
-}
-
-export interface RegisterDto {
-  email: string;
-  password: string;
-  name: string;
-}
+// Re-export for backward compatibility
+export { LoginDto, RegisterDto } from './dto/auth.dto';
+export type { TokenResponse, JwtPayload } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {

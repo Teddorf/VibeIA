@@ -1,7 +1,15 @@
 import { Controller, Post, Body, UseGuards, Get, HttpCode, HttpStatus, Param, Res, Req } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response, Request } from 'express';
-import { AuthService, LoginDto, RegisterDto, TokenResponse } from './auth.service';
+import { AuthService } from './auth.service';
+import {
+  LoginDto,
+  RegisterDto,
+  TokenResponse,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  RefreshTokenDto,
+} from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
@@ -44,7 +52,7 @@ export class AuthController {
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-    @Body() body: { userId?: string; refreshToken?: string },
+    @Body() body: RefreshTokenDto,
   ): Promise<TokenResponse> {
     // Prefer cookies over body for security (HttpOnly cookies can't be stolen via XSS)
     const refreshToken = req.cookies?.[COOKIE_NAMES.REFRESH_TOKEN] || body.refreshToken;
@@ -85,7 +93,7 @@ export class AuthController {
   @Throttle({ default: { limit: 3, ttl: 900000 } }) // 3 requests per 15 minutes
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  async forgotPassword(@Body() body: { email: string }) {
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
     const result = await this.authService.forgotPassword(body.email);
     // Always return success to prevent email enumeration
     return {
@@ -99,7 +107,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 900000 } }) // 5 requests per 15 minutes
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  async resetPassword(@Body() body: { token: string; password: string }) {
+  async resetPassword(@Body() body: ResetPasswordDto) {
     return this.authService.resetPassword(body.token, body.password);
   }
 

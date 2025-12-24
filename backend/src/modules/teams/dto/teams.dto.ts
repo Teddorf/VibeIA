@@ -1,3 +1,15 @@
+import {
+  IsString,
+  IsNotEmpty,
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsUrl,
+  MaxLength,
+  MinLength,
+  IsBoolean,
+} from 'class-validator';
+
 // Team Roles
 export enum TeamRole {
   OWNER = 'owner',
@@ -213,41 +225,102 @@ export type TeamActivityAction =
   | 'git.connected'
   | 'git.disconnected';
 
-// DTOs for API
+// DTOs for API with validation
 
 export class CreateTeamDto {
+  @IsString({ message: 'Team name must be a string' })
+  @IsNotEmpty({ message: 'Team name is required' })
+  @MinLength(2, { message: 'Team name must be at least 2 characters' })
+  @MaxLength(100, { message: 'Team name must not exceed 100 characters' })
   name: string;
+
+  @IsString({ message: 'Description must be a string' })
+  @IsOptional()
+  @MaxLength(500, { message: 'Description must not exceed 500 characters' })
   description?: string;
+
+  @IsOptional()
   settings?: Partial<TeamSettings>;
 }
 
 export class UpdateTeamDto {
+  @IsString({ message: 'Team name must be a string' })
+  @IsOptional()
+  @MinLength(2, { message: 'Team name must be at least 2 characters' })
+  @MaxLength(100, { message: 'Team name must not exceed 100 characters' })
   name?: string;
+
+  @IsString({ message: 'Description must be a string' })
+  @IsOptional()
+  @MaxLength(500, { message: 'Description must not exceed 500 characters' })
   description?: string;
+
+  @IsUrl({}, { message: 'Avatar URL must be a valid URL' })
+  @IsOptional()
+  @MaxLength(500, { message: 'Avatar URL must not exceed 500 characters' })
   avatarUrl?: string;
+
+  @IsOptional()
   settings?: Partial<TeamSettings>;
 }
 
 export class InviteMemberDto {
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  @IsNotEmpty({ message: 'Email is required' })
+  @MaxLength(254, { message: 'Email must not exceed 254 characters' })
   email: string;
+
+  @IsEnum(TeamRole, { message: 'Invalid team role' })
+  @IsNotEmpty({ message: 'Role is required' })
   role: TeamRole;
+
+  @IsString({ message: 'Message must be a string' })
+  @IsOptional()
+  @MaxLength(1000, { message: 'Message must not exceed 1000 characters' })
   message?: string;
 }
 
 export class UpdateMemberRoleDto {
+  @IsEnum(TeamRole, { message: 'Invalid team role' })
+  @IsNotEmpty({ message: 'Role is required' })
   role: TeamRole;
 }
 
 export class ConnectGitProviderDto {
+  @IsEnum(GitProvider, { message: 'Invalid git provider' })
+  @IsNotEmpty({ message: 'Git provider is required' })
   provider: GitProvider;
+
+  @IsString({ message: 'Authorization code must be a string' })
+  @IsNotEmpty({ message: 'Authorization code is required' })
+  @MaxLength(500, { message: 'Authorization code must not exceed 500 characters' })
   code: string;
+
+  @IsUrl({}, { message: 'Redirect URI must be a valid URL' })
+  @IsNotEmpty({ message: 'Redirect URI is required' })
+  @MaxLength(500, { message: 'Redirect URI must not exceed 500 characters' })
   redirectUri: string;
+
+  @IsString({ message: 'Organization ID must be a string' })
+  @IsOptional()
+  @MaxLength(100, { message: 'Organization ID must not exceed 100 characters' })
   organizationId?: string;
+
+  @IsBoolean({ message: 'isDefault must be a boolean' })
+  @IsOptional()
   isDefault?: boolean;
 }
 
 export class TransferOwnershipDto {
+  @IsString({ message: 'New owner ID must be a string' })
+  @IsNotEmpty({ message: 'New owner ID is required' })
+  @MaxLength(100, { message: 'New owner ID must not exceed 100 characters' })
   newOwnerId: string;
+
+  @IsString({ message: 'Password must be a string' })
+  @IsNotEmpty({ message: 'Password is required for ownership transfer' })
+  @MinLength(8, { message: 'Password must be at least 8 characters' })
+  @MaxLength(128, { message: 'Password must not exceed 128 characters' })
   confirmPassword: string;
 }
 
