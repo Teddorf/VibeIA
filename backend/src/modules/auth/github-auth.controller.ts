@@ -18,6 +18,7 @@ import { OAuthStateService } from './services/oauth-state.service';
 import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { GitHubConnectionStatus } from '../git/dto/github.dto';
+import { setAuthCookies } from './utils/cookie.utils';
 
 interface GitHubOAuthTokenResponse {
   access_token: string;
@@ -179,12 +180,12 @@ export class GitHubAuthController {
         githubUser.login,
       );
 
-      // Redirect to frontend OAuth callback page with tokens
+      // Set HttpOnly cookies (secure - can't be stolen via XSS)
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user.id);
+
+      // Redirect to frontend OAuth callback page (tokens are in HttpOnly cookies, not URL)
       const successUrl = new URL(`${this.frontendUrl}/oauth/callback/github`);
       successUrl.searchParams.set('oauth_success', 'true');
-      successUrl.searchParams.set('access_token', tokens.accessToken);
-      successUrl.searchParams.set('refresh_token', tokens.refreshToken);
-      successUrl.searchParams.set('user', Buffer.from(JSON.stringify(tokens.user)).toString('base64'));
       res.redirect(successUrl.toString());
     } catch (error: any) {
       console.error('GitHub OAuth callback error:', error);

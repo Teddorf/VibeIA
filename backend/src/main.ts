@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { validateConfig } from './config/config.validation';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   // Validate configuration BEFORE creating the app
@@ -9,6 +10,9 @@ async function bootstrap() {
   const config = validateConfig();
 
   const app = await NestFactory.create(AppModule);
+
+  // Enable cookie parsing for HttpOnly auth cookies
+  app.use(cookieParser());
 
   // Enable CORS for frontend
   const allowedOrigins = [
