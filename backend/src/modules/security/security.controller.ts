@@ -10,7 +10,9 @@ import {
   HttpStatus,
   UnauthorizedException,
   ForbiddenException,
+  UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { SecurityScannerService } from './security-scanner.service';
 import { CredentialManagerService } from './credential-manager.service';
 import { WorkspaceService } from './workspace.service';
@@ -27,6 +29,7 @@ import {
 } from './dto/security.dto';
 
 @Controller('api/security')
+@UseGuards(ThrottlerGuard)
 export class SecurityController {
   constructor(
     private readonly scannerService: SecurityScannerService,

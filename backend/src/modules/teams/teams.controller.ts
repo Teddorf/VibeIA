@@ -11,7 +11,9 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { TeamsService } from './teams.service';
 import { MembersService } from './members.service';
 import { InvitationsService } from './invitations.service';
@@ -31,6 +33,7 @@ import {
 } from './dto/teams.dto';
 
 @Controller('api/teams')
+@UseGuards(ThrottlerGuard)
 export class TeamsController {
   constructor(
     private readonly teamsService: TeamsService,

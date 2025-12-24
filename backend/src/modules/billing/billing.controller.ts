@@ -11,7 +11,9 @@ import {
   HttpStatus,
   UnauthorizedException,
   ForbiddenException,
+  UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { SubscriptionService } from './subscription.service';
 import { UsageService } from './usage.service';
 import { AnalyticsService } from './analytics.service';
@@ -27,6 +29,7 @@ import {
 } from './dto/billing.dto';
 
 @Controller('api/billing')
+@UseGuards(ThrottlerGuard)
 export class BillingController {
   constructor(
     private readonly subscriptionService: SubscriptionService,
