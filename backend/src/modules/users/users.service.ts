@@ -149,6 +149,32 @@ export class UsersService {
     return bcrypt.compare(refreshToken, user.refreshToken);
   }
 
+  /**
+   * Find the owner of a refresh token by comparing against all stored hashes.
+   * Used for IDOR prevention - ensures the token belongs to the claimed user.
+   * @param refreshToken The plain refresh token to find owner for
+   * @returns The user ID if found, null otherwise
+   */
+  async findRefreshTokenOwner(refreshToken: string): Promise<string | null> {
+    // Find all users with refresh tokens
+    const users = await this.userModel.find(
+      { refreshToken: { $exists: true, $ne: null } },
+      { _id: 1, refreshToken: 1 }
+    ).lean();
+
+    // Check each user's hashed token
+    for (const user of users) {
+      if (user.refreshToken) {
+        const isMatch = await bcrypt.compare(refreshToken, user.refreshToken);
+        if (isMatch) {
+          return user._id.toString();
+        }
+      }
+    }
+
+    return null;
+  }
+
   async delete(id: string): Promise<void> {
     const result = await this.userModel.findByIdAndDelete(id);
     if (!result) {

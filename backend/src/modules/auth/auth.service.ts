@@ -98,7 +98,19 @@ export class AuthService {
   }
 
   async refreshTokens(userId: string, refreshToken: string): Promise<TokenResponse> {
-    // Validate refresh token
+    // IDOR Prevention: First verify the token exists and get its owner
+    const tokenOwner = await this.usersService.findRefreshTokenOwner(refreshToken);
+
+    if (!tokenOwner) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // IDOR Prevention: Verify the userId matches the token owner
+    if (tokenOwner !== userId) {
+      throw new UnauthorizedException('Token does not belong to this user');
+    }
+
+    // Validate refresh token (additional validation)
     const isValid = await this.usersService.validateRefreshToken(userId, refreshToken);
     if (!isValid) {
       throw new UnauthorizedException('Invalid refresh token');
