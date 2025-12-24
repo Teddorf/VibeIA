@@ -1,8 +1,13 @@
-﻿import { NestFactory } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { validateConfig } from './config/config.validation';
 
 async function bootstrap() {
+  // Validate configuration BEFORE creating the app
+  // This will throw if any required environment variables are missing
+  const config = validateConfig();
+
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS for frontend
@@ -46,7 +51,7 @@ async function bootstrap() {
     transform: true
   }));
 
-  await app.listen(process.env.PORT || 3001);
-  console.log(`Backend running on http://localhost:${process.env.PORT || 3001}`);
+  await app.listen(config.port);
+  console.log(`Backend running on http://localhost:${config.port}`);
 }
 bootstrap();

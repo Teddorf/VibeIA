@@ -9,8 +9,15 @@ export class EncryptionService {
   private readonly tagLength = 16;
 
   private getKey(): Buffer {
-    const secret = process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || 'default-key-change-me';
-    const salt = process.env.ENCRYPTION_SALT || 'vibeia-default-salt-change-in-prod';
+    // ENCRYPTION_KEY and ENCRYPTION_SALT are validated at startup by config.validation.ts
+    // If we reach here, they're guaranteed to exist
+    const secret = process.env.ENCRYPTION_KEY;
+    const salt = process.env.ENCRYPTION_SALT;
+
+    if (!secret || !salt) {
+      throw new Error('ENCRYPTION_KEY and ENCRYPTION_SALT must be configured - this should have been caught at startup');
+    }
+
     return crypto.scryptSync(secret, salt, this.keyLength);
   }
 

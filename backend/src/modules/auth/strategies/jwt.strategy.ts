@@ -6,10 +6,16 @@ import { AuthService, JwtPayload } from '../auth.service';
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private authService: AuthService) {
+    // JWT_SECRET is validated at startup by config.validation.ts
+    // If we reach here, it's guaranteed to exist
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET must be configured - this should have been caught at startup');
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+      secretOrKey: process.env.JWT_SECRET,
     });
   }
 
