@@ -17,6 +17,7 @@ import { SecurityScannerService } from './security-scanner.service';
 import { CredentialManagerService } from './credential-manager.service';
 import { WorkspaceService } from './workspace.service';
 import { RateLimiterService } from './rate-limiter.service';
+import { SecurityAuditService } from './security-audit.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import {
@@ -27,6 +28,7 @@ import {
   SecretScanResult,
   VulnerabilityResult,
 } from './dto/security.dto';
+import { SecurityEventType, SecurityEventSeverity } from './schemas/security-audit.schema';
 
 @Controller('api/security')
 @UseGuards(ThrottlerGuard)
@@ -36,6 +38,7 @@ export class SecurityController {
     private readonly credentialManager: CredentialManagerService,
     private readonly workspaceService: WorkspaceService,
     private readonly rateLimiter: RateLimiterService,
+    private readonly auditService: SecurityAuditService,
   ) {}
 
   /**
@@ -356,6 +359,48 @@ export class SecurityController {
     return { entries, content };
   }
 
+  // Audit Log Endpoints (Admin Only)
+  @Get('audit/logs')
+  @Roles('admin')
+  async getAuditLogs(
+    @Query('eventType') eventType?: SecurityEventType,
+    @Query('userId') userId?: string,
+    @Query('severity') severity?: SecurityEventSeverity,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('ipAddress') ipAddress?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.auditService.getAuditLogs(
+      {
+        eventType,
+        userId,
+        severity,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        ipAddress,
+      },
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 50,
+    );
+  }
+
+  @Get('audit/summary')
+  @Roles('admin')
+  async getSecuritySummary(@Query('hours') hours?: string) {
+    return this.auditService.getSecuritySummary(hours ? parseInt(hours) : 24);
+  }
+
+  @Get('audit/event-types')
+  @Roles('admin')
+  async getEventTypes() {
+    return {
+      eventTypes: Object.values(SecurityEventType),
+      severityLevels: Object.values(SecurityEventSeverity),
+    };
+  }
+
   // Health check
   @Get('health')
   async healthCheck() {
@@ -367,6 +412,7 @@ export class SecurityController {
         credentials: 'active',
         workspaces: 'active',
         rateLimiter: 'active',
+        auditLog: 'active',
       },
     };
   }
