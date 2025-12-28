@@ -1,0 +1,70 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    "backend": {
+      "entry": ["src/main.ts"],
+      "project": ["src/**/*.ts"],
+      "ignore": [
+        "**/*.spec.ts",
+        "**/*.e2e-spec.ts",
+        "test/**/*",
+        "eslint.config.mjs",
+        "jest.config.ts"
+      ],
+      "ignoreDependencies": [
+        "source-map-support",
+        "ts-loader",
+        "tsconfig-paths",
+        "eslint",
+        "eslint-config-prettier",
+        "eslint-plugin-prettier",
+        "typescript-eslint",
+        "globals",
+        "@eslint/js",
+        "@eslint/eslintrc",
+        "jest",
+        "ts-jest",
+        "@types/jest",
+        "mongodb-memory-server",
+        "supertest",
+        "@types/supertest"
+      ],
+      "eslint": false,
+      "jest": false
+    },
+    "vibeia": {
+      "entry": ["src/app/**/*.{ts,tsx}", "src/components/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignore": [
+        "**/*.test.{ts,tsx}",
+        "**/__tests__/**/*",
+        "eslint.config.mjs",
+        "jest.config.ts",
+        "jest.setup.ts"
+      ],
+      "ignoreDependencies": [
+        "autoprefixer",
+        "postcss",
+        "eslint",
+        "eslint-config-next",
+        "@eslint/eslintrc",
+        "jest",
+        "jest-environment-jsdom",
+        "@testing-library/jest-dom",
+        "@testing-library/react",
+        "@testing-library/user-event"
+      ],
+      "eslint": false,
+      "jest": false
+    }
+  },
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.next/**",
+    "**/eslint.config.mjs",
+    "**/jest.config.ts",
+    "**/jest.setup.ts"
+  ],
+  "ignoreBinaries": ["nest", "next"]
+}

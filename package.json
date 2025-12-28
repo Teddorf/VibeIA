@@ -1,0 +1,40 @@
+{
+  "name": "vibeia",
+  "version": "0.3.0",
+  "private": true,
+  "description": "VibeIA - AI-Powered Vibe Coding Platform",
+  "workspaces": ["backend", "vibeia"],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
+    "knip": "knip",
+    "biome:check": "biome check .",
+    "biome:fix": "biome check --write .",
+    "changeset": "changeset",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "@changesets/cli": "^2.27.0",
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "husky": "^9.0.0",
+    "knip": "^5.0.0",
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.0.0"
+  },
+  "lint-staged": {
+    "backend/**/*.ts": ["prettier --write"],
+    "vibeia/**/*.{ts,tsx}": ["prettier --write"],
+    "*.{json,md,yml,yaml}": ["prettier --write"]
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
