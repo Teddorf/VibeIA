@@ -20,7 +20,7 @@ export class TeamInvitation {
   @Prop({ required: true })
   email: string;
 
-  @Prop({ required: true, enum: TeamRole, default: TeamRole.MEMBER })
+  @Prop({ required: true, type: String, enum: TeamRole, default: TeamRole.MEMBER })
   role: TeamRole;
 
   @Prop({ required: true })

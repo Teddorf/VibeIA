@@ -11,14 +11,17 @@ import { GitLabAuthController } from './gitlab-auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { OAuthStateService } from './services/oauth-state.service';
 import { UsersModule } from '../users/users.module';
 import { GitModule } from '../git/git.module';
+import { SecurityModule } from '../security/security.module';
 
 @Module({
   imports: [
     ConfigModule,
     UsersModule,
     forwardRef(() => GitModule),
+    SecurityModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
@@ -31,6 +34,7 @@ import { GitModule } from '../git/git.module';
   providers: [
     AuthService,
     JwtStrategy,
+    OAuthStateService,
     // Register JwtAuthGuard globally - routes can opt-out with @Public()
     {
       provide: APP_GUARD,
@@ -42,6 +46,6 @@ import { GitModule } from '../git/git.module';
       useClass: RolesGuard,
     },
   ],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService, JwtModule, OAuthStateService],
 })
 export class AuthModule {}

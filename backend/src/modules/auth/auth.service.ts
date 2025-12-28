@@ -2,34 +2,11 @@ import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import { UsersService, CreateUserDto } from '../users/users.service';
 import { UserDocument } from '../users/user.schema';
+import { LoginDto, RegisterDto, TokenResponse, JwtPayload } from './dto/auth.dto';
 
-export interface JwtPayload {
-  sub: string;
-  email: string;
-  role: string;
-}
-
-export interface TokenResponse {
-  accessToken: string;
-  refreshToken: string;
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-  };
-}
-
-export interface LoginDto {
-  email: string;
-  password: string;
-}
-
-export interface RegisterDto {
-  email: string;
-  password: string;
-  name: string;
-}
+// Re-export for backward compatibility
+export { LoginDto, RegisterDto } from './dto/auth.dto';
+export type { TokenResponse, JwtPayload } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -98,7 +75,19 @@ export class AuthService {
   }
 
   async refreshTokens(userId: string, refreshToken: string): Promise<TokenResponse> {
-    // Validate refresh token
+    // IDOR Prevention: First verify the token exists and get its owner
+    const tokenOwner = await this.usersService.findRefreshTokenOwner(refreshToken);
+
+    if (!tokenOwner) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // IDOR Prevention: Verify the userId matches the token owner
+    if (tokenOwner !== userId) {
+      throw new UnauthorizedException('Token does not belong to this user');
+    }
+
+    // Validate refresh token (additional validation)
     const isValid = await this.usersService.validateRefreshToken(userId, refreshToken);
     if (!isValid) {
       throw new UnauthorizedException('Invalid refresh token');

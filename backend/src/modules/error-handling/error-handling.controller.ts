@@ -6,8 +6,11 @@ import {
   Param,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { RollbackEngineService } from './rollback-engine.service';
 import { RecoveryService } from './recovery.service';
 import { RetryService } from './retry.service';
@@ -22,6 +25,7 @@ import {
 } from './dto/error-handling.dto';
 
 @Controller('api/error-handling')
+@UseGuards(ThrottlerGuard)
 export class ErrorHandlingController {
   constructor(
     private readonly rollbackEngine: RollbackEngineService,
@@ -29,7 +33,8 @@ export class ErrorHandlingController {
     private readonly retryService: RetryService,
   ) {}
 
-  @Public()
+  // Infrastructure rollback - Admin only
+  @Roles('admin')
   @Post('rollback')
   @HttpCode(HttpStatus.OK)
   async rollback(@Body() request: RollbackRequest) {
@@ -55,7 +60,8 @@ export class ErrorHandlingController {
     };
   }
 
-  @Public()
+  // Rollback status - Admin only
+  @Roles('admin')
   @Get('rollback/status/:setupId')
   async getRollbackStatus(
     @Param('setupId') setupId: string,
@@ -75,7 +81,8 @@ export class ErrorHandlingController {
     };
   }
 
-  @Public()
+  // Infrastructure recovery - Admin only
+  @Roles('admin')
   @Post('recover')
   @HttpCode(HttpStatus.OK)
   async attemptRecovery(@Body() request: ErrorRecoveryRequest) {
@@ -105,7 +112,7 @@ export class ErrorHandlingController {
     };
   }
 
-  @Public()
+  // Error analysis - requires authentication but not admin
   @Post('analyze')
   @HttpCode(HttpStatus.OK)
   async analyzeError(

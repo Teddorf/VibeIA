@@ -22,7 +22,8 @@ export class CredentialManagerService {
     private readonly configService: ConfigService,
   ) {
     const key = this.configService.get<string>('ENCRYPTION_KEY') || 'default-key-for-development-only!';
-    this.encryptionKey = crypto.scryptSync(key, 'salt', 32);
+    const salt = this.configService.get<string>('ENCRYPTION_SALT') || 'default-salt-dev-16';
+    this.encryptionKey = crypto.scryptSync(key, salt, 32);
   }
 
   async storeCredential(

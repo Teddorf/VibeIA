@@ -11,7 +11,10 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  ForbiddenException,
+  UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { TeamsService } from './teams.service';
 import { MembersService } from './members.service';
 import { InvitationsService } from './invitations.service';
@@ -31,6 +34,7 @@ import {
 } from './dto/teams.dto';
 
 @Controller('api/teams')
+@UseGuards(ThrottlerGuard)
 export class TeamsController {
   constructor(
     private readonly teamsService: TeamsService,
@@ -38,6 +42,17 @@ export class TeamsController {
     private readonly invitationsService: InvitationsService,
     private readonly gitConnectionsService: GitConnectionsService,
   ) {}
+
+  /**
+   * Validate that the current user is a member of the team
+   * @throws ForbiddenException if user is not a member
+   */
+  private async validateTeamMembership(teamId: string, userId: string): Promise<void> {
+    const member = await this.membersService.getMemberByUserAndTeam(teamId, userId);
+    if (!member) {
+      throw new ForbiddenException('You are not a member of this team');
+    }
+  }
 
   // Team CRUD
   @Post()
@@ -74,20 +89,38 @@ export class TeamsController {
   }
 
   @Get(':teamId')
-  async getTeam(@Param('teamId') teamId: string) {
+  async getTeam(
+    @Param('teamId') teamId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateTeamMembership(teamId, userId);
+
     const team = await this.teamsService.getTeam(teamId);
     if (!team) {
-      return { error: 'Team not found' };
+      throw new ForbiddenException('Team not found');
     }
     return team;
   }
 
   @Get('slug/:slug')
-  async getTeamBySlug(@Param('slug') slug: string) {
+  async getTeamBySlug(
+    @Param('slug') slug: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
     const team = await this.teamsService.getTeamBySlug(slug);
     if (!team) {
-      return { error: 'Team not found' };
+      throw new ForbiddenException('Team not found');
     }
+
+    // Validate user is a member of the team
+    await this.validateTeamMembership(team.id, userId);
     return team;
   }
 
@@ -177,10 +210,18 @@ export class TeamsController {
 
   // Team Stats
   @Get(':teamId/stats')
-  async getTeamStats(@Param('teamId') teamId: string) {
+  async getTeamStats(
+    @Param('teamId') teamId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateTeamMembership(teamId, userId);
+
     const stats = await this.teamsService.getTeamStats(teamId);
     if (!stats) {
-      return { error: 'Team not found' };
+      throw new ForbiddenException('Team not found');
     }
 
     const memberCounts = await this.membersService.countMembersByRole(teamId);
@@ -194,9 +235,15 @@ export class TeamsController {
   @Get(':teamId/activity')
   async getTeamActivity(
     @Param('teamId') teamId: string,
+    @CurrentUser('userId') userId: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateTeamMembership(teamId, userId);
+
     return this.teamsService.getActivityLog(
       teamId,
       limit ? parseInt(limit) : 50,
@@ -206,7 +253,15 @@ export class TeamsController {
 
   // Members
   @Get(':teamId/members')
-  async getMembers(@Param('teamId') teamId: string) {
+  async getMembers(
+    @Param('teamId') teamId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateTeamMembership(teamId, userId);
+
     return this.membersService.getTeamMembers(teamId);
   }
 
@@ -370,8 +425,14 @@ export class TeamsController {
   @Get(':teamId/invitations')
   async getInvitations(
     @Param('teamId') teamId: string,
+    @CurrentUser('userId') userId: string,
     @Query('status') status?: InvitationStatus,
   ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateTeamMembership(teamId, userId);
+
     return this.invitationsService.getTeamInvitations(teamId, status);
   }
 
@@ -567,7 +628,15 @@ export class TeamsController {
 
   // Git Connections
   @Get(':teamId/git-connections')
-  async getGitConnections(@Param('teamId') teamId: string) {
+  async getGitConnections(
+    @Param('teamId') teamId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateTeamMembership(teamId, userId);
+
     return this.gitConnectionsService.getTeamConnections(teamId);
   }
 
@@ -671,7 +740,13 @@ export class TeamsController {
   async validateConnection(
     @Param('teamId') teamId: string,
     @Param('connectionId') connectionId: string,
+    @CurrentUser('userId') userId: string,
   ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateTeamMembership(teamId, userId);
+
     const valid =
       await this.gitConnectionsService.validateConnection(connectionId);
     return { valid };

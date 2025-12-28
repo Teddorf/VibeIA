@@ -1,28 +1,92 @@
-import { Controller, Post, Body, UseGuards, Get, HttpCode, HttpStatus, Param } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, HttpCode, HttpStatus, Param, Res, Req, UnauthorizedException } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
-import { AuthService, LoginDto, RegisterDto, TokenResponse } from './auth.service';
+import { Response, Request } from 'express';
+import { AuthService } from './auth.service';
+import {
+  LoginDto,
+  RegisterDto,
+  TokenResponse,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  RefreshTokenDto,
+} from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
+import { setAuthCookies, clearAuthCookies, COOKIE_NAMES } from './utils/cookie.utils';
+import { SecurityAuditService } from '../security/security-audit.service';
 
 @Controller('api/auth')
 @UseGuards(ThrottlerGuard)
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(
+    private readonly authService: AuthService,
+    private readonly auditService: SecurityAuditService,
+  ) {}
+
+  private getClientIp(req: Request): string {
+    return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      'unknown';
+  }
 
   @Public()
   @Throttle({ default: { limit: 5, ttl: 900000 } }) // 5 requests per 15 minutes
   @Post('register')
-  async register(@Body() registerDto: RegisterDto): Promise<TokenResponse> {
-    return this.authService.register(registerDto);
+  async register(
+    @Body() registerDto: RegisterDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<TokenResponse> {
+    const tokens = await this.authService.register(registerDto);
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user.id);
+
+    // Log successful registration
+    await this.auditService.logLogin(
+      tokens.user.id,
+      registerDto.email,
+      this.getClientIp(req),
+      req.headers['user-agent'],
+    );
+
+    return tokens;
   }
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 900000 } }) // 10 requests per 15 minutes
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto): Promise<TokenResponse> {
-    return this.authService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<TokenResponse> {
+    const ipAddress = this.getClientIp(req);
+    const userAgent = req.headers['user-agent'];
+
+    try {
+      const tokens = await this.authService.login(loginDto);
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user.id);
+
+      // Log successful login
+      await this.auditService.logLogin(
+        tokens.user.id,
+        loginDto.email,
+        ipAddress,
+        userAgent,
+      );
+
+      return tokens;
+    } catch (error) {
+      // Log failed login attempt
+      await this.auditService.logLoginFailure(
+        loginDto.email,
+        ipAddress,
+        error instanceof Error ? error.message : 'Unknown error',
+        userAgent,
+      );
+      throw error;
+    }
   }
 
   @Public()
@@ -30,16 +94,37 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(
-    @Body() body: { userId: string; refreshToken: string }
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @Body() body: RefreshTokenDto,
   ): Promise<TokenResponse> {
-    return this.authService.refreshTokens(body.userId, body.refreshToken);
+    // Prefer cookies over body for security (HttpOnly cookies can't be stolen via XSS)
+    const refreshToken = req.cookies?.[COOKIE_NAMES.REFRESH_TOKEN] || body.refreshToken;
+    const userId = req.cookies?.[COOKIE_NAMES.USER_ID] || body.userId;
+
+    if (!refreshToken || !userId) {
+      throw new Error('Refresh token and user ID are required');
+    }
+
+    const tokens = await this.authService.refreshTokens(userId, refreshToken);
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user.id);
+    return tokens;
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@CurrentUser('userId') userId: string): Promise<{ message: string }> {
+  async logout(
+    @CurrentUser('userId') userId: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ message: string }> {
     await this.authService.logout(userId);
+    clearAuthCookies(res);
+
+    // Log logout
+    await this.auditService.logLogout(userId, this.getClientIp(req));
+
     return { message: 'Logged out successfully' };
   }
 
@@ -57,7 +142,7 @@ export class AuthController {
   @Throttle({ default: { limit: 3, ttl: 900000 } }) // 3 requests per 15 minutes
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  async forgotPassword(@Body() body: { email: string }) {
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
     const result = await this.authService.forgotPassword(body.email);
     // Always return success to prevent email enumeration
     return {
@@ -71,7 +156,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 900000 } }) // 5 requests per 15 minutes
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  async resetPassword(@Body() body: { token: string; password: string }) {
+  async resetPassword(@Body() body: ResetPasswordDto) {
     return this.authService.resetPassword(body.token, body.password);
   }
 

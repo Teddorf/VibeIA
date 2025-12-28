@@ -10,11 +10,15 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  ForbiddenException,
+  UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { SubscriptionService } from './subscription.service';
 import { UsageService } from './usage.service';
 import { AnalyticsService } from './analytics.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import {
   CreateSubscriptionDto,
   UpdateSubscriptionDto,
@@ -25,6 +29,7 @@ import {
 } from './dto/billing.dto';
 
 @Controller('api/billing')
+@UseGuards(ThrottlerGuard)
 export class BillingController {
   constructor(
     private readonly subscriptionService: SubscriptionService,
@@ -32,10 +37,45 @@ export class BillingController {
     private readonly analyticsService: AnalyticsService,
   ) {}
 
+  /**
+   * Validate that the current user owns the subscription
+   * @throws ForbiddenException if user doesn't own the subscription
+   */
+  private async validateSubscriptionOwnership(subscriptionId: string, userId: string): Promise<void> {
+    const subscription = await this.subscriptionService.getSubscription(subscriptionId);
+    if (!subscription) {
+      throw new ForbiddenException('Subscription not found');
+    }
+    if (subscription.userId !== userId) {
+      throw new ForbiddenException('Access denied to this subscription');
+    }
+  }
+
+  /**
+   * Validate that the current user owns the invoice
+   * Note: Since invoices are fetched per-user, we validate by checking
+   * if the invoice belongs to any of the user's subscriptions
+   */
+  private async validateInvoiceOwnership(invoiceId: string, userId: string): Promise<void> {
+    // Get all invoices for this user and check if the invoiceId is among them
+    const invoices = await this.subscriptionService.getInvoices(userId);
+    const ownsInvoice = invoices.some((inv: any) => inv._id?.toString() === invoiceId || inv.id === invoiceId);
+    if (!ownsInvoice) {
+      throw new ForbiddenException('Access denied to this invoice');
+    }
+  }
+
   // Subscription Endpoints
   @Post('subscriptions')
-  async createSubscription(@Body() dto: CreateSubscriptionDto) {
-    return this.subscriptionService.createSubscription(dto);
+  async createSubscription(
+    @Body() dto: CreateSubscriptionDto,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    // Override DTO userId with authenticated user's ID to prevent spoofing
+    return this.subscriptionService.createSubscription({ ...dto, userId });
   }
 
   @Get('subscriptions/me')
@@ -51,19 +91,27 @@ export class BillingController {
   }
 
   @Get('subscriptions/:id')
-  async getSubscription(@Param('id') subscriptionId: string) {
-    const subscription = await this.subscriptionService.getSubscription(subscriptionId);
-    if (!subscription) {
-      return { error: 'Subscription not found' };
+  async getSubscription(
+    @Param('id') subscriptionId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
     }
-    return subscription;
+    await this.validateSubscriptionOwnership(subscriptionId, userId);
+    return this.subscriptionService.getSubscription(subscriptionId);
   }
 
   @Patch('subscriptions/:id')
   async updateSubscription(
     @Param('id') subscriptionId: string,
     @Body() dto: UpdateSubscriptionDto,
+    @CurrentUser('userId') userId: string,
   ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateSubscriptionOwnership(subscriptionId, userId);
     return this.subscriptionService.updateSubscription(subscriptionId, dto);
   }
 
@@ -71,17 +119,36 @@ export class BillingController {
   async cancelSubscription(
     @Param('id') subscriptionId: string,
     @Body() body: { immediately?: boolean },
+    @CurrentUser('userId') userId: string,
   ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateSubscriptionOwnership(subscriptionId, userId);
     return this.subscriptionService.cancelSubscription(subscriptionId, body.immediately);
   }
 
   @Post('subscriptions/:id/reactivate')
-  async reactivateSubscription(@Param('id') subscriptionId: string) {
+  async reactivateSubscription(
+    @Param('id') subscriptionId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateSubscriptionOwnership(subscriptionId, userId);
     return this.subscriptionService.reactivateSubscription(subscriptionId);
   }
 
   @Post('subscriptions/:id/renew')
-  async renewSubscription(@Param('id') subscriptionId: string) {
+  async renewSubscription(
+    @Param('id') subscriptionId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateSubscriptionOwnership(subscriptionId, userId);
     return this.subscriptionService.renewSubscription(subscriptionId);
   }
 
@@ -113,7 +180,14 @@ export class BillingController {
   }
 
   @Post('invoices/:id/pay')
-  async payInvoice(@Param('id') invoiceId: string) {
+  async payInvoice(
+    @Param('id') invoiceId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateInvoiceOwnership(invoiceId, userId);
     return this.subscriptionService.payInvoice(invoiceId);
   }
 
@@ -158,6 +232,7 @@ export class BillingController {
   }
 
   @Get('usage/top-users/:type')
+  @Roles('admin')
   async getTopUsers(
     @Param('type') type: UsageType,
     @Query('limit') limit?: string,
@@ -166,34 +241,50 @@ export class BillingController {
     return this.usageService.getTopUsers(type, limit ? parseInt(limit) : 10, period);
   }
 
-  // Analytics Endpoints
+  // Analytics Endpoints (Admin Only)
   @Get('analytics/overview')
+  @Roles('admin')
   async getOverviewMetrics() {
     return this.analyticsService.getOverviewMetrics();
   }
 
   @Get('analytics/platform')
+  @Roles('admin')
   async getPlatformAnalytics(@Query('period') period?: string) {
     return this.analyticsService.getPlatformAnalytics(period);
   }
 
   @Get('analytics/daily')
+  @Roles('admin')
   async getDailyMetrics(@Query('date') date?: string) {
     return this.analyticsService.getDailyMetrics(date ? new Date(date) : undefined);
   }
 
   @Post('analytics/range')
+  @Roles('admin')
   @HttpCode(HttpStatus.OK)
   async getMetricsRange(@Body() dto: GetAnalyticsDto) {
     return this.analyticsService.getMetricsRange(dto);
   }
 
   @Get('analytics/user/:userId')
-  async getUserAnalytics(@Param('userId') userId: string) {
-    return this.analyticsService.getUserAnalytics(userId);
+  async getUserAnalytics(
+    @Param('userId') targetUserId: string,
+    @CurrentUser('userId') currentUserId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    if (!currentUserId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    // Users can view their own analytics, admins can view anyone's
+    if (targetUserId !== currentUserId && role !== 'admin') {
+      throw new ForbiddenException('Access denied to this user\'s analytics');
+    }
+    return this.analyticsService.getUserAnalytics(targetUserId);
   }
 
   @Get('analytics/timeseries/:metric')
+  @Roles('admin')
   async getTimeSeries(
     @Param('metric') metric: 'users' | 'plans' | 'tasks' | 'revenue',
     @Query('days') days?: string,
@@ -202,11 +293,13 @@ export class BillingController {
   }
 
   @Get('analytics/subscriptions/breakdown')
+  @Roles('admin')
   async getSubscriptionBreakdown() {
     return this.analyticsService.getSubscriptionBreakdown();
   }
 
   @Get('analytics/features/top')
+  @Roles('admin')
   async getTopFeatures() {
     return this.analyticsService.getTopFeatures();
   }

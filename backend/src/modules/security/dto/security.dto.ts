@@ -1,3 +1,16 @@
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsArray,
+  MaxLength,
+  MinLength,
+  ValidateNested,
+  IsBoolean,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+
 export interface WorkspaceConfig {
   base: 'ubuntu:22.04' | 'node:20-alpine' | 'python:3.11-slim';
   tools: string[];
@@ -241,25 +254,87 @@ export const DEFAULT_GITIGNORE_SECRETS: GitIgnoreEntry[] = [
   { pattern: 'service-account*.json', description: 'Service account keys', isSecret: true },
 ];
 
-export interface CreateWorkspaceDto {
+export enum TokenType {
+  API_KEY = 'api_key',
+  OAUTH = 'oauth',
+  PERSONAL_ACCESS = 'personal_access',
+}
+
+export class CreateWorkspaceDto {
+  @IsString({ message: 'Project ID must be a string' })
+  @IsNotEmpty({ message: 'Project ID is required' })
+  @MaxLength(100, { message: 'Project ID must not exceed 100 characters' })
   projectId: string;
+
+  @IsString({ message: 'Name must be a string' })
+  @IsOptional()
+  @MinLength(2, { message: 'Name must be at least 2 characters' })
+  @MaxLength(100, { message: 'Name must not exceed 100 characters' })
   name?: string;
+
+  @IsOptional()
   config?: Partial<WorkspaceConfig>;
 }
 
-export interface StoreCredentialDto {
+export class StoreCredentialDto {
+  @IsEnum(CredentialProvider, { message: 'Invalid credential provider' })
+  @IsNotEmpty({ message: 'Provider is required' })
   provider: CredentialProvider;
+
+  @IsString({ message: 'Token must be a string' })
+  @IsNotEmpty({ message: 'Token is required' })
+  @MinLength(10, { message: 'Token must be at least 10 characters' })
+  @MaxLength(2000, { message: 'Token must not exceed 2000 characters' })
   token: string;
+
+  @IsString({ message: 'Name must be a string' })
+  @IsOptional()
+  @MaxLength(100, { message: 'Name must not exceed 100 characters' })
   name?: string;
-  tokenType?: 'api_key' | 'oauth' | 'personal_access';
+
+  @IsEnum(TokenType, { message: 'Invalid token type' })
+  @IsOptional()
+  tokenType?: TokenType;
+
+  @IsArray({ message: 'Scope must be an array' })
+  @IsString({ each: true, message: 'Each scope must be a string' })
+  @IsOptional()
   scope?: string[];
 }
 
-export interface ScanFilesDto {
-  files: { path: string; content: string }[];
-  options?: {
-    checkSecrets?: boolean;
-    checkVulnerabilities?: boolean;
-    customPatterns?: SecretPattern[];
-  };
+export class FileToScanDto {
+  @IsString({ message: 'Path must be a string' })
+  @IsNotEmpty({ message: 'File path is required' })
+  @MaxLength(500, { message: 'File path must not exceed 500 characters' })
+  path: string;
+
+  @IsString({ message: 'Content must be a string' })
+  @IsNotEmpty({ message: 'File content is required' })
+  @MaxLength(1000000, { message: 'File content must not exceed 1MB' })
+  content: string;
+}
+
+export class ScanOptionsDto {
+  @IsBoolean({ message: 'checkSecrets must be a boolean' })
+  @IsOptional()
+  checkSecrets?: boolean;
+
+  @IsBoolean({ message: 'checkVulnerabilities must be a boolean' })
+  @IsOptional()
+  checkVulnerabilities?: boolean;
+
+  @IsOptional()
+  customPatterns?: SecretPattern[];
+}
+
+export class ScanFilesDto {
+  @IsArray({ message: 'Files must be an array' })
+  @ValidateNested({ each: true })
+  @Type(() => FileToScanDto)
+  files: FileToScanDto[];
+
+  @ValidateNested()
+  @Type(() => ScanOptionsDto)
+  @IsOptional()
+  options?: ScanOptionsDto;
 }
