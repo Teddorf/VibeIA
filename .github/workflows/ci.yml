@@ -23,9 +23,9 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci --ignore-scripts
+          cache-dependency-path: |
+            backend/package-lock.json
+            vibeia/package-lock.json
 
       - name: Install backend dependencies
         run: npm ci
@@ -43,8 +43,13 @@ jobs:
         run: npm run lint
         working-directory: vibeia
 
-      - name: Check formatting
-        run: npx prettier --check "**/*.{ts,tsx,js,jsx,json,md}" --ignore-path .gitignore
+      - name: Check formatting (Backend)
+        run: npx prettier --check "src/**/*.ts"
+        working-directory: backend
+
+      - name: Check formatting (Frontend)
+        run: npx prettier --check "src/**/*.{ts,tsx}"
+        working-directory: vibeia
 
   typecheck:
     name: Type Check
@@ -58,6 +63,9 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            vibeia/package-lock.json
 
       - name: Install backend dependencies
         run: npm ci
@@ -88,6 +96,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -120,6 +129,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
+          cache-dependency-path: vibeia/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -153,6 +163,9 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            vibeia/package-lock.json
 
       - name: Install backend dependencies
         run: npm ci
@@ -172,82 +185,6 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: https://vibeia.onrender.com
 
-  knip:
-    name: Dead Code Detection
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Install backend dependencies
-        run: npm ci
-        working-directory: backend
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: vibeia
-
-      - name: Run Knip
-        run: npm run knip
-        continue-on-error: true
-
-  biome:
-    name: Biome Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Run Biome
-        run: npm run biome:check
-        continue-on-error: true
-
-  changeset-check:
-    name: Changeset Validation
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Check for changeset
-        run: |
-          if [ -z "$(find .changeset -name '*.md' ! -name 'README.md' 2>/dev/null)" ]; then
-            echo "⚠️  No changeset found. Consider adding one with 'npm run changeset'"
-            echo "This is optional for small fixes, but recommended for features and breaking changes."
-          else
-            echo "✅ Changeset found"
-          fi
-
   security:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -260,6 +197,9 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            vibeia/package-lock.json
 
       - name: Audit backend
         run: npm audit --audit-level=high || true

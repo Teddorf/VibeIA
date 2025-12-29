@@ -19,7 +19,7 @@
     "biome:check": "biome check .",
     "biome:fix": "biome check --write .",
     "changeset": "changeset",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
