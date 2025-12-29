@@ -3,6 +3,8 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Response, Request } from 'express';
+import { SecurityAuditService } from '../security/security-audit.service';
 
 describe('AuthController', () => {
     let controller: AuthController;
@@ -14,6 +16,28 @@ describe('AuthController', () => {
         refreshTokens: jest.fn(),
         logout: jest.fn(),
     };
+
+    const mockSecurityAuditService = {
+        logLogin: jest.fn(),
+        logLoginFailure: jest.fn(),
+        logLogout: jest.fn(),
+        logOAuthLogin: jest.fn(),
+        logPasswordResetRequest: jest.fn(),
+        logAccessDenied: jest.fn(),
+    };
+
+    // Mock Response object for cookie operations
+    const createMockResponse = (): Partial<Response> => ({
+        cookie: jest.fn(),
+        clearCookie: jest.fn(),
+    });
+
+    // Mock Request object with cookies and headers
+    const createMockRequest = (cookies: Record<string, string> = {}): Partial<Request> => ({
+        cookies,
+        headers: { 'user-agent': 'test-agent' },
+        socket: { remoteAddress: '127.0.0.1' } as any,
+    });
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -29,6 +53,10 @@ describe('AuthController', () => {
                     provide: AuthService,
                     useValue: mockAuthService,
                 },
+                {
+                    provide: SecurityAuditService,
+                    useValue: mockSecurityAuditService,
+                },
             ],
         })
             .overrideGuard(JwtAuthGuard)
@@ -37,6 +65,9 @@ describe('AuthController', () => {
 
         controller = module.get<AuthController>(AuthController);
         authService = module.get<AuthService>(AuthService);
+
+        // Reset mocks
+        jest.clearAllMocks();
     });
 
     it('should be defined', () => {
@@ -44,33 +75,97 @@ describe('AuthController', () => {
     });
 
     describe('register', () => {
-        it('should call authService.register', async () => {
+        it('should call authService.register and set cookies', async () => {
             const dto = { email: 'test@test.com', password: 'pass', name: 'test' };
-            await controller.register(dto);
+            const mockTokens = {
+                accessToken: 'access',
+                refreshToken: 'refresh',
+                user: { id: 'user-id', email: 'test@test.com', name: 'test' },
+            };
+            mockAuthService.register.mockResolvedValue(mockTokens);
+
+            const req = createMockRequest({}) as Request;
+            const res = createMockResponse() as Response;
+            await controller.register(dto, req, res);
+
             expect(authService.register).toHaveBeenCalledWith(dto);
+            expect(res.cookie).toHaveBeenCalled();
         });
     });
 
     describe('login', () => {
-        it('should call authService.login', async () => {
+        it('should call authService.login and set cookies', async () => {
             const dto = { email: 'test@test.com', password: 'pass' };
-            await controller.login(dto);
+            const mockTokens = {
+                accessToken: 'access',
+                refreshToken: 'refresh',
+                user: { id: 'user-id', email: 'test@test.com', name: 'test' },
+            };
+            mockAuthService.login.mockResolvedValue(mockTokens);
+
+            const req = createMockRequest({}) as Request;
+            const res = createMockResponse() as Response;
+            await controller.login(dto, req, res);
+
             expect(authService.login).toHaveBeenCalledWith(dto);
+            expect(res.cookie).toHaveBeenCalled();
         });
     });
 
     describe('refresh', () => {
-        it('should call authService.refreshTokens', async () => {
-            const body = { userId: '1', refreshToken: 'ref' };
-            await controller.refresh(body);
-            expect(authService.refreshTokens).toHaveBeenCalledWith(body.userId, body.refreshToken);
+        it('should read refresh token from cookies when available', async () => {
+            const mockTokens = {
+                accessToken: 'new-access',
+                refreshToken: 'new-refresh',
+                user: { id: 'user-id', email: 'test@test.com', name: 'test' },
+            };
+            mockAuthService.refreshTokens.mockResolvedValue(mockTokens);
+
+            const req = createMockRequest({
+                refresh_token: 'cookie-refresh',
+                user_id: 'cookie-user-id',
+            }) as Request;
+            const res = createMockResponse() as Response;
+
+            await controller.refresh(req, res, {});
+
+            expect(authService.refreshTokens).toHaveBeenCalledWith('cookie-user-id', 'cookie-refresh');
+            expect(res.cookie).toHaveBeenCalled();
+        });
+
+        it('should fall back to body when cookies not present', async () => {
+            const mockTokens = {
+                accessToken: 'new-access',
+                refreshToken: 'new-refresh',
+                user: { id: 'user-id', email: 'test@test.com', name: 'test' },
+            };
+            mockAuthService.refreshTokens.mockResolvedValue(mockTokens);
+
+            const req = createMockRequest({}) as Request;
+            const res = createMockResponse() as Response;
+            const body = { userId: 'body-user-id', refreshToken: 'body-refresh' };
+
+            await controller.refresh(req, res, body);
+
+            expect(authService.refreshTokens).toHaveBeenCalledWith('body-user-id', 'body-refresh');
+        });
+
+        it('should throw error when no refresh token provided', async () => {
+            const req = createMockRequest({}) as Request;
+            const res = createMockResponse() as Response;
+
+            await expect(controller.refresh(req, res, {})).rejects.toThrow('Refresh token and user ID are required');
         });
     });
 
     describe('logout', () => {
-        it('should call authService.logout', async () => {
-            await controller.logout('1');
-            expect(authService.logout).toHaveBeenCalledWith('1');
+        it('should call authService.logout and clear cookies', async () => {
+            const req = createMockRequest({}) as Request;
+            const res = createMockResponse() as Response;
+            await controller.logout('user-id', req, res);
+
+            expect(authService.logout).toHaveBeenCalledWith('user-id');
+            expect(res.clearCookie).toHaveBeenCalled();
         });
     });
 });

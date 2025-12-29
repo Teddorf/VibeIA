@@ -14,9 +14,11 @@ import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { GitService } from '../git/git.service';
 import { AuthService } from './auth.service';
+import { OAuthStateService } from './services/oauth-state.service';
 import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { GitHubConnectionStatus } from '../git/dto/github.dto';
+import { setAuthCookies } from './utils/cookie.utils';
 
 interface GitHubOAuthTokenResponse {
   access_token: string;
@@ -47,6 +49,7 @@ export class GitHubAuthController {
     private readonly usersService: UsersService,
     private readonly gitService: GitService,
     private readonly authService: AuthService,
+    private readonly oauthStateService: OAuthStateService,
   ) {
     this.clientId = this.configService.get<string>('GITHUB_CLIENT_ID') || '';
     this.clientSecret = this.configService.get<string>('GITHUB_CLIENT_SECRET') || '';
@@ -57,36 +60,31 @@ export class GitHubAuthController {
   /**
    * GET /api/auth/github
    * Initiates GitHub OAuth flow - redirects user to GitHub
-   * @param state - CSRF state from frontend (or userId for connect flow)
+   * @param type - Flow type: 'login', 'register', or 'connect'
+   * @param userId - User ID (required for connect flow)
    */
   @Public()
   @Get()
   async initiateOAuth(
     @Res() res: Response,
-    @Query('state') state?: string,
+    @Query('type') type?: string,
     @Query('userId') userId?: string,
   ): Promise<void> {
     if (!this.clientId) {
       throw new BadRequestException('GitHub OAuth is not configured');
     }
 
-    // If userId is provided (connect flow), encode it in state
-    // Otherwise, pass through the state from frontend (login flow)
-    let oauthState = state || '';
-    if (userId) {
-      oauthState = Buffer.from(JSON.stringify({ userId, type: 'connect' })).toString('base64');
-    } else if (state) {
-      // Wrap the frontend state to identify login flow
-      oauthState = Buffer.from(JSON.stringify({ csrfState: state, type: 'login' })).toString('base64');
-    }
+    // Determine flow type
+    const flowType = (type === 'connect' || type === 'register') ? type : 'login';
+
+    // Generate secure state with nonce (prevents CSRF and account takeover)
+    const oauthState = this.oauthStateService.generateState(flowType, userId);
 
     const authUrl = new URL('https://github.com/login/oauth/authorize');
     authUrl.searchParams.set('client_id', this.clientId);
     authUrl.searchParams.set('redirect_uri', this.callbackUrl);
     authUrl.searchParams.set('scope', this.scopes);
-    if (oauthState) {
-      authUrl.searchParams.set('state', oauthState);
-    }
+    authUrl.searchParams.set('state', oauthState);
 
     res.redirect(authUrl.toString());
   }
@@ -119,6 +117,22 @@ export class GitHubAuthController {
       return;
     }
 
+    // SECURITY: Validate and consume state (prevents CSRF and account takeover)
+    if (!state) {
+      const errorUrl = new URL(`${this.frontendUrl}/oauth/callback/github`);
+      errorUrl.searchParams.set('error', 'Missing OAuth state parameter');
+      res.redirect(errorUrl.toString());
+      return;
+    }
+
+    const validatedState = await this.oauthStateService.validateAndConsumeState(state);
+    if (!validatedState) {
+      const errorUrl = new URL(`${this.frontendUrl}/oauth/callback/github`);
+      errorUrl.searchParams.set('error', 'Invalid or expired OAuth state');
+      res.redirect(errorUrl.toString());
+      return;
+    }
+
     try {
       // Exchange code for access token
       const tokenResponse = await this.exchangeCodeForToken(code);
@@ -141,21 +155,10 @@ export class GitHubAuthController {
         email = await this.getGitHubPrimaryEmail(accessToken);
       }
 
-      // Parse state to determine flow type
-      let stateData: { userId?: string; csrfState?: string; type?: string } = {};
-      if (state) {
-        try {
-          stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-        } catch {
-          // If state is not base64 JSON, it might be a plain CSRF token
-          stateData = { csrfState: state, type: 'login' };
-        }
-      }
-
       // Connect flow - user is connecting GitHub to existing account
-      if (stateData.type === 'connect' && stateData.userId) {
+      if (validatedState.type === 'connect' && validatedState.userId) {
         await this.usersService.connectGitHub(
-          stateData.userId,
+          validatedState.userId,
           githubUser.id.toString(),
           accessToken,
           githubUser.login,
@@ -177,12 +180,12 @@ export class GitHubAuthController {
         githubUser.login,
       );
 
-      // Redirect to frontend OAuth callback page with tokens
+      // Set HttpOnly cookies (secure - can't be stolen via XSS)
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user.id);
+
+      // Redirect to frontend OAuth callback page (tokens are in HttpOnly cookies, not URL)
       const successUrl = new URL(`${this.frontendUrl}/oauth/callback/github`);
       successUrl.searchParams.set('oauth_success', 'true');
-      successUrl.searchParams.set('access_token', tokens.accessToken);
-      successUrl.searchParams.set('refresh_token', tokens.refreshToken);
-      successUrl.searchParams.set('user', Buffer.from(JSON.stringify(tokens.user)).toString('base64'));
       res.redirect(successUrl.toString());
     } catch (error: any) {
       console.error('GitHub OAuth callback error:', error);
@@ -238,7 +241,8 @@ export class GitHubAuthController {
       throw new BadRequestException('GitHub OAuth is not configured');
     }
 
-    const state = Buffer.from(JSON.stringify({ userId: user.userId, type: 'connect' })).toString('base64');
+    // Generate secure state with nonce (prevents CSRF and account takeover)
+    const state = this.oauthStateService.generateState('connect', user.userId);
 
     const authUrl = new URL('https://github.com/login/oauth/authorize');
     authUrl.searchParams.set('client_id', this.clientId);

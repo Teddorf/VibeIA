@@ -29,6 +29,7 @@ describe('AuthService', () => {
       updateLastLogin: jest.fn(),
       updateRefreshToken: jest.fn(),
       validateRefreshToken: jest.fn(),
+      findRefreshTokenOwner: jest.fn(),
     };
 
     const mockJwtService = {
@@ -181,6 +182,7 @@ describe('AuthService', () => {
 
   describe('refreshTokens', () => {
     it('should refresh tokens for valid refresh token', async () => {
+      usersService.findRefreshTokenOwner.mockResolvedValue('user-123');
       usersService.validateRefreshToken.mockResolvedValue(true);
       usersService.findById.mockResolvedValue(mockUser as any);
       jwtService.sign
@@ -189,6 +191,7 @@ describe('AuthService', () => {
 
       const result = await service.refreshTokens('user-123', 'valid-refresh');
 
+      expect(usersService.findRefreshTokenOwner).toHaveBeenCalledWith('valid-refresh');
       expect(usersService.validateRefreshToken).toHaveBeenCalledWith(
         'user-123',
         'valid-refresh',
@@ -197,6 +200,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException for invalid refresh token', async () => {
+      usersService.findRefreshTokenOwner.mockResolvedValue('user-123');
       usersService.validateRefreshToken.mockResolvedValue(false);
 
       await expect(
@@ -205,12 +209,69 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException for inactive user', async () => {
+      usersService.findRefreshTokenOwner.mockResolvedValue('user-123');
       usersService.validateRefreshToken.mockResolvedValue(true);
       usersService.findById.mockResolvedValue({ ...mockUser, isActive: false } as any);
 
       await expect(
         service.refreshTokens('user-123', 'valid-refresh'),
       ).rejects.toThrow(UnauthorizedException);
+    });
+
+    // ==================== IDOR Prevention Tests ====================
+
+    it('should reject refresh when userId does not match token owner (IDOR prevention)', async () => {
+      // Arrange: Attacker tries to use victim's refresh token
+      const attackerUserId = 'attacker-123';
+      const victimUserId = 'victim-456';
+      const victimRefreshToken = 'valid-victim-refresh-token';
+
+      // The token belongs to victim, but attacker tries to use it
+      usersService.findRefreshTokenOwner.mockResolvedValue(victimUserId);
+
+      // Act & Assert: Should reject because userId doesn't match token owner
+      await expect(
+        service.refreshTokens(attackerUserId, victimRefreshToken)
+      ).rejects.toThrow(UnauthorizedException);
+
+      // Verify that ownership was checked
+      expect(usersService.findRefreshTokenOwner).toHaveBeenCalledWith(victimRefreshToken);
+
+      // Verify that validateRefreshToken was NOT called (short-circuit)
+      expect(usersService.validateRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('should accept refresh when userId matches token owner', async () => {
+      // Arrange: Legitimate user refreshes their own token
+      const userId = 'user-123';
+      const refreshToken = 'valid-refresh-token';
+
+      usersService.findRefreshTokenOwner.mockResolvedValue(userId);
+      usersService.validateRefreshToken.mockResolvedValue(true);
+      usersService.findById.mockResolvedValue(mockUser as any);
+      jwtService.sign
+        .mockReturnValueOnce('new-access-token')
+        .mockReturnValueOnce('new-refresh-token');
+
+      // Act
+      const result = await service.refreshTokens(userId, refreshToken);
+
+      // Assert: Should succeed
+      expect(result.accessToken).toBe('new-access-token');
+      expect(usersService.findRefreshTokenOwner).toHaveBeenCalledWith(refreshToken);
+    });
+
+    it('should reject refresh with nonexistent token', async () => {
+      // Arrange: Token doesn't exist in database
+      usersService.findRefreshTokenOwner.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(
+        service.refreshTokens('any-user', 'fake-token')
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(usersService.findRefreshTokenOwner).toHaveBeenCalledWith('fake-token');
+      expect(usersService.validateRefreshToken).not.toHaveBeenCalled();
     });
   });
 

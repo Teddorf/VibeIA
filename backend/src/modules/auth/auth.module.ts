@@ -11,8 +11,10 @@ import { GitLabAuthController } from './gitlab-auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { OAuthStateService } from './services/oauth-state.service';
 import { UsersModule } from '../users/users.module';
 import { GitModule } from '../git/git.module';
+import { SecurityModule } from '../security/security.module';
 import { ACCESS_TOKEN_EXPIRY, DEFAULT_JWT_SECRET } from './auth.constants';
 
 @Module({
@@ -20,6 +22,7 @@ import { ACCESS_TOKEN_EXPIRY, DEFAULT_JWT_SECRET } from './auth.constants';
     ConfigModule,
     UsersModule,
     forwardRef(() => GitModule),
+    SecurityModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET || DEFAULT_JWT_SECRET,
@@ -32,6 +35,7 @@ import { ACCESS_TOKEN_EXPIRY, DEFAULT_JWT_SECRET } from './auth.constants';
   providers: [
     AuthService,
     JwtStrategy,
+    OAuthStateService,
     // Register JwtAuthGuard globally - routes can opt-out with @Public()
     {
       provide: APP_GUARD,
@@ -43,6 +47,6 @@ import { ACCESS_TOKEN_EXPIRY, DEFAULT_JWT_SECRET } from './auth.constants';
       useClass: RolesGuard,
     },
   ],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService, JwtModule, OAuthStateService],
 })
 export class AuthModule {}

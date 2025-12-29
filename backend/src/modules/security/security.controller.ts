@@ -9,12 +9,17 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  ForbiddenException,
+  UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { SecurityScannerService } from './security-scanner.service';
 import { CredentialManagerService } from './credential-manager.service';
 import { WorkspaceService } from './workspace.service';
 import { RateLimiterService } from './rate-limiter.service';
+import { SecurityAuditService } from './security-audit.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import {
   ScanFilesDto,
   StoreCredentialDto,
@@ -23,15 +28,45 @@ import {
   SecretScanResult,
   VulnerabilityResult,
 } from './dto/security.dto';
+import { SecurityEventType, SecurityEventSeverity } from './schemas/security-audit.schema';
 
 @Controller('api/security')
+@UseGuards(ThrottlerGuard)
 export class SecurityController {
   constructor(
     private readonly scannerService: SecurityScannerService,
     private readonly credentialManager: CredentialManagerService,
     private readonly workspaceService: WorkspaceService,
     private readonly rateLimiter: RateLimiterService,
+    private readonly auditService: SecurityAuditService,
   ) {}
+
+  /**
+   * Validate that the current user owns the workspace
+   * @throws ForbiddenException if user doesn't own the workspace
+   */
+  private async validateWorkspaceOwnership(workspaceId: string, userId: string): Promise<void> {
+    const workspace = await this.workspaceService.getWorkspace(workspaceId);
+    if (!workspace) {
+      throw new ForbiddenException('Workspace not found');
+    }
+    if (workspace.userId !== userId) {
+      throw new ForbiddenException('Access denied to this workspace');
+    }
+  }
+
+  /**
+   * Validate that the current user owns the credential
+   * @throws ForbiddenException if user doesn't own the credential
+   */
+  private async validateCredentialOwnership(credentialId: string, userId: string): Promise<void> {
+    // Get all credentials for this user and check if the credentialId is among them
+    const credentials = await this.credentialManager.listCredentials(userId);
+    const ownsCredential = credentials.some((cred: any) => cred.id === credentialId);
+    if (!ownsCredential) {
+      throw new ForbiddenException('Access denied to this credential');
+    }
+  }
 
   // Security Scanning Endpoints
   @Post('scan')
@@ -143,7 +178,14 @@ export class SecurityController {
   }
 
   @Get('credentials/:id/should-rotate')
-  async shouldRotate(@Param('id') credentialId: string) {
+  async shouldRotate(
+    @Param('id') credentialId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateCredentialOwnership(credentialId, userId);
     const shouldRotate = this.credentialManager.shouldRotate(credentialId);
     return { shouldRotate };
   }
@@ -169,26 +211,44 @@ export class SecurityController {
   }
 
   @Get('workspaces/stats')
+  @Roles('admin')
   async getWorkspaceStats() {
     return this.workspaceService.getWorkspaceStats();
   }
 
   @Get('workspaces/:id')
-  async getWorkspace(@Param('id') workspaceId: string) {
-    const workspace = await this.workspaceService.getWorkspace(workspaceId);
-    if (!workspace) {
-      return { error: 'Workspace not found' };
+  async getWorkspace(
+    @Param('id') workspaceId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
     }
-    return workspace;
+    await this.validateWorkspaceOwnership(workspaceId, userId);
+    return this.workspaceService.getWorkspace(workspaceId);
   }
 
   @Post('workspaces/:id/pause')
-  async pauseWorkspace(@Param('id') workspaceId: string) {
+  async pauseWorkspace(
+    @Param('id') workspaceId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateWorkspaceOwnership(workspaceId, userId);
     return this.workspaceService.pauseWorkspace(workspaceId);
   }
 
   @Post('workspaces/:id/resume')
-  async resumeWorkspace(@Param('id') workspaceId: string) {
+  async resumeWorkspace(
+    @Param('id') workspaceId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateWorkspaceOwnership(workspaceId, userId);
     return this.workspaceService.resumeWorkspace(workspaceId);
   }
 
@@ -196,12 +256,24 @@ export class SecurityController {
   async extendWorkspace(
     @Param('id') workspaceId: string,
     @Body() body: { duration: string },
+    @CurrentUser('userId') userId: string,
   ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateWorkspaceOwnership(workspaceId, userId);
     return this.workspaceService.extendWorkspace(workspaceId, body.duration);
   }
 
   @Delete('workspaces/:id')
-  async destroyWorkspace(@Param('id') workspaceId: string) {
+  async destroyWorkspace(
+    @Param('id') workspaceId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateWorkspaceOwnership(workspaceId, userId);
     await this.workspaceService.destroyWorkspace(workspaceId);
     return { destroyed: true };
   }
@@ -210,23 +282,31 @@ export class SecurityController {
   async executeInWorkspace(
     @Param('id') workspaceId: string,
     @Body() body: { command: string },
+    @CurrentUser('userId') userId: string,
   ) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.validateWorkspaceOwnership(workspaceId, userId);
     return this.workspaceService.executeInWorkspace(workspaceId, body.command);
   }
 
   @Post('workspaces/cleanup')
+  @Roles('admin')
   async cleanupExpiredWorkspaces() {
     const cleaned = await this.workspaceService.cleanupExpiredWorkspaces();
     return { cleaned };
   }
 
-  // Rate Limiting Endpoints
+  // Rate Limiting Endpoints (Admin Only)
   @Get('rate-limits')
+  @Roles('admin')
   async getRateLimitStats(@Query('name') name?: string) {
     return this.rateLimiter.getStats(name);
   }
 
   @Post('rate-limits/check')
+  @Roles('admin')
   @HttpCode(HttpStatus.OK)
   async checkRateLimit(
     @Body() body: { limiter: string; key: string },
@@ -235,6 +315,7 @@ export class SecurityController {
   }
 
   @Post('rate-limits/reset')
+  @Roles('admin')
   async resetRateLimit(
     @Body() body: { limiter: string; key: string },
   ) {
@@ -278,6 +359,48 @@ export class SecurityController {
     return { entries, content };
   }
 
+  // Audit Log Endpoints (Admin Only)
+  @Get('audit/logs')
+  @Roles('admin')
+  async getAuditLogs(
+    @Query('eventType') eventType?: SecurityEventType,
+    @Query('userId') userId?: string,
+    @Query('severity') severity?: SecurityEventSeverity,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('ipAddress') ipAddress?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.auditService.getAuditLogs(
+      {
+        eventType,
+        userId,
+        severity,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        ipAddress,
+      },
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 50,
+    );
+  }
+
+  @Get('audit/summary')
+  @Roles('admin')
+  async getSecuritySummary(@Query('hours') hours?: string) {
+    return this.auditService.getSecuritySummary(hours ? parseInt(hours) : 24);
+  }
+
+  @Get('audit/event-types')
+  @Roles('admin')
+  async getEventTypes() {
+    return {
+      eventTypes: Object.values(SecurityEventType),
+      severityLevels: Object.values(SecurityEventSeverity),
+    };
+  }
+
   // Health check
   @Get('health')
   async healthCheck() {
@@ -289,6 +412,7 @@ export class SecurityController {
         credentials: 'active',
         workspaces: 'active',
         rateLimiter: 'active',
+        auditLog: 'active',
       },
     };
   }

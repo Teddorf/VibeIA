@@ -8,6 +8,7 @@ import {
 } from './dto/teams.dto';
 import { GitLabProvider } from './git-providers/gitlab.provider';
 import { BitbucketProvider } from './git-providers/bitbucket.provider';
+import { TokenEncryptionService } from '../security/token-encryption.service';
 
 @Injectable()
 export class GitConnectionsService {
@@ -15,6 +16,7 @@ export class GitConnectionsService {
     @InjectModel(GitConnection.name) private connectionModel: Model<GitConnectionDocument>,
     private readonly gitlabProvider: GitLabProvider,
     private readonly bitbucketProvider: BitbucketProvider,
+    private readonly tokenEncryption: TokenEncryptionService,
   ) {}
 
   async connectProvider(
@@ -67,12 +69,18 @@ export class GitConnectionsService {
       await this.unsetDefaultForProvider(teamId, dto.provider);
     }
 
+    // Encrypt tokens before storing
+    const encryptedAccessToken = this.tokenEncryption.encrypt(tokenData.access_token);
+    const encryptedRefreshToken = tokenData.refresh_token
+      ? this.tokenEncryption.encrypt(tokenData.refresh_token)
+      : undefined;
+
     const connection = new this.connectionModel({
       teamId,
       provider: dto.provider,
       name: organizationName || `${dto.provider} Connection`,
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token,
+      accessToken: encryptedAccessToken,
+      refreshToken: encryptedRefreshToken,
       expiresAt: tokenData.expires_in
         ? new Date(Date.now() + tokenData.expires_in * 1000)
         : undefined,
@@ -153,29 +161,35 @@ export class GitConnectionsService {
     if (!connection || !connection.refreshToken) return false;
 
     try {
+      // Decrypt the refresh token
+      const decryptedRefreshToken = this.decryptToken(connection.refreshToken);
+      if (!decryptedRefreshToken) return false;
+
       let tokenData: any;
 
       switch (connection.provider) {
         case GitProvider.GITLAB:
-          tokenData = await this.gitlabProvider.refreshToken(
-            connection.refreshToken,
-          );
+          tokenData = await this.gitlabProvider.refreshToken(decryptedRefreshToken);
           break;
 
         case GitProvider.BITBUCKET:
-          tokenData = await this.bitbucketProvider.refreshToken(
-            connection.refreshToken,
-          );
+          tokenData = await this.bitbucketProvider.refreshToken(decryptedRefreshToken);
           break;
 
         default:
           return false;
       }
 
+      // Encrypt new tokens before storing
+      const encryptedAccessToken = this.tokenEncryption.encrypt(tokenData.access_token);
+      const encryptedRefreshToken = tokenData.refresh_token
+        ? this.tokenEncryption.encrypt(tokenData.refresh_token)
+        : undefined;
+
       await this.connectionModel
         .findByIdAndUpdate(connectionId, {
-          accessToken: tokenData.access_token,
-          refreshToken: tokenData.refresh_token,
+          accessToken: encryptedAccessToken,
+          refreshToken: encryptedRefreshToken,
           expiresAt: tokenData.expires_in
             ? new Date(Date.now() + tokenData.expires_in * 1000)
             : undefined,
@@ -197,17 +211,23 @@ export class GitConnectionsService {
       // Try to refresh
       const refreshed = await this.refreshConnectionToken(connectionId);
       if (!refreshed) return false;
+      // Reload connection with new token
+      const refreshedConnection = await this.connectionModel.findById(connectionId).exec();
+      if (!refreshedConnection) return false;
+      connection.accessToken = refreshedConnection.accessToken;
     }
+
+    // Decrypt the access token
+    const decryptedAccessToken = this.decryptToken(connection.accessToken);
+    if (!decryptedAccessToken) return false;
 
     try {
       switch (connection.provider) {
         case GitProvider.GITLAB:
-          return await this.gitlabProvider.validateToken(connection.accessToken);
+          return await this.gitlabProvider.validateToken(decryptedAccessToken);
 
         case GitProvider.BITBUCKET:
-          return await this.bitbucketProvider.validateToken(
-            connection.accessToken,
-          );
+          return await this.bitbucketProvider.validateToken(decryptedAccessToken);
 
         default:
           return false;
@@ -282,5 +302,36 @@ export class GitConnectionsService {
     sanitized.refreshToken = undefined;
     sanitized.webhookSecret = undefined;
     return sanitized as GitConnectionDocument;
+  }
+
+  /**
+   * Decrypt a token, handling both encrypted and plaintext formats
+   * for backward compatibility with existing data
+   */
+  private decryptToken(token: string): string | null {
+    if (!token) return null;
+
+    try {
+      // Check if token appears to be encrypted
+      if (this.tokenEncryption.isEncrypted(token)) {
+        return this.tokenEncryption.decrypt(token);
+      }
+      // Token is plaintext (legacy data), return as-is
+      return token;
+    } catch {
+      // Decryption failed, might be corrupted or invalid
+      return null;
+    }
+  }
+
+  /**
+   * Get the decrypted access token for a connection
+   * Used by external services that need to make API calls
+   */
+  async getDecryptedAccessToken(connectionId: string): Promise<string | null> {
+    const connection = await this.connectionModel.findById(connectionId).exec();
+    if (!connection || !connection.accessToken) return null;
+
+    return this.decryptToken(connection.accessToken);
   }
 }

@@ -28,10 +28,10 @@ export class GitConnection {
   name: string;
 
   @Prop({ required: true })
-  accessToken: string; // Should be encrypted in production
+  accessToken: string; // Encrypted with AES-256-GCM
 
   @Prop()
-  refreshToken?: string;
+  refreshToken?: string; // Encrypted with AES-256-GCM
 
   @Prop()
   expiresAt?: Date;
