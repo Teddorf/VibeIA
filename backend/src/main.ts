@@ -27,7 +27,10 @@ async function bootstrap() {
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for UI frameworks
           imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", process.env.FRONTEND_URL || 'http://localhost:3000'],
+          connectSrc: [
+            "'self'",
+            process.env.FRONTEND_URL || 'http://localhost:3000',
+          ],
           fontSrc: ["'self'", 'https://fonts.gstatic.com'],
           objectSrc: ["'none'"],
           mediaSrc: ["'self'"],
@@ -61,11 +64,16 @@ async function bootstrap() {
   ].filter(Boolean) as string[];
 
   // Vercel preview URLs pattern (for branch deployments)
-  // Matches: vibeia.vercel.app, vibeia-*.vercel.app, frontend-*.vercel.app
-  const vercelPreviewPattern = /^https:\/\/(vibeia|frontend)[a-z0-9-]*\.vercel\.app$/;
+  // Matches any *.vercel.app subdomain for flexibility with preview deployments
+  // Examples: vibeia.vercel.app, frontend-delta-drab-99.vercel.app,
+  //           vibeia-git-develop-username.vercel.app, project-abc123-team.vercel.app
+  const vercelPreviewPattern = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
 
   app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
 
@@ -89,10 +97,12 @@ async function bootstrap() {
   });
 
   // Enable global validation
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    transform: true
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    }),
+  );
 
   await app.listen(config.port);
   logger.log(`Backend running on http://localhost:${config.port}`);
