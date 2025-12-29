@@ -22,17 +22,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-          cache: 'npm'
-          cache-dependency-path: |
-            backend/package-lock.json
-            vibeia/package-lock.json
 
       - name: Install backend dependencies
-        run: npm ci
+        run: npm install
         working-directory: backend
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm install
         working-directory: vibeia
 
       - name: Run ESLint (Backend)
@@ -62,17 +58,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-          cache: 'npm'
-          cache-dependency-path: |
-            backend/package-lock.json
-            vibeia/package-lock.json
 
       - name: Install backend dependencies
-        run: npm ci
+        run: npm install
         working-directory: backend
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm install
         working-directory: vibeia
 
       - name: TypeScript Check (Backend)
@@ -95,11 +87,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
         working-directory: backend
 
       - name: Run tests
@@ -128,11 +118,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-          cache: 'npm'
-          cache-dependency-path: vibeia/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
         working-directory: vibeia
 
       - name: Run tests
@@ -162,17 +150,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-          cache: 'npm'
-          cache-dependency-path: |
-            backend/package-lock.json
-            vibeia/package-lock.json
 
       - name: Install backend dependencies
-        run: npm ci
+        run: npm install
         working-directory: backend
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm install
         working-directory: vibeia
 
       - name: Build Backend
@@ -196,10 +180,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-          cache: 'npm'
-          cache-dependency-path: |
-            backend/package-lock.json
-            vibeia/package-lock.json
 
       - name: Audit backend
         run: npm audit --audit-level=high || true
