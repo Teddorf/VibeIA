@@ -1,9 +1,12 @@
 {
-  "name": "vibeia",
+  "name": "vibeia-monorepo",
   "version": "0.3.0",
   "private": true,
   "description": "VibeIA - AI-Powered Vibe Coding Platform",
-  "workspaces": ["backend", "vibeia"],
+  "workspaces": [
+    "backend",
+    "vibeia"
+  ],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
@@ -30,9 +33,15 @@
     "turbo": "^2.0.0"
   },
   "lint-staged": {
-    "backend/**/*.ts": ["prettier --write"],
-    "vibeia/**/*.{ts,tsx}": ["prettier --write"],
-    "*.{json,md,yml,yaml}": ["prettier --write"]
+    "backend/**/*.ts": [
+      "prettier --write"
+    ],
+    "vibeia/**/*.{ts,tsx}": [
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "engines": {
     "node": ">=22.0.0"

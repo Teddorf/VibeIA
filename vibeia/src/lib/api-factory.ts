@@ -53,20 +53,20 @@ export interface ApiModule<T = unknown> {
   delete: (id: string) => Promise<{ success?: boolean; [key: string]: unknown }>;
 
   /** Execute an action on a resource or the collection */
-  action: <D = unknown, R = unknown>(
-    id: string | null,
-    actionName: string,
-    data?: D,
-  ) => Promise<R>;
+  action: <D = unknown, R = unknown>(id: string | null, actionName: string, data?: D) => Promise<R>;
 }
 
 /**
  * Type for custom methods that can be added to an API module
  */
-export type CustomMethods<T> = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: (...args: any[]) => Promise<any>;
-};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+export type CustomMethods<_T = unknown> = Record<string, (...args: any[]) => Promise<any>>;
+
+/**
+ * Empty custom methods type (used as default generic parameter)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EmptyCustomMethods = Record<string, (...args: any[]) => Promise<any>>;
 
 /**
  * Creates an API module with standard CRUD operations.
@@ -75,7 +75,7 @@ export type CustomMethods<T> = {
  * @param customMethods - Optional custom methods to add or override
  * @returns An API module with CRUD operations and any custom methods
  */
-export function createApiModule<T = unknown, C extends CustomMethods<T> = object>(
+export function createApiModule<T = unknown, C extends CustomMethods<T> = EmptyCustomMethods>(
   basePath: string,
   customMethods?: C,
 ): ApiModule<T> & C {
@@ -149,8 +149,10 @@ export function createApiModule<T = unknown, C extends CustomMethods<T> = object
  */
 export function typedApiModule<T>() {
   return {
-    create: <C extends CustomMethods<T> = object>(basePath: string, customMethods?: C) =>
-      createApiModule<T, C>(basePath, customMethods),
+    create: <C extends CustomMethods<T> = EmptyCustomMethods>(
+      basePath: string,
+      customMethods?: C,
+    ) => createApiModule<T, C>(basePath, customMethods),
   };
 }
 
