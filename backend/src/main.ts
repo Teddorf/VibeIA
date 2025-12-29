@@ -1,8 +1,9 @@
 ﻿import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS for frontend
@@ -17,7 +18,7 @@ async function bootstrap() {
   const vercelPreviewPattern = /^https:\/\/(vibeia|frontend)[a-z0-9-]*\.vercel\.app$/;
 
   app.enableCors({
-    origin: (origin, callback) => {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
 
@@ -31,7 +32,7 @@ async function bootstrap() {
         return callback(null, true);
       }
 
-      console.warn(`CORS blocked origin: ${origin}`);
+      logger.warn(`CORS blocked origin: ${origin}`);
       callback(new Error('CORS not allowed'), false);
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -47,6 +48,6 @@ async function bootstrap() {
   }));
 
   await app.listen(process.env.PORT || 3001);
-  console.log(`Backend running on http://localhost:${process.env.PORT || 3001}`);
+  logger.log(`Backend running on http://localhost:${process.env.PORT || 3001}`);
 }
 bootstrap();
