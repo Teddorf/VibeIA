@@ -1,9 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getModelToken } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { NeonSetupService } from './neon-setup.service';
 import { VercelSetupService } from './vercel-setup.service';
 import { RailwaySetupService } from './railway-setup.service';
 import { SetupOrchestratorService } from './setup-orchestrator.service';
+import { NeonExecutor } from './executors/NeonExecutor';
+import { VercelExecutor } from './executors/VercelExecutor';
+import { RailwayExecutor } from './executors/RailwayExecutor';
+import { SetupState } from './schemas/setup-state.schema';
+import { RollbackAction } from './schemas/rollback-action.schema';
 import { SetupTaskStatus, SetupProvider } from './dto/setup.dto';
 
 // Mock fetch globally
@@ -272,9 +278,34 @@ describe('SetupOrchestratorService', () => {
   let railwayService: RailwaySetupService;
 
   beforeEach(async () => {
+    const mockSetupStateModel: any = jest.fn().mockImplementation((data) => ({
+      ...data,
+      _id: 'state-mock-id',
+      save: jest.fn().mockResolvedValue({ ...data, _id: 'state-mock-id' }),
+    }));
+    mockSetupStateModel.findOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+    mockSetupStateModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+    mockSetupStateModel.find = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
+
+    const mockRollbackModel: any = jest.fn().mockImplementation((data) => ({
+      ...data,
+      _id: 'rollback-mock-id',
+      save: jest.fn().mockResolvedValue({ ...data, _id: 'rollback-mock-id' }),
+    }));
+    mockRollbackModel.find = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
+    mockRollbackModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SetupOrchestratorService,
+        {
+          provide: getModelToken(SetupState.name),
+          useValue: mockSetupStateModel,
+        },
+        {
+          provide: getModelToken(RollbackAction.name),
+          useValue: mockRollbackModel,
+        },
         {
           provide: NeonSetupService,
           useValue: {
@@ -320,6 +351,18 @@ describe('SetupOrchestratorService', () => {
             rollback: jest.fn().mockResolvedValue(undefined),
             validateToken: jest.fn().mockResolvedValue({ valid: true }),
           },
+        },
+        {
+          provide: NeonExecutor,
+          useValue: { provider: 'neon', execute: jest.fn(), rollback: jest.fn() },
+        },
+        {
+          provide: VercelExecutor,
+          useValue: { provider: 'vercel', execute: jest.fn(), rollback: jest.fn() },
+        },
+        {
+          provide: RailwayExecutor,
+          useValue: { provider: 'railway', execute: jest.fn(), rollback: jest.fn() },
         },
       ],
     }).compile();

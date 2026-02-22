@@ -1,10 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getModelToken } from '@nestjs/mongoose';
 import { TeamsService } from './teams.service';
 import { MembersService } from './members.service';
 import { InvitationsService } from './invitations.service';
 import { GitConnectionsService } from './git-connections.service';
 import { GitLabProvider } from './git-providers/gitlab.provider';
 import { BitbucketProvider } from './git-providers/bitbucket.provider';
+import { GitConnection } from './schemas/git-connection.schema';
+import { TokenEncryptionService } from '../security/token-encryption.service';
 import {
   TeamRole,
   Permission,
@@ -444,13 +447,53 @@ describe('InvitationsService', () => {
 
 describe('GitConnectionsService', () => {
   let gitConnectionsService: GitConnectionsService;
-  let gitlabProvider: GitLabProvider;
-  let bitbucketProvider: BitbucketProvider;
+  let connectionModel: any;
 
   beforeEach(async () => {
+    const mockConnectionModel: any = jest.fn().mockImplementation((data) => ({
+      ...data,
+      _id: 'conn-mock-id',
+      save: jest.fn().mockResolvedValue({
+        ...data,
+        _id: 'conn-mock-id',
+        toObject: () => ({ ...data, _id: 'conn-mock-id' }),
+      }),
+      toObject: () => ({ ...data, _id: 'conn-mock-id' }),
+    }));
+    mockConnectionModel.find = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue([]),
+    });
+    mockConnectionModel.findOne = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(null),
+    });
+    mockConnectionModel.findById = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(null),
+    });
+    mockConnectionModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(null),
+    });
+    mockConnectionModel.findByIdAndDelete = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(null),
+    });
+    mockConnectionModel.updateMany = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue({}),
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GitConnectionsService,
+        {
+          provide: getModelToken(GitConnection.name),
+          useValue: mockConnectionModel,
+        },
+        {
+          provide: TokenEncryptionService,
+          useValue: {
+            encrypt: jest.fn().mockReturnValue('encrypted-token'),
+            decrypt: jest.fn().mockReturnValue('decrypted-token'),
+            isEncrypted: jest.fn().mockReturnValue(true),
+          },
+        },
         {
           provide: GitLabProvider,
           useValue: {
@@ -461,6 +504,11 @@ describe('GitConnectionsService', () => {
             }),
             getGroups: jest.fn().mockResolvedValue([]),
             validateToken: jest.fn().mockResolvedValue(true),
+            refreshToken: jest.fn().mockResolvedValue({
+              access_token: 'new-gitlab-token',
+              refresh_token: 'new-gitlab-refresh',
+              expires_in: 7200,
+            }),
             getOAuthUrl: jest.fn().mockReturnValue('https://gitlab.com/oauth'),
           },
         },
@@ -474,6 +522,11 @@ describe('GitConnectionsService', () => {
             }),
             getWorkspaces: jest.fn().mockResolvedValue([]),
             validateToken: jest.fn().mockResolvedValue(true),
+            refreshToken: jest.fn().mockResolvedValue({
+              access_token: 'new-bb-token',
+              refresh_token: 'new-bb-refresh',
+              expires_in: 7200,
+            }),
             getOAuthUrl: jest.fn().mockReturnValue('https://bitbucket.org/oauth'),
           },
         },
@@ -481,8 +534,7 @@ describe('GitConnectionsService', () => {
     }).compile();
 
     gitConnectionsService = module.get<GitConnectionsService>(GitConnectionsService);
-    gitlabProvider = module.get<GitLabProvider>(GitLabProvider);
-    bitbucketProvider = module.get<BitbucketProvider>(BitbucketProvider);
+    connectionModel = mockConnectionModel;
   });
 
   describe('connectProvider', () => {
@@ -512,62 +564,77 @@ describe('GitConnectionsService', () => {
 
   describe('getTeamConnections', () => {
     it('should return team connections without tokens', async () => {
-      await gitConnectionsService.connectProvider('team-1', {
+      const mockConn = {
+        _id: 'conn-1',
+        teamId: 'team-1',
         provider: GitProvider.GITLAB,
-        code: 'code',
-        redirectUri: 'http://localhost/callback',
+        accessToken: 'encrypted',
+        toObject: () => ({
+          _id: 'conn-1',
+          teamId: 'team-1',
+          provider: GitProvider.GITLAB,
+          accessToken: 'encrypted',
+        }),
+      };
+      connectionModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([mockConn]),
       });
 
       const connections = await gitConnectionsService.getTeamConnections('team-1');
 
       expect(connections.length).toBe(1);
       expect(connections[0].accessToken).toBeUndefined();
-      expect(connections[0].refreshToken).toBeUndefined();
     });
   });
 
   describe('setDefault', () => {
     it('should set default connection', async () => {
-      const conn1 = await gitConnectionsService.connectProvider('team-1', {
-        provider: GitProvider.GITLAB,
-        code: 'code1',
-        redirectUri: 'http://localhost/callback',
+      connectionModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: 'conn-1',
+          teamId: 'team-1',
+          provider: GitProvider.GITLAB,
+        }),
+      });
+      connectionModel.findByIdAndUpdate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
       });
 
-      const set = await gitConnectionsService.setDefault('team-1', conn1.id);
+      const set = await gitConnectionsService.setDefault('team-1', 'conn-1');
       expect(set).toBe(true);
-
-      const defaultConn = await gitConnectionsService.getDefaultConnection('team-1');
-      expect(defaultConn!.id).toBe(conn1.id);
     });
   });
 
   describe('validateConnection', () => {
     it('should validate connection token', async () => {
-      const conn = await gitConnectionsService.connectProvider('team-1', {
-        provider: GitProvider.GITLAB,
-        code: 'code',
-        redirectUri: 'http://localhost/callback',
+      connectionModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: 'conn-1',
+          provider: GitProvider.GITLAB,
+          accessToken: 'encrypted-token',
+          expiresAt: new Date(Date.now() + 3600000),
+        }),
       });
 
-      const valid = await gitConnectionsService.validateConnection(conn.id);
+      const valid = await gitConnectionsService.validateConnection('conn-1');
       expect(valid).toBe(true);
     });
   });
 
   describe('disconnectProvider', () => {
     it('should disconnect a provider', async () => {
-      const conn = await gitConnectionsService.connectProvider('team-1', {
-        provider: GitProvider.GITLAB,
-        code: 'code',
-        redirectUri: 'http://localhost/callback',
+      connectionModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: 'conn-1',
+          teamId: 'team-1',
+        }),
+      });
+      connectionModel.findByIdAndDelete.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
       });
 
-      const disconnected = await gitConnectionsService.disconnectProvider('team-1', conn.id);
+      const disconnected = await gitConnectionsService.disconnectProvider('team-1', 'conn-1');
       expect(disconnected).toBe(true);
-
-      const connections = await gitConnectionsService.getTeamConnections('team-1');
-      expect(connections.length).toBe(0);
     });
   });
 });

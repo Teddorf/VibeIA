@@ -27,8 +27,10 @@ import { PlansService } from '../plans/plans.service';
 import { ProjectsService } from '../projects/projects.service';
 import { GitService } from '../git/git.service';
 import { LlmService } from '../llm/llm.service';
+import { UsersService } from '../users/users.service';
 import { QualityGatesService } from '../quality-gates/quality-gates.service';
 import { ManualTasksService } from '../manual-tasks/manual-tasks.service';
+import { EventsGateway } from '../events/events.gateway';
 
 describe('ExecutionService', () => {
   let service: ExecutionService;
@@ -130,6 +132,20 @@ describe('ExecutionService', () => {
         { provide: LlmService, useValue: mockLlmService },
         { provide: QualityGatesService, useValue: mockQualityGatesService },
         { provide: ManualTasksService, useValue: mockManualTasksService },
+        {
+          provide: UsersService,
+          useValue: {
+            findOne: jest.fn(),
+            findById: jest.fn(),
+          },
+        },
+        {
+          provide: EventsGateway,
+          useValue: {
+            emitToExecution: jest.fn(),
+            emitStatusUpdate: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
