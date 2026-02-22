@@ -12,7 +12,7 @@ import { UsersService } from '../users/users.service';
 import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
 import { CodebaseAnalysis } from './dto/analysis-result.dto';
 
-@Controller('codebase-analysis')
+@Controller('api/codebase-analysis')
 export class CodebaseAnalysisController {
   constructor(
     private readonly analysisService: CodebaseAnalysisService,

@@ -1,9 +1,10 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument, LLMProviderConfig, LLMPreferences } from './user.schema';
 import { EncryptionService } from './encryption.service';
+import { BCRYPT_SALT_ROUNDS, ENCRYPTED_TOKEN_PARTS } from '../auth/auth.constants';
 
 export interface CreateUserDto {
   email: string;
@@ -71,6 +72,8 @@ export const LLM_PROVIDERS_INFO = {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private encryptionService: EncryptionService,
@@ -123,7 +126,7 @@ export class UsersService {
 
   async updateRefreshToken(id: string, refreshToken: string | null): Promise<void> {
     const hashedRefreshToken = refreshToken
-      ? await bcrypt.hash(refreshToken, 10)
+      ? await bcrypt.hash(refreshToken, BCRYPT_SALT_ROUNDS)
       : null;
 
     await this.userModel.findByIdAndUpdate(id, {
@@ -218,7 +221,7 @@ export class UsersService {
     }
 
     // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
 
     // Update password and clear reset token
     await this.userModel.findByIdAndUpdate(user._id, {
@@ -550,28 +553,40 @@ export class UsersService {
     return { connected: false };
   }
 
-  async getGitHubAccessToken(userId: string): Promise<string | null> {
-    const user = await this.userModel.findById(userId);
-    if (!user?.githubAccessToken) return null;
+  /**
+   * Private helper to decrypt OAuth tokens with legacy format fallback.
+   * Handles both encrypted (iv:tag:content) and legacy unencrypted tokens.
+   *
+   * @param encryptedToken - The token to decrypt
+   * @param provider - Provider name for logging (github, google, gitlab)
+   * @param userId - User ID for logging
+   * @returns Decrypted token, legacy token, or null if decryption fails
+   */
+  private getDecryptedOAuthToken(
+    encryptedToken: string | undefined,
+    provider: string,
+    userId: string,
+  ): string | null {
+    if (!encryptedToken) return null;
 
     try {
-      // Try to decrypt
-      return this.encryptionService.decrypt(user.githubAccessToken);
+      return this.encryptionService.decrypt(encryptedToken);
     } catch (error) {
-      // If decryption fails, it might be an old unencrypted token
-      // or the key/salt changed. For now, return as is if it doesn't look like
-      // an encrypted string (doesn't contain colons or is significantly shorter/different format)
-      // Check if it matches iv:tag:content format (hex strings)
-      const parts = user.githubAccessToken.split(':');
-      if (parts.length === 3) {
-        // It WAS encrypted but failed (wrong key/salt?), return null to be safe
-        console.error('Failed to decrypt GitHub token for user', userId, error);
+      // Check if token looks like encrypted format (iv:tag:content)
+      const parts = encryptedToken.split(':');
+      if (parts.length === ENCRYPTED_TOKEN_PARTS) {
+        // Token WAS encrypted but decryption failed (wrong key/salt?)
+        this.logger.warn(`Failed to decrypt ${provider} token for user ${userId}, forcing re-authentication`);
         return null; // Force re-authentication
       }
-
-      // Fallback: assume it's a legacy unencrypted token
-      return user.githubAccessToken;
+      // Legacy unencrypted token - return as is
+      return encryptedToken;
     }
+  }
+
+  async getGitHubAccessToken(userId: string): Promise<string | null> {
+    const user = await this.userModel.findById(userId);
+    return this.getDecryptedOAuthToken(user?.githubAccessToken, 'GitHub', userId);
   }
 
   async findByGitHubId(githubId: string): Promise<UserDocument | null> {
@@ -646,18 +661,7 @@ export class UsersService {
 
   async getGoogleAccessToken(userId: string): Promise<string | null> {
     const user = await this.userModel.findById(userId);
-    if (!user?.googleAccessToken) return null;
-
-    try {
-      return this.encryptionService.decrypt(user.googleAccessToken);
-    } catch (error) {
-      const parts = user.googleAccessToken.split(':');
-      if (parts.length === 3) {
-        console.error('Failed to decrypt Google token for user', userId, error);
-        return null;
-      }
-      return user.googleAccessToken;
-    }
+    return this.getDecryptedOAuthToken(user?.googleAccessToken, 'Google', userId);
   }
 
   async findByGoogleId(googleId: string): Promise<UserDocument | null> {
@@ -732,18 +736,7 @@ export class UsersService {
 
   async getGitLabAccessToken(userId: string): Promise<string | null> {
     const user = await this.userModel.findById(userId);
-    if (!user?.gitlabAccessToken) return null;
-
-    try {
-      return this.encryptionService.decrypt(user.gitlabAccessToken);
-    } catch (error) {
-      const parts = user.gitlabAccessToken.split(':');
-      if (parts.length === 3) {
-        console.error('Failed to decrypt GitLab token for user', userId, error);
-        return null;
-      }
-      return user.gitlabAccessToken;
-    }
+    return this.getDecryptedOAuthToken(user?.gitlabAccessToken, 'GitLab', userId);
   }
 
   async findByGitLabId(gitlabId: string): Promise<UserDocument | null> {

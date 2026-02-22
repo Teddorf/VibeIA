@@ -16,7 +16,7 @@ import {
   BranchInfo,
 } from './dto/github.dto';
 
-@Controller('git')
+@Controller('api/git')
 export class GitController {
   constructor(
     private readonly gitService: GitService,

@@ -300,4 +300,153 @@ describe('UsersService', () => {
       );
     });
   });
+
+  // Phase 1.1 TDD - Tests for Google/GitLab OAuth token methods
+  describe('getGoogleAccessToken', () => {
+    it('should return decrypted token', async () => {
+      const encryptedToken = 'iv:tag:encrypted';
+      const decryptedToken = 'google-access-token';
+
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        googleAccessToken: encryptedToken,
+      });
+      mockEncryptionService.decrypt.mockReturnValue(decryptedToken);
+
+      const result = await service.getGoogleAccessToken('user-123');
+
+      expect(mockEncryptionService.decrypt).toHaveBeenCalledWith(encryptedToken);
+      expect(result).toBe(decryptedToken);
+    });
+
+    it('should return null if user not found', async () => {
+      mockUserModel.findById.mockResolvedValue(null);
+
+      const result = await service.getGoogleAccessToken('user-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null if no google token stored', async () => {
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        googleAccessToken: undefined,
+      });
+
+      const result = await service.getGoogleAccessToken('user-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null if decryption fails (encrypted format)', async () => {
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        googleAccessToken: 'iv:tag:encrypted',
+      });
+      mockEncryptionService.decrypt.mockImplementation(() => {
+        throw new Error('Decryption failed');
+      });
+
+      const result = await service.getGoogleAccessToken('user-123');
+      expect(result).toBeNull();
+    });
+
+    it('should return original token if legacy format', async () => {
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        googleAccessToken: 'legacy-google-token',
+      });
+      mockEncryptionService.decrypt.mockImplementation(() => {
+        throw new Error('Invalid format');
+      });
+
+      const result = await service.getGoogleAccessToken('user-123');
+      expect(result).toBe('legacy-google-token');
+    });
+  });
+
+  describe('getGitLabAccessToken', () => {
+    it('should return decrypted token', async () => {
+      const encryptedToken = 'iv:tag:encrypted';
+      const decryptedToken = 'gitlab-access-token';
+
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        gitlabAccessToken: encryptedToken,
+      });
+      mockEncryptionService.decrypt.mockReturnValue(decryptedToken);
+
+      const result = await service.getGitLabAccessToken('user-123');
+
+      expect(mockEncryptionService.decrypt).toHaveBeenCalledWith(encryptedToken);
+      expect(result).toBe(decryptedToken);
+    });
+
+    it('should return null if user not found', async () => {
+      mockUserModel.findById.mockResolvedValue(null);
+
+      const result = await service.getGitLabAccessToken('user-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null if no gitlab token stored', async () => {
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        gitlabAccessToken: undefined,
+      });
+
+      const result = await service.getGitLabAccessToken('user-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null if decryption fails (encrypted format)', async () => {
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        gitlabAccessToken: 'iv:tag:encrypted',
+      });
+      mockEncryptionService.decrypt.mockImplementation(() => {
+        throw new Error('Decryption failed');
+      });
+
+      const result = await service.getGitLabAccessToken('user-123');
+      expect(result).toBeNull();
+    });
+
+    it('should return original token if legacy format', async () => {
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        gitlabAccessToken: 'legacy-gitlab-token',
+      });
+      mockEncryptionService.decrypt.mockImplementation(() => {
+        throw new Error('Invalid format');
+      });
+
+      const result = await service.getGitLabAccessToken('user-123');
+      expect(result).toBe('legacy-gitlab-token');
+    });
+  });
+
+  // Add test for user not found case in GitHub (missing from existing tests)
+  describe('getGitHubAccessToken - additional cases', () => {
+    it('should return null if user not found', async () => {
+      mockUserModel.findById.mockResolvedValue(null);
+
+      const result = await service.getGitHubAccessToken('user-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null if no github token stored', async () => {
+      mockUserModel.findById.mockResolvedValue({
+        ...mockUser,
+        githubAccessToken: undefined,
+      });
+
+      const result = await service.getGitHubAccessToken('user-123');
+
+      expect(result).toBeNull();
+    });
+  });
 });

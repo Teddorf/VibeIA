@@ -1,9 +1,12 @@
 ﻿import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, registerAs } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { VIBE_CONFIG_KEY, loadVibeConfig } from './config/vibe-config';
+import { MONGO_DEFAULTS, THROTTLER_DEFAULTS } from './config/defaults';
+import { ProvidersModule } from './providers/providers.module';
 import { PlansModule } from './modules/plans/plans.module';
 import { GitModule } from './modules/git/git.module';
 import { ProjectsModule } from './modules/projects/projects.module';
@@ -28,8 +31,9 @@ import { CodebaseAnalysisModule } from './modules/codebase-analysis/codebase-ana
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      load: [registerAs(VIBE_CONFIG_KEY, loadVibeConfig)],
     }),
-    MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/vibecoding'),
+    MongooseModule.forRoot(process.env.MONGO_URI || MONGO_DEFAULTS.fallbackUri),
     UsersModule,
     AuthModule,
     EventsModule,
@@ -48,15 +52,15 @@ import { CodebaseAnalysisModule } from './modules/codebase-analysis/codebase-ana
     BillingModule,
     TeamsModule,
     CodebaseAnalysisModule,
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 10,
-    }]),
+    ProvidersModule.forRoot(),
+    ThrottlerModule.forRoot([
+      {
+        ttl: THROTTLER_DEFAULTS.global.ttl,
+        limit: THROTTLER_DEFAULTS.global.limit,
+      },
+    ]),
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
-
-
-
+export class AppModule {}

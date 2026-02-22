@@ -1,5 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { LLMProvider, LLMResponse, LLMProviderOptions, ImportedProjectWizardData } from '../interfaces/llm-provider.interface';
+import type {
+  LLMProvider,
+  LLMResponse,
+  LLMProviderOptions,
+  ImportedProjectWizardData,
+} from '../interfaces/llm-provider.interface';
+import { LLM_DEFAULTS } from '../../../config/defaults';
 
 // Plan type descriptions for better prompts
 const PLAN_TYPE_DESCRIPTIONS: Record<string, string> = {
@@ -7,7 +13,8 @@ const PLAN_TYPE_DESCRIPTIONS: Record<string, string> = {
   refactor: 'Improve code quality, structure, and maintainability',
   fix: 'Fix bugs, issues, or technical debt',
   upgrade: 'Update dependencies, frameworks, or migrate to newer versions',
-  optimize: 'Improve performance, reduce resource usage, or optimize algorithms',
+  optimize:
+    'Improve performance, reduce resource usage, or optimize algorithms',
   security: 'Fix security vulnerabilities and improve security posture',
 };
 
@@ -22,8 +29,8 @@ export class AnthropicProvider implements LLMProvider {
     try {
       const client = this.createClient(apiKey);
       await client.messages.create({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 10,
+        model: LLM_DEFAULTS.anthropic.validationModel,
+        max_tokens: LLM_DEFAULTS.anthropic.maxTokensValidation,
         messages: [{ role: 'user', content: 'Hi' }],
       });
       return true;
@@ -32,18 +39,22 @@ export class AnthropicProvider implements LLMProvider {
     }
   }
 
-  async generatePlan(wizardData: any, options: LLMProviderOptions): Promise<LLMResponse> {
+  async generatePlan(
+    wizardData: any,
+    options: LLMProviderOptions,
+  ): Promise<LLMResponse> {
     const client = this.createClient(options.apiKey);
 
     // Check if this is an imported project with existing codebase
-    const isImportedProject = !!(wizardData as ImportedProjectWizardData).existingCodebase;
+    const isImportedProject = !!(wizardData as ImportedProjectWizardData)
+      .existingCodebase;
     const prompt = isImportedProject
       ? this.buildImportedProjectPrompt(wizardData as ImportedProjectWizardData)
       : this.buildPrompt(wizardData);
 
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514', // Claude 4.5 Sonnet (latest)
-      max_tokens: 8192,
+      model: LLM_DEFAULTS.anthropic.planModel,
+      max_tokens: LLM_DEFAULTS.anthropic.maxTokensPlan,
       messages: [
         {
           role: 'user',
@@ -62,17 +73,24 @@ export class AnthropicProvider implements LLMProvider {
       plan,
       provider: this.name,
       tokensUsed: message.usage.input_tokens + message.usage.output_tokens,
-      cost: this.calculateCost(message.usage.input_tokens, message.usage.output_tokens),
+      cost: this.calculateCost(
+        message.usage.input_tokens,
+        message.usage.output_tokens,
+      ),
     };
   }
 
-  async generateCode(task: any, context: any, options: LLMProviderOptions): Promise<{ files: { path: string; content: string }[] }> {
+  async generateCode(
+    task: any,
+    context: any,
+    options: LLMProviderOptions,
+  ): Promise<{ files: { path: string; content: string }[] }> {
     const client = this.createClient(options.apiKey);
     const prompt = this.buildCodePrompt(task, context);
 
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8192,
+      model: LLM_DEFAULTS.anthropic.planModel,
+      max_tokens: LLM_DEFAULTS.anthropic.maxTokensCode,
       messages: [
         {
           role: 'user',
@@ -131,7 +149,9 @@ PROJECT: ${stage1.projectName}
 DESCRIPTION: ${stage1.description}
 
 BUSINESS REQUIREMENTS:
-${Object.entries(stage2).map(([key, value]) => `- ${key}: ${value}`).join('\n')}
+${Object.entries(stage2)
+  .map(([key, value]) => `- ${key}: ${value}`)
+  .join('\n')}
 
 SELECTED ARCHITECTURE PATTERNS:
 ${stage3.selectedArchetypes.join(', ')}
@@ -167,72 +187,116 @@ Generate the plan now:`;
   }
 
   /**
+   * Format codebase structure information
+   */
+  private formatStructureInfo(
+    existingCodebase: ImportedProjectWizardData['existingCodebase'],
+  ): string {
+    if (!existingCodebase?.structure) return 'Not available';
+    const s = existingCodebase.structure;
+    return `
+- Has Backend: ${s.hasBackend ? 'Yes' : 'No'}
+- Has Frontend: ${s.hasFrontend ? 'Yes' : 'No'}
+- Is Monorepo: ${s.isMonorepo ? 'Yes' : 'No'}
+- Total Files: ${s.totalFiles}
+- Root Directories: ${s.directories.join(', ')}`;
+  }
+
+  /**
+   * Format tech stack information
+   */
+  private formatTechStackInfo(
+    existingCodebase: ImportedProjectWizardData['existingCodebase'],
+  ): string {
+    if (!existingCodebase?.techStack) return 'Not available';
+    const t = existingCodebase.techStack;
+    return `
+- Languages: ${t.languages.map((l) => `${l.name} (${l.percentage}%)`).join(', ')}
+- Frameworks: ${t.frameworks.map((f) => f.name).join(', ') || 'None detected'}
+- Databases: ${t.databases.join(', ') || 'None detected'}
+- Testing: ${t.testing.join(', ') || 'None detected'}
+- Build Tools: ${t.buildTools.join(', ') || 'None detected'}
+- Package Managers: ${t.packageManagers.join(', ') || 'None detected'}`;
+  }
+
+  /**
+   * Format dependencies information
+   */
+  private formatDependenciesInfo(
+    existingCodebase: ImportedProjectWizardData['existingCodebase'],
+  ): string {
+    if (!existingCodebase?.dependencies) return 'Not available';
+    const d = existingCodebase.dependencies;
+    return `
+- Total Dependencies: ${d.total}
+- Production: ${d.production.length} packages
+- Development: ${d.development.length} packages`;
+  }
+
+  /**
+   * Format code quality information
+   */
+  private formatCodeQualityInfo(
+    existingCodebase: ImportedProjectWizardData['existingCodebase'],
+  ): string {
+    if (!existingCodebase?.codeQuality) return 'Not available';
+    const q = existingCodebase.codeQuality;
+    return `
+- Has Linting: ${q.hasLinting ? 'Yes' : 'No'} ${q.lintConfig ? `(${q.lintConfig})` : ''}
+- Has TypeScript: ${q.hasTypeScript ? 'Yes' : 'No'}
+- Has Tests: ${q.hasTests ? 'Yes' : 'No'} ${q.testFramework ? `(${q.testFramework})` : ''}
+- Has CI/CD: ${q.hasCI ? 'Yes' : 'No'} ${q.ciPlatform ? `(${q.ciPlatform})` : ''}`;
+  }
+
+  /**
+   * Format import context information
+   */
+  private formatImportContextInfo(
+    importContext: ImportedProjectWizardData['importContext'],
+  ): string {
+    if (!importContext) return '';
+    let contextInfo = '';
+    if (importContext.focusAreas?.length) {
+      contextInfo += `\nFocus Areas (prioritize changes here): ${importContext.focusAreas.join(', ')}`;
+    }
+    if (importContext.excludeAreas?.length) {
+      contextInfo += `\nExclude Areas (do NOT modify): ${importContext.excludeAreas.join(', ')}`;
+    }
+    if (importContext.targetFiles?.length) {
+      contextInfo += `\nTarget Files: ${importContext.targetFiles.join(', ')}`;
+    }
+    if (importContext.preservePatterns) {
+      contextInfo += '\nPreserve existing code patterns and conventions.';
+    }
+    return contextInfo;
+  }
+
+  /**
    * Build prompt for imported projects with existing codebase analysis
    */
-  private buildImportedProjectPrompt(wizardData: ImportedProjectWizardData): string {
-    const { stage1, stage2, stage3, existingCodebase, importContext, planType } = wizardData;
+  private buildImportedProjectPrompt(
+    wizardData: ImportedProjectWizardData,
+  ): string {
+    const {
+      stage1,
+      stage2,
+      stage3,
+      existingCodebase,
+      importContext,
+      planType,
+    } = wizardData;
 
-    const planTypeDesc = planType ? PLAN_TYPE_DESCRIPTIONS[planType] || planType : 'new feature';
-
-    // Format codebase structure info
-    const structureInfo = existingCodebase?.structure
-      ? `
-- Has Backend: ${existingCodebase.structure.hasBackend ? 'Yes' : 'No'}
-- Has Frontend: ${existingCodebase.structure.hasFrontend ? 'Yes' : 'No'}
-- Is Monorepo: ${existingCodebase.structure.isMonorepo ? 'Yes' : 'No'}
-- Total Files: ${existingCodebase.structure.totalFiles}
-- Root Directories: ${existingCodebase.structure.directories.join(', ')}`
-      : 'Not available';
-
-    // Format tech stack info
-    const techStackInfo = existingCodebase?.techStack
-      ? `
-- Languages: ${existingCodebase.techStack.languages.map((l) => `${l.name} (${l.percentage}%)`).join(', ')}
-- Frameworks: ${existingCodebase.techStack.frameworks.map((f) => f.name).join(', ') || 'None detected'}
-- Databases: ${existingCodebase.techStack.databases.join(', ') || 'None detected'}
-- Testing: ${existingCodebase.techStack.testing.join(', ') || 'None detected'}
-- Build Tools: ${existingCodebase.techStack.buildTools.join(', ') || 'None detected'}
-- Package Managers: ${existingCodebase.techStack.packageManagers.join(', ') || 'None detected'}`
-      : 'Not available';
-
-    // Format dependencies info
-    const depsInfo = existingCodebase?.dependencies
-      ? `
-- Total Dependencies: ${existingCodebase.dependencies.total}
-- Production: ${existingCodebase.dependencies.production.length} packages
-- Development: ${existingCodebase.dependencies.development.length} packages`
-      : 'Not available';
-
-    // Format code quality info
-    const qualityInfo = existingCodebase?.codeQuality
-      ? `
-- Has Linting: ${existingCodebase.codeQuality.hasLinting ? 'Yes' : 'No'} ${existingCodebase.codeQuality.lintConfig ? `(${existingCodebase.codeQuality.lintConfig})` : ''}
-- Has TypeScript: ${existingCodebase.codeQuality.hasTypeScript ? 'Yes' : 'No'}
-- Has Tests: ${existingCodebase.codeQuality.hasTests ? 'Yes' : 'No'} ${existingCodebase.codeQuality.testFramework ? `(${existingCodebase.codeQuality.testFramework})` : ''}
-- Has CI/CD: ${existingCodebase.codeQuality.hasCI ? 'Yes' : 'No'} ${existingCodebase.codeQuality.ciPlatform ? `(${existingCodebase.codeQuality.ciPlatform})` : ''}`
-      : 'Not available';
-
-    // Format existing suggestions
+    const planTypeDesc = planType
+      ? PLAN_TYPE_DESCRIPTIONS[planType] || planType
+      : 'new feature';
+    const structureInfo = this.formatStructureInfo(existingCodebase);
+    const techStackInfo = this.formatTechStackInfo(existingCodebase);
+    const depsInfo = this.formatDependenciesInfo(existingCodebase);
+    const qualityInfo = this.formatCodeQualityInfo(existingCodebase);
     const suggestionsInfo = existingCodebase?.suggestions?.length
       ? existingCodebase.suggestions.map((s) => `- ${s}`).join('\n')
       : 'None';
-
-    // Format import context (focus areas, etc.)
-    let contextInfo = '';
-    if (importContext) {
-      if (importContext.focusAreas?.length) {
-        contextInfo += `\nFocus Areas (prioritize changes here): ${importContext.focusAreas.join(', ')}`;
-      }
-      if (importContext.excludeAreas?.length) {
-        contextInfo += `\nExclude Areas (do NOT modify): ${importContext.excludeAreas.join(', ')}`;
-      }
-      if (importContext.targetFiles?.length) {
-        contextInfo += `\nTarget Files: ${importContext.targetFiles.join(', ')}`;
-      }
-      if (importContext.preservePatterns) {
-        contextInfo += `\nPreserve existing code patterns and conventions.`;
-      }
-    }
+    const contextInfo = this.formatImportContextInfo(importContext);
 
     return `You are an expert software architect analyzing an EXISTING project. Generate a plan to ${planTypeDesc}.
 
@@ -270,7 +334,9 @@ USER REQUIREMENTS
 ============================================
 
 BUSINESS REQUIREMENTS:
-${Object.entries(stage2).map(([key, value]) => `- ${key}: ${value}`).join('\n')}
+${Object.entries(stage2)
+  .map(([key, value]) => `- ${key}: ${value}`)
+  .join('\n')}
 
 SELECTED PATTERNS/APPROACHES:
 ${stage3.selectedArchetypes.join(', ')}
@@ -366,15 +432,19 @@ Generate the plan now:`;
   }
 
   private calculateCost(inputTokens: number, outputTokens: number): number {
-    // Claude 4.5 Sonnet pricing
-    const inputCost = (inputTokens / 1000000) * 3; // $3 per million input tokens
-    const outputCost = (outputTokens / 1000000) * 15; // $15 per million output tokens
+    const inputCost =
+      (inputTokens / 1000000) * LLM_DEFAULTS.anthropic.pricing.inputPerMillion;
+    const outputCost =
+      (outputTokens / 1000000) *
+      LLM_DEFAULTS.anthropic.pricing.outputPerMillion;
     return inputCost + outputCost;
   }
 
   estimateCost(prompt: string): number {
-    // Rough estimation: ~4 chars per token
-    const estimatedTokens = prompt.length / 4;
-    return (estimatedTokens / 1000000) * 3;
+    const estimatedTokens = prompt.length / LLM_DEFAULTS.charsPerToken;
+    return (
+      (estimatedTokens / 1000000) *
+      LLM_DEFAULTS.anthropic.pricing.inputPerMillion
+    );
   }
 }

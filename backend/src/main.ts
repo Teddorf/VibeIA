@@ -1,11 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { validateConfig } from './config/config.validation';
+import { SECURITY_DEFAULTS } from './config/defaults';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
+
   // Validate configuration BEFORE creating the app
   // This will throw if any required environment variables are missing
   const config = validateConfig();
@@ -25,7 +28,10 @@ async function bootstrap() {
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for UI frameworks
           imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", process.env.FRONTEND_URL || 'http://localhost:3000'],
+          connectSrc: [
+            "'self'",
+            process.env.FRONTEND_URL || 'http://localhost:3000',
+          ],
           fontSrc: ["'self'", 'https://fonts.gstatic.com'],
           objectSrc: ["'none'"],
           mediaSrc: ["'self'"],
@@ -34,7 +40,7 @@ async function bootstrap() {
       },
       // Strict-Transport-Security: max-age=31536000; includeSubDomains
       hsts: {
-        maxAge: 31536000, // 1 year
+        maxAge: SECURITY_DEFAULTS.hstsMaxAge,
         includeSubDomains: true,
         preload: true,
       },
@@ -59,11 +65,16 @@ async function bootstrap() {
   ].filter(Boolean) as string[];
 
   // Vercel preview URLs pattern (for branch deployments)
-  // Matches: vibeia.vercel.app, vibeia-*.vercel.app, frontend-*.vercel.app
-  const vercelPreviewPattern = /^https:\/\/(vibeia|frontend)[a-z0-9-]*\.vercel\.app$/;
+  // Matches any *.vercel.app subdomain for flexibility with preview deployments
+  // Examples: vibeia.vercel.app, frontend-delta-drab-99.vercel.app,
+  //           vibeia-git-develop-username.vercel.app, project-abc123-team.vercel.app
+  const vercelPreviewPattern = SECURITY_DEFAULTS.vercelPreviewPattern;
 
   app.enableCors({
-    origin: (origin, callback) => {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
 
@@ -77,22 +88,24 @@ async function bootstrap() {
         return callback(null, true);
       }
 
-      console.warn(`CORS blocked origin: ${origin}`);
+      logger.warn(`CORS blocked origin: ${origin}`);
       callback(new Error('CORS not allowed'), false);
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
     credentials: true,
-    maxAge: 3600, // 1 hour
+    maxAge: SECURITY_DEFAULTS.corsMaxAge,
   });
 
   // Enable global validation
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    transform: true
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    }),
+  );
 
   await app.listen(config.port);
-  console.log(`Backend running on http://localhost:${config.port}`);
+  logger.log(`Backend running on http://localhost:${config.port}`);
 }
 bootstrap();

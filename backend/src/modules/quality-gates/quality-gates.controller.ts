@@ -1,7 +1,7 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { QualityGatesService } from './quality-gates.service';
 
-@Controller('quality-gates')
+@Controller('api/quality-gates')
 export class QualityGatesController {
   constructor(private readonly qualityGatesService: QualityGatesService) {}
 

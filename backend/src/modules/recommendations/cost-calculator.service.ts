@@ -4,38 +4,14 @@ import {
   PhaseCost,
   CostProjection,
 } from './dto/cost-calculator.dto';
+import { PRICING_DEFAULTS } from '../../config/defaults';
 
 @Injectable()
 export class CostCalculatorService {
-  // Neon PostgreSQL pricing tiers
-  private neonPricing = {
-    free: { maxStorage: 0.5, maxCompute: 191.9, monthly: 0 },
-    launch: { maxStorage: 10, maxCompute: 'unlimited', monthly: 19 },
-    scale: { maxStorage: 50, maxCompute: 'autoscaling', monthly: 69 },
-    business: { baseMonthly: 700, extraStoragePerGB: 3.5 },
-  };
-
-  // Vercel pricing
-  private vercelPricing = {
-    hobby: { monthly: 0, bandwidth: '100 GB' },
-    pro: { monthly: 20, bandwidth: 'Unlimited' },
-    team: { monthly: 20, perSeat: true },
-  };
-
-  // Railway pricing (approximate)
-  private railwayPricing = {
-    hobby: { monthly: 5, ram: '512 MB', cpu: 'Shared' },
-    starter: { monthly: 20, ram: '2 GB', cpu: '1 vCPU' },
-    pro: { monthly: 50, ram: '4 GB', cpu: '2 vCPU' },
-    scale: { monthly: 100, ram: '8 GB', cpu: '4 vCPU' },
-  };
-
-  // AWS comparison (equivalent infrastructure)
-  private awsEquivalent = {
-    mvp: 150, // EC2 t3.small + RDS db.t3.micro + basics
-    growth: 400, // EC2 t3.medium + RDS db.t3.small + ElastiCache
-    scale: 1200, // ECS Fargate + RDS db.t3.medium + ElastiCache + extras
-  };
+  private neonPricing = PRICING_DEFAULTS.neon;
+  private vercelPricing = PRICING_DEFAULTS.vercel;
+  private railwayPricing = PRICING_DEFAULTS.railway;
+  private awsEquivalent = PRICING_DEFAULTS.awsEquivalent;
 
   calculateProjection(dto: CostProjectionDto): CostProjection {
     const phases = [

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import { OpenAIProvider } from './providers/openai.provider';
 import { GeminiProvider } from './providers/gemini.provider';
@@ -6,6 +6,7 @@ import { LLMProvider, LLMResponse, UserLLMConfig } from './interfaces/llm-provid
 
 @Injectable()
 export class LlmService {
+  private readonly logger = new Logger(LlmService.name);
   private providers: Map<string, LLMProvider>;
 
   constructor() {
@@ -42,10 +43,10 @@ export class LlmService {
       if (!provider) continue;
 
       try {
-        console.log(`Generating plan with ${providerName}...`);
+        this.logger.log(`Generating plan with ${providerName}...`);
         return await provider.generatePlan(wizardData, { apiKey });
       } catch (error: any) {
-        console.error(`Provider ${providerName} failed:`, error.message);
+        this.logger.warn(`Provider ${providerName} failed: ${error.message}`);
         lastError = error;
 
         if (!preferences.fallbackEnabled) {
@@ -91,10 +92,10 @@ export class LlmService {
       if (!provider) continue;
 
       try {
-        console.log(`Generating code with ${providerName}...`);
+        this.logger.log(`Generating code with ${providerName}...`);
         return await provider.generateCode(task, context, { apiKey });
       } catch (error: any) {
-        console.error(`Provider ${providerName} failed code gen:`, error.message);
+        this.logger.warn(`Provider ${providerName} failed code gen: ${error.message}`);
         lastError = error;
 
         if (!preferences.fallbackEnabled) {

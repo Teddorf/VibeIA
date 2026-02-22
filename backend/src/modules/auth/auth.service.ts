@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import { UsersService, CreateUserDto } from '../users/users.service';
 import { UserDocument } from '../users/user.schema';
+import { ACCESS_TOKEN_EXPIRY, REFRESH_TOKEN_EXPIRY } from './auth.constants';
 import { LoginDto, RegisterDto, TokenResponse, JwtPayload } from './dto/auth.dto';
 
 // Re-export for backward compatibility
@@ -124,11 +125,11 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: '15m',
+      expiresIn: ACCESS_TOKEN_EXPIRY,
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: '7d',
+      expiresIn: REFRESH_TOKEN_EXPIRY,
     });
 
     // Store refresh token hash
