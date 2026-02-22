@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { validateConfig } from './config/config.validation';
+import { SECURITY_DEFAULTS } from './config/defaults';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
@@ -39,7 +40,7 @@ async function bootstrap() {
       },
       // Strict-Transport-Security: max-age=31536000; includeSubDomains
       hsts: {
-        maxAge: 31536000, // 1 year
+        maxAge: SECURITY_DEFAULTS.hstsMaxAge,
         includeSubDomains: true,
         preload: true,
       },
@@ -67,7 +68,7 @@ async function bootstrap() {
   // Matches any *.vercel.app subdomain for flexibility with preview deployments
   // Examples: vibeia.vercel.app, frontend-delta-drab-99.vercel.app,
   //           vibeia-git-develop-username.vercel.app, project-abc123-team.vercel.app
-  const vercelPreviewPattern = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
+  const vercelPreviewPattern = SECURITY_DEFAULTS.vercelPreviewPattern;
 
   app.enableCors({
     origin: (
@@ -93,7 +94,7 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
     credentials: true,
-    maxAge: 3600, // 1 hour
+    maxAge: SECURITY_DEFAULTS.corsMaxAge,
   });
 
   // Enable global validation
