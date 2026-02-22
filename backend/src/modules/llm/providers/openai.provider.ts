@@ -1,5 +1,11 @@
 import OpenAI from 'openai';
-import { LLMProvider, LLMResponse, LLMProviderOptions, ImportedProjectWizardData } from '../interfaces/llm-provider.interface';
+import {
+  LLMProvider,
+  LLMResponse,
+  LLMProviderOptions,
+  ImportedProjectWizardData,
+} from '../interfaces/llm-provider.interface';
+import { LLM_DEFAULTS } from '../../../config/defaults';
 
 // Plan type descriptions for better prompts
 const PLAN_TYPE_DESCRIPTIONS: Record<string, string> = {
@@ -7,7 +13,8 @@ const PLAN_TYPE_DESCRIPTIONS: Record<string, string> = {
   refactor: 'Improve code quality, structure, and maintainability',
   fix: 'Fix bugs, issues, or technical debt',
   upgrade: 'Update dependencies, frameworks, or migrate to newer versions',
-  optimize: 'Improve performance, reduce resource usage, or optimize algorithms',
+  optimize:
+    'Improve performance, reduce resource usage, or optimize algorithms',
   security: 'Fix security vulnerabilities and improve security posture',
 };
 
@@ -22,8 +29,8 @@ export class OpenAIProvider implements LLMProvider {
     try {
       const client = this.createClient(apiKey);
       await client.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        max_tokens: 10,
+        model: LLM_DEFAULTS.openai.validationModel,
+        max_tokens: LLM_DEFAULTS.openai.maxTokensValidation,
         messages: [{ role: 'user', content: 'Hi' }],
       });
       return true;
@@ -32,11 +39,15 @@ export class OpenAIProvider implements LLMProvider {
     }
   }
 
-  async generatePlan(wizardData: any, options: LLMProviderOptions): Promise<LLMResponse> {
+  async generatePlan(
+    wizardData: any,
+    options: LLMProviderOptions,
+  ): Promise<LLMResponse> {
     const client = this.createClient(options.apiKey);
 
     // Check if this is an imported project with existing codebase
-    const isImportedProject = !!(wizardData as ImportedProjectWizardData).existingCodebase;
+    const isImportedProject = !!(wizardData as ImportedProjectWizardData)
+      .existingCodebase;
     const prompt = isImportedProject
       ? this.buildImportedProjectPrompt(wizardData as ImportedProjectWizardData)
       : this.buildPrompt(wizardData);
@@ -46,7 +57,7 @@ export class OpenAIProvider implements LLMProvider {
       : 'You are an expert software architect. Generate ultra-granular implementation plans with tasks 10 minutes each.';
 
     const completion = await client.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: LLM_DEFAULTS.openai.planModel,
       messages: [
         {
           role: 'system',
@@ -58,7 +69,7 @@ export class OpenAIProvider implements LLMProvider {
         },
       ],
       response_format: { type: 'json_object' },
-      max_tokens: 8192,
+      max_tokens: LLM_DEFAULTS.openai.maxTokensPlan,
     });
 
     const planText = completion.choices[0].message.content || '{}';
@@ -68,20 +79,28 @@ export class OpenAIProvider implements LLMProvider {
       plan,
       provider: this.name,
       tokensUsed: completion.usage?.total_tokens || 0,
-      cost: this.calculateCost(completion.usage?.prompt_tokens || 0, completion.usage?.completion_tokens || 0),
+      cost: this.calculateCost(
+        completion.usage?.prompt_tokens || 0,
+        completion.usage?.completion_tokens || 0,
+      ),
     };
   }
 
-  async generateCode(task: any, context: any, options: LLMProviderOptions): Promise<{ files: { path: string; content: string }[] }> {
+  async generateCode(
+    task: any,
+    context: any,
+    options: LLMProviderOptions,
+  ): Promise<{ files: { path: string; content: string }[] }> {
     const client = this.createClient(options.apiKey);
     const prompt = this.buildCodePrompt(task, context);
 
     const completion = await client.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: LLM_DEFAULTS.openai.planModel,
       messages: [
         {
           role: 'system',
-          content: 'You are an expert senior software engineer. Output ONLY valid JSON.',
+          content:
+            'You are an expert senior software engineer. Output ONLY valid JSON.',
         },
         {
           role: 'user',
@@ -89,7 +108,7 @@ export class OpenAIProvider implements LLMProvider {
         },
       ],
       response_format: { type: 'json_object' },
-      max_tokens: 4096,
+      max_tokens: LLM_DEFAULTS.openai.maxTokensCode,
     });
 
     const responseText = completion.choices[0].message.content || '{}';
@@ -122,7 +141,9 @@ PROJECT: ${stage1.projectName}
 DESCRIPTION: ${stage1.description}
 
 BUSINESS REQUIREMENTS:
-${Object.entries(stage2).map(([key, value]) => `- ${key}: ${value}`).join('\n')}
+${Object.entries(stage2)
+  .map(([key, value]) => `- ${key}: ${value}`)
+  .join('\n')}
 
 ARCHITECTURE PATTERNS: ${stage3.selectedArchetypes.join(', ')}
 
@@ -142,10 +163,21 @@ Return JSON with structure:
   /**
    * Build prompt for imported projects with existing codebase analysis
    */
-  private buildImportedProjectPrompt(wizardData: ImportedProjectWizardData): string {
-    const { stage1, stage2, stage3, existingCodebase, importContext, planType } = wizardData;
+  private buildImportedProjectPrompt(
+    wizardData: ImportedProjectWizardData,
+  ): string {
+    const {
+      stage1,
+      stage2,
+      stage3,
+      existingCodebase,
+      importContext,
+      planType,
+    } = wizardData;
 
-    const planTypeDesc = planType ? PLAN_TYPE_DESCRIPTIONS[planType] || planType : 'new feature';
+    const planTypeDesc = planType
+      ? PLAN_TYPE_DESCRIPTIONS[planType] || planType
+      : 'new feature';
 
     // Format codebase structure info
     const structureInfo = existingCodebase?.structure
@@ -217,7 +249,9 @@ DEPENDENCIES:${depsInfo}
 CODE QUALITY:${qualityInfo}
 
 USER REQUIREMENTS:
-${Object.entries(stage2).map(([key, value]) => `- ${key}: ${value}`).join('\n')}
+${Object.entries(stage2)
+  .map(([key, value]) => `- ${key}: ${value}`)
+  .join('\n')}
 
 SELECTED PATTERNS: ${stage3.selectedArchetypes.join(', ')}
 ${contextInfo}
@@ -261,15 +295,22 @@ Return JSON:
     }
   }
 
-  private calculateCost(promptTokens: number, completionTokens: number): number {
-    // GPT-4 Turbo pricing
-    const inputCost = (promptTokens / 1000000) * 10;
-    const outputCost = (completionTokens / 1000000) * 30;
+  private calculateCost(
+    promptTokens: number,
+    completionTokens: number,
+  ): number {
+    const inputCost =
+      (promptTokens / 1000000) * LLM_DEFAULTS.openai.pricing.inputPerMillion;
+    const outputCost =
+      (completionTokens / 1000000) *
+      LLM_DEFAULTS.openai.pricing.outputPerMillion;
     return inputCost + outputCost;
   }
 
   estimateCost(prompt: string): number {
-    const estimatedTokens = prompt.length / 4;
-    return (estimatedTokens / 1000000) * 10;
+    const estimatedTokens = prompt.length / LLM_DEFAULTS.charsPerToken;
+    return (
+      (estimatedTokens / 1000000) * LLM_DEFAULTS.openai.pricing.inputPerMillion
+    );
   }
 }
