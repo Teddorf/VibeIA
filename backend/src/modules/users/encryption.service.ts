@@ -1,14 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { ENCRYPTED_TOKEN_PARTS } from '../auth/auth.constants';
+import { ENCRYPTION_DEFAULTS } from '../../config/defaults';
 
 @Injectable()
 export class EncryptionService {
   private readonly logger = new Logger(EncryptionService.name);
-  private readonly algorithm = 'aes-256-gcm';
-  private readonly keyLength = 32;
-  private readonly ivLength = 16;
-  private readonly tagLength = 16;
+  private readonly algorithm = ENCRYPTION_DEFAULTS.algorithm;
+  private readonly keyLength = ENCRYPTION_DEFAULTS.keyLength;
+  private readonly ivLength = ENCRYPTION_DEFAULTS.ivLength;
+  private readonly tagLength = ENCRYPTION_DEFAULTS.tagLength;
 
   private getKey(): Buffer {
     // ENCRYPTION_KEY and ENCRYPTION_SALT are validated at startup by config.validation.ts
@@ -17,7 +18,9 @@ export class EncryptionService {
     const salt = process.env.ENCRYPTION_SALT;
 
     if (!secret || !salt) {
-      throw new Error('ENCRYPTION_KEY and ENCRYPTION_SALT must be configured - this should have been caught at startup');
+      throw new Error(
+        'ENCRYPTION_KEY and ENCRYPTION_SALT must be configured - this should have been caught at startup',
+      );
     }
 
     return crypto.scryptSync(secret, salt, this.keyLength);
@@ -57,7 +60,10 @@ export class EncryptionService {
 
       return decrypted;
     } catch (error) {
-      this.logger.error('Decryption failed', error instanceof Error ? error.stack : String(error));
+      this.logger.error(
+        'Decryption failed',
+        error instanceof Error ? error.stack : String(error),
+      );
       throw new Error('Failed to decrypt data');
     }
   }

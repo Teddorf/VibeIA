@@ -10,6 +10,7 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { SECURITY_DEFAULTS } from '../../../config/defaults';
 
 export interface WorkspaceConfig {
   base: 'ubuntu:22.04' | 'node:20-alpine' | 'python:3.11-slim';
@@ -194,24 +195,24 @@ export interface RateLimitConfig {
 
 export const DEFAULT_RATE_LIMITS: Record<string, RateLimitConfig> = {
   global: {
-    windowMs: 60 * 1000,
-    maxRequests: 100,
+    windowMs: SECURITY_DEFAULTS.rateLimits.global.windowMs,
+    maxRequests: SECURITY_DEFAULTS.rateLimits.global.maxRequests,
     message: 'Too many requests, please try again later',
     skipPaths: ['/api/health', '/api/status'],
   },
   auth: {
-    windowMs: 15 * 60 * 1000,
-    maxRequests: 5,
+    windowMs: SECURITY_DEFAULTS.rateLimits.auth.windowMs,
+    maxRequests: SECURITY_DEFAULTS.rateLimits.auth.maxRequests,
     message: 'Too many authentication attempts, please try again later',
   },
   api: {
-    windowMs: 60 * 1000,
-    maxRequests: 60,
+    windowMs: SECURITY_DEFAULTS.rateLimits.api.windowMs,
+    maxRequests: SECURITY_DEFAULTS.rateLimits.api.maxRequests,
     message: 'API rate limit exceeded',
   },
   llm: {
-    windowMs: 60 * 1000,
-    maxRequests: 10,
+    windowMs: SECURITY_DEFAULTS.rateLimits.llm.windowMs,
+    maxRequests: SECURITY_DEFAULTS.rateLimits.llm.maxRequests,
     message: 'LLM request rate limit exceeded',
   },
 };
@@ -231,7 +232,8 @@ export const DEFAULT_SECURITY_HEADERS: SecurityHeaders = {
   'X-Frame-Options': 'DENY',
   'X-XSS-Protection': '1; mode=block',
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-  'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+  'Content-Security-Policy':
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
@@ -243,15 +245,35 @@ export interface GitIgnoreEntry {
 }
 
 export const DEFAULT_GITIGNORE_SECRETS: GitIgnoreEntry[] = [
-  { pattern: '.env', description: 'Environment variables file', isSecret: true },
-  { pattern: '.env.local', description: 'Local environment variables', isSecret: true },
-  { pattern: '.env.*.local', description: 'Local environment overrides', isSecret: true },
+  {
+    pattern: '.env',
+    description: 'Environment variables file',
+    isSecret: true,
+  },
+  {
+    pattern: '.env.local',
+    description: 'Local environment variables',
+    isSecret: true,
+  },
+  {
+    pattern: '.env.*.local',
+    description: 'Local environment overrides',
+    isSecret: true,
+  },
   { pattern: '*.pem', description: 'PEM certificate files', isSecret: true },
   { pattern: '*.key', description: 'Private key files', isSecret: true },
-  { pattern: 'credentials.json', description: 'Credentials file', isSecret: true },
+  {
+    pattern: 'credentials.json',
+    description: 'Credentials file',
+    isSecret: true,
+  },
   { pattern: 'secrets.json', description: 'Secrets file', isSecret: true },
   { pattern: '.secrets/', description: 'Secrets directory', isSecret: true },
-  { pattern: 'service-account*.json', description: 'Service account keys', isSecret: true },
+  {
+    pattern: 'service-account*.json',
+    description: 'Service account keys',
+    isSecret: true,
+  },
 ];
 
 export enum TokenType {

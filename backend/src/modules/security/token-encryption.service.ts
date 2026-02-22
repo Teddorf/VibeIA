@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { ENCRYPTION_DEFAULTS } from '../../config/defaults';
 
 /**
  * Service for encrypting/decrypting sensitive tokens and API keys.
@@ -9,12 +10,20 @@ import * as crypto from 'crypto';
 @Injectable()
 export class TokenEncryptionService {
   private readonly encryptionKey: Buffer;
-  private readonly algorithm = 'aes-256-gcm';
+  private readonly algorithm = ENCRYPTION_DEFAULTS.algorithm;
 
   constructor(private readonly configService: ConfigService) {
-    const key = this.configService.get<string>('ENCRYPTION_KEY') || 'default-key-for-development-only!';
-    const salt = this.configService.get<string>('ENCRYPTION_SALT') || 'default-salt-dev-16';
-    this.encryptionKey = crypto.scryptSync(key, salt, 32);
+    const key =
+      this.configService.get<string>('ENCRYPTION_KEY') ||
+      'default-key-for-development-only!';
+    const salt =
+      this.configService.get<string>('ENCRYPTION_SALT') ||
+      'default-salt-dev-16';
+    this.encryptionKey = crypto.scryptSync(
+      key,
+      salt,
+      ENCRYPTION_DEFAULTS.keyLength,
+    );
   }
 
   /**
@@ -23,8 +32,12 @@ export class TokenEncryptionService {
    * @returns Encrypted string in format: iv:authTag:ciphertext (all hex encoded)
    */
   encrypt(plaintext: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(this.algorithm, this.encryptionKey, iv);
+    const iv = crypto.randomBytes(ENCRYPTION_DEFAULTS.ivLength);
+    const cipher = crypto.createCipheriv(
+      this.algorithm,
+      this.encryptionKey,
+      iv,
+    );
 
     let encrypted = cipher.update(plaintext, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -45,7 +58,11 @@ export class TokenEncryptionService {
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
 
-    const decipher = crypto.createDecipheriv(this.algorithm, this.encryptionKey, iv);
+    const decipher = crypto.createDecipheriv(
+      this.algorithm,
+      this.encryptionKey,
+      iv,
+    );
     decipher.setAuthTag(authTag);
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
@@ -62,6 +79,8 @@ export class TokenEncryptionService {
     const parts = data.split(':');
     // Should have 3 parts: iv, authTag, ciphertext
     // iv is 32 hex chars (16 bytes), authTag is 32 hex chars (16 bytes)
-    return parts.length === 3 && parts[0].length === 32 && parts[1].length === 32;
+    return (
+      parts.length === 3 && parts[0].length === 32 && parts[1].length === 32
+    );
   }
 }

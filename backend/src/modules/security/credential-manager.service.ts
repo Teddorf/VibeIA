@@ -3,7 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-import { Credential, CredentialDocument, CredentialProvider as SchemaCredentialProvider, CredentialStatus } from './schemas/credential.schema';
+import { ENCRYPTION_DEFAULTS } from '../../config/defaults';
+import {
+  Credential,
+  CredentialDocument,
+  CredentialProvider as SchemaCredentialProvider,
+  CredentialStatus,
+} from './schemas/credential.schema';
 import {
   CredentialProvider,
   StoreCredentialDto,
@@ -15,15 +21,24 @@ import {
 export class CredentialManagerService {
   private readonly logger = new Logger(CredentialManagerService.name);
   private readonly encryptionKey: Buffer;
-  private readonly algorithm = 'aes-256-gcm';
+  private readonly algorithm = ENCRYPTION_DEFAULTS.algorithm;
 
   constructor(
-    @InjectModel(Credential.name) private credentialModel: Model<CredentialDocument>,
+    @InjectModel(Credential.name)
+    private credentialModel: Model<CredentialDocument>,
     private readonly configService: ConfigService,
   ) {
-    const key = this.configService.get<string>('ENCRYPTION_KEY') || 'default-key-for-development-only!';
-    const salt = this.configService.get<string>('ENCRYPTION_SALT') || 'default-salt-dev-16';
-    this.encryptionKey = crypto.scryptSync(key, salt, 32);
+    const key =
+      this.configService.get<string>('ENCRYPTION_KEY') ||
+      'default-key-for-development-only!';
+    const salt =
+      this.configService.get<string>('ENCRYPTION_SALT') ||
+      'default-salt-dev-16';
+    this.encryptionKey = crypto.scryptSync(
+      key,
+      salt,
+      ENCRYPTION_DEFAULTS.keyLength,
+    );
   }
 
   async storeCredential(
@@ -43,7 +58,9 @@ export class CredentialManagerService {
 
     const saved = await credential.save();
 
-    this.logger.log(`Stored credential ${saved._id} for provider ${dto.provider}`);
+    this.logger.log(
+      `Stored credential ${saved._id} for provider ${dto.provider}`,
+    );
 
     return { id: saved._id.toString(), provider: dto.provider };
   }
@@ -79,7 +96,9 @@ export class CredentialManagerService {
 
   async getCredentialById(credentialId: string): Promise<string | null> {
     try {
-      const credential = await this.credentialModel.findById(credentialId).exec();
+      const credential = await this.credentialModel
+        .findById(credentialId)
+        .exec();
       if (!credential) return null;
 
       if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
@@ -121,7 +140,10 @@ export class CredentialManagerService {
     }));
   }
 
-  async deleteCredential(userId: string, credentialId: string): Promise<boolean> {
+  async deleteCredential(
+    userId: string,
+    credentialId: string,
+  ): Promise<boolean> {
     try {
       const result = await this.credentialModel
         .findOneAndDelete({ _id: credentialId, userId })
@@ -165,11 +187,15 @@ export class CredentialManagerService {
 
   async shouldRotate(credentialId: string): Promise<boolean> {
     try {
-      const credential = await this.credentialModel.findById(credentialId).exec();
+      const credential = await this.credentialModel
+        .findById(credentialId)
+        .exec();
       if (!credential) return false;
 
-      const rotationInterval = (credential.rotationDays || 90) * 24 * 60 * 60 * 1000;
-      const lastRotation = credential.updatedAt || credential.createdAt || new Date();
+      const rotationInterval =
+        (credential.rotationDays || 90) * 24 * 60 * 60 * 1000;
+      const lastRotation =
+        credential.updatedAt || credential.createdAt || new Date();
       return Date.now() - lastRotation.getTime() > rotationInterval;
     } catch {
       return false;
@@ -201,7 +227,10 @@ export class CredentialManagerService {
     }
   }
 
-  ensureGitignore(projectPath: string, additionalSecrets?: string[]): GitIgnoreEntry[] {
+  ensureGitignore(
+    projectPath: string,
+    additionalSecrets?: string[],
+  ): GitIgnoreEntry[] {
     const entries = [...DEFAULT_GITIGNORE_SECRETS];
 
     if (additionalSecrets) {
@@ -233,8 +262,12 @@ export class CredentialManagerService {
   }
 
   private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(this.algorithm, this.encryptionKey, iv);
+    const iv = crypto.randomBytes(ENCRYPTION_DEFAULTS.ivLength);
+    const cipher = crypto.createCipheriv(
+      this.algorithm,
+      this.encryptionKey,
+      iv,
+    );
 
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -250,7 +283,11 @@ export class CredentialManagerService {
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
 
-    const decipher = crypto.createDecipheriv(this.algorithm, this.encryptionKey, iv);
+    const decipher = crypto.createDecipheriv(
+      this.algorithm,
+      this.encryptionKey,
+      iv,
+    );
     decipher.setAuthTag(authTag);
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
@@ -292,11 +329,14 @@ export class CredentialManagerService {
     error?: string;
   }> {
     try {
-      const response = await fetch('https://console.neon.tech/api/v2/projects', {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        'https://console.neon.tech/api/v2/projects',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         return { valid: false, error: 'Invalid Neon token' };
