@@ -14,6 +14,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Copy, Upload, ArrowLeft } from 'lucide-react';
+import { splitLines } from '@/lib/platform';
 
 export interface ExpertModeConfig {
   projectName: string;
@@ -123,9 +124,7 @@ infra: ${infra}`;
 
   const handleFeatureToggle = (featureId: string) => {
     setFeatures((prev) =>
-      prev.includes(featureId)
-        ? prev.filter((f) => f !== featureId)
-        : [...prev, featureId]
+      prev.includes(featureId) ? prev.filter((f) => f !== featureId) : [...prev, featureId],
     );
   };
 
@@ -178,7 +177,7 @@ infra: ${infra}`;
 
   const parseSimpleYaml = (yaml: string): Record<string, unknown> => {
     const result: Record<string, unknown> = {};
-    const lines = yaml.split('\n');
+    const lines = splitLines(yaml);
 
     // Check for syntax errors (multiple colons in key position)
     for (const line of lines) {
@@ -272,10 +271,7 @@ infra: ${infra}`;
               </select>
             </div>
             <div className="flex items-end">
-              <Button
-                variant="outline"
-                onClick={() => setShowImportModal(true)}
-              >
+              <Button variant="outline" onClick={() => setShowImportModal(true)}>
                 <Upload className="w-4 h-4 mr-2" />
                 Importar
               </Button>
@@ -410,11 +406,7 @@ infra: ${infra}`;
             >
               Generar Plan
             </Button>
-            <Button
-              className="flex-1"
-              disabled={!isValid}
-              onClick={() => handleGenerate(true)}
-            >
+            <Button className="flex-1" disabled={!isValid} onClick={() => handleGenerate(true)}>
               Generar y Ejecutar
             </Button>
           </div>
@@ -443,9 +435,7 @@ infra: ${infra}`;
                 className="font-mono"
               />
             </div>
-            {importError && (
-              <div className="text-sm text-red-500">{importError}</div>
-            )}
+            {importError && <div className="text-sm text-red-500">{importError}</div>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowImportModal(false)}>

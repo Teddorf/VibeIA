@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { DependencyInfo, Dependency, OutdatedDependency } from '../dto/analysis-result.dto';
+import {
+  DependencyInfo,
+  Dependency,
+  OutdatedDependency,
+} from '../dto/analysis-result.dto';
+import { splitLines } from '../../../platform';
 
 @Injectable()
 export class DependenciesAnalyzer {
@@ -14,8 +19,14 @@ export class DependenciesAnalyzer {
 
     // Parse npm dependencies
     if (packageJson) {
-      const npmProd = this.parseNpmDependencies(packageJson.dependencies || {}, 'npm');
-      const npmDev = this.parseNpmDependencies(packageJson.devDependencies || {}, 'npm');
+      const npmProd = this.parseNpmDependencies(
+        packageJson.dependencies || {},
+        'npm',
+      );
+      const npmDev = this.parseNpmDependencies(
+        packageJson.devDependencies || {},
+        'npm',
+      );
       production.push(...npmProd);
       development.push(...npmDev);
     }
@@ -59,7 +70,7 @@ export class DependenciesAnalyzer {
 
   private parsePythonDependencies(requirementsTxt: string): Dependency[] {
     const deps: Dependency[] = [];
-    const lines = requirementsTxt.split('\n');
+    const lines = splitLines(requirementsTxt);
 
     for (const line of lines) {
       const trimmed = line.trim();
@@ -85,7 +96,7 @@ export class DependenciesAnalyzer {
 
   private parseGoDependencies(goMod: string): Dependency[] {
     const deps: Dependency[] = [];
-    const lines = goMod.split('\n');
+    const lines = splitLines(goMod);
     let inRequireBlock = false;
 
     for (const line of lines) {
@@ -102,7 +113,9 @@ export class DependenciesAnalyzer {
       }
 
       // Single require statement or inside block
-      const requireMatch = trimmed.match(/^(?:require\s+)?([^\s]+)\s+v?([^\s]+)/);
+      const requireMatch = trimmed.match(
+        /^(?:require\s+)?([^\s]+)\s+v?([^\s]+)/,
+      );
       if (requireMatch && (inRequireBlock || trimmed.startsWith('require'))) {
         deps.push({
           name: requireMatch[1],
@@ -117,7 +130,7 @@ export class DependenciesAnalyzer {
 
   private parseCargoToml(cargoToml: string): Dependency[] {
     const deps: Dependency[] = [];
-    const lines = cargoToml.split('\n');
+    const lines = splitLines(cargoToml);
     let inDependencies = false;
     let inDevDependencies = false;
 
@@ -145,7 +158,9 @@ export class DependenciesAnalyzer {
       if (inDependencies || inDevDependencies) {
         // Parse: package = "version" or package = { version = "x.y.z" }
         const simpleMatch = trimmed.match(/^([a-zA-Z0-9_-]+)\s*=\s*"([^"]+)"/);
-        const complexMatch = trimmed.match(/^([a-zA-Z0-9_-]+)\s*=\s*\{.*version\s*=\s*"([^"]+)"/);
+        const complexMatch = trimmed.match(
+          /^([a-zA-Z0-9_-]+)\s*=\s*\{.*version\s*=\s*"([^"]+)"/,
+        );
 
         const match = simpleMatch || complexMatch;
         if (match) {

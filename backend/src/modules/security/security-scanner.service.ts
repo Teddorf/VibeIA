@@ -7,6 +7,7 @@ import {
   ScanFilesDto,
   SecretPattern,
 } from './dto/security.dto';
+import { splitLines } from '../../platform';
 
 @Injectable()
 export class SecurityScannerService {
@@ -23,7 +24,11 @@ export class SecurityScannerService {
 
     for (const file of dto.files) {
       if (dto.options?.checkSecrets !== false) {
-        const fileSecrets = this.scanForSecrets(file.path, file.content, patterns);
+        const fileSecrets = this.scanForSecrets(
+          file.path,
+          file.content,
+          patterns,
+        );
         secretsFound.push(...fileSecrets);
       }
 
@@ -34,7 +39,10 @@ export class SecurityScannerService {
     }
 
     const riskScore = this.calculateRiskScore(secretsFound, vulnerabilities);
-    const recommendations = this.generateRecommendations(secretsFound, vulnerabilities);
+    const recommendations = this.generateRecommendations(
+      secretsFound,
+      vulnerabilities,
+    );
 
     const report: SecurityScanReport = {
       scannedAt: new Date(),
@@ -59,7 +67,7 @@ export class SecurityScannerService {
     patterns: SecretPattern[] = SECRET_PATTERNS,
   ): SecretScanResult[] {
     const results: SecretScanResult[] = [];
-    const lines = content.split('\n');
+    const lines = splitLines(content);
 
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       const line = lines[lineIndex];
@@ -87,9 +95,12 @@ export class SecurityScannerService {
     return results;
   }
 
-  scanForVulnerabilities(filePath: string, content: string): VulnerabilityResult[] {
+  scanForVulnerabilities(
+    filePath: string,
+    content: string,
+  ): VulnerabilityResult[] {
     const vulnerabilities: VulnerabilityResult[] = [];
-    const lines = content.split('\n');
+    const lines = splitLines(content);
 
     // Check for common vulnerabilities
     const vulnPatterns = [
@@ -98,7 +109,8 @@ export class SecurityScannerService {
         type: 'Code Injection',
         severity: 'critical' as const,
         description: 'Use of eval() can lead to code injection attacks',
-        remediation: 'Avoid using eval(). Use safer alternatives like JSON.parse() for JSON data',
+        remediation:
+          'Avoid using eval(). Use safer alternatives like JSON.parse() for JSON data',
       },
       {
         pattern: /innerHTML\s*=/g,
@@ -119,7 +131,8 @@ export class SecurityScannerService {
         type: 'Code Injection',
         severity: 'critical' as const,
         description: 'Dynamic function creation can lead to code injection',
-        remediation: 'Avoid dynamic function creation. Use predefined functions',
+        remediation:
+          'Avoid dynamic function creation. Use predefined functions',
       },
       {
         pattern: /child_process\.exec\s*\(/g,
@@ -139,7 +152,8 @@ export class SecurityScannerService {
         pattern: /sql\s*=\s*[`"'].*\+/gi,
         type: 'SQL Injection',
         severity: 'critical' as const,
-        description: 'String concatenation in SQL queries can lead to injection',
+        description:
+          'String concatenation in SQL queries can lead to injection',
         remediation: 'Use parameterized queries or prepared statements',
       },
       {
@@ -320,7 +334,9 @@ export class SecurityScannerService {
     // Group secrets by type
     const secretTypes = new Set(secrets.map((s) => s.secret.type));
     for (const type of secretTypes) {
-      recommendations.push(`Remove or rotate all ${type} found in the codebase`);
+      recommendations.push(
+        `Remove or rotate all ${type} found in the codebase`,
+      );
     }
 
     // Group vulnerabilities by type
@@ -334,12 +350,16 @@ export class SecurityScannerService {
 
     // General recommendations
     if (secrets.length > 0) {
-      recommendations.push('Use environment variables or a secret manager for sensitive data');
+      recommendations.push(
+        'Use environment variables or a secret manager for sensitive data',
+      );
       recommendations.push('Ensure .gitignore includes all sensitive files');
     }
 
     if (vulnerabilities.some((v) => v.severity === 'critical')) {
-      recommendations.push('Address all critical vulnerabilities before deployment');
+      recommendations.push(
+        'Address all critical vulnerabilities before deployment',
+      );
     }
 
     return [...new Set(recommendations)];

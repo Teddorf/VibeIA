@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { APIEndpoint, APIDocumentation } from './dto/documentation.dto';
+import { splitLines } from '../../platform';
 
 @Injectable()
 export class ApiDocsGeneratorService {
@@ -72,7 +73,8 @@ export class ApiDocsGeneratorService {
         spec.paths[endpoint.path] = {};
       }
 
-      spec.paths[endpoint.path][endpoint.method.toLowerCase()] = this.buildPathItem(endpoint);
+      spec.paths[endpoint.path][endpoint.method.toLowerCase()] =
+        this.buildPathItem(endpoint);
     }
 
     return JSON.stringify(spec, null, 2);
@@ -132,7 +134,9 @@ export class ApiDocsGeneratorService {
     return item;
   }
 
-  private extractTags(endpoints: APIEndpoint[]): { name: string; description: string }[] {
+  private extractTags(
+    endpoints: APIEndpoint[],
+  ): { name: string; description: string }[] {
     const tagSet = new Set<string>();
     for (const endpoint of endpoints) {
       if (endpoint.tags) {
@@ -217,7 +221,12 @@ export class ApiDocsGeneratorService {
           lines.push(`- **${response.status}**: ${response.description}`);
           if (response.schema) {
             lines.push('  ```json');
-            lines.push('  ' + JSON.stringify(response.schema, null, 2).split('\n').join('\n  '));
+            lines.push(
+              '  ' +
+                splitLines(JSON.stringify(response.schema, null, 2)).join(
+                  '\n  ',
+                ),
+            );
             lines.push('  ```');
           }
         }
@@ -252,7 +261,8 @@ export class ApiDocsGeneratorService {
     const grouped: Record<string, APIEndpoint[]> = {};
 
     for (const endpoint of endpoints) {
-      const tag = endpoint.tags && endpoint.tags.length > 0 ? endpoint.tags[0] : 'Other';
+      const tag =
+        endpoint.tags && endpoint.tags.length > 0 ? endpoint.tags[0] : 'Other';
       if (!grouped[tag]) {
         grouped[tag] = [];
       }
@@ -279,11 +289,30 @@ export class ApiDocsGeneratorService {
         description: `Retrieve a list of all ${resourcePlural}`,
         tags: [tag],
         parameters: [
-          { name: 'page', in: 'query', type: 'integer', required: false, description: 'Page number' },
-          { name: 'limit', in: 'query', type: 'integer', required: false, description: 'Items per page' },
+          {
+            name: 'page',
+            in: 'query',
+            type: 'integer',
+            required: false,
+            description: 'Page number',
+          },
+          {
+            name: 'limit',
+            in: 'query',
+            type: 'integer',
+            required: false,
+            description: 'Items per page',
+          },
         ],
         responses: [
-          { status: 200, description: `List of ${resourcePlural}`, schema: { type: 'array', items: { $ref: `#/components/schemas/${resourceName}` } } },
+          {
+            status: 200,
+            description: `List of ${resourcePlural}`,
+            schema: {
+              type: 'array',
+              items: { $ref: `#/components/schemas/${resourceName}` },
+            },
+          },
           { status: 401, description: 'Unauthorized' },
         ],
       },
@@ -294,10 +323,20 @@ export class ApiDocsGeneratorService {
         description: `Retrieve a single ${resourceName} by its ID`,
         tags: [tag],
         parameters: [
-          { name: 'id', in: 'path', type: 'string', required: true, description: `${resourceName} ID` },
+          {
+            name: 'id',
+            in: 'path',
+            type: 'string',
+            required: true,
+            description: `${resourceName} ID`,
+          },
         ],
         responses: [
-          { status: 200, description: `${resourceName} details`, schema: { $ref: `#/components/schemas/${resourceName}` } },
+          {
+            status: 200,
+            description: `${resourceName} details`,
+            schema: { $ref: `#/components/schemas/${resourceName}` },
+          },
           { status: 404, description: `${resourceName} not found` },
           { status: 401, description: 'Unauthorized' },
         ],
@@ -314,7 +353,11 @@ export class ApiDocsGeneratorService {
           required: Object.keys(schema).filter((k) => !k.includes('?')),
         },
         responses: [
-          { status: 201, description: `${resourceName} created`, schema: { $ref: `#/components/schemas/${resourceName}` } },
+          {
+            status: 201,
+            description: `${resourceName} created`,
+            schema: { $ref: `#/components/schemas/${resourceName}` },
+          },
           { status: 400, description: 'Validation error' },
           { status: 401, description: 'Unauthorized' },
         ],
@@ -326,14 +369,24 @@ export class ApiDocsGeneratorService {
         description: `Update an existing ${resourceName}`,
         tags: [tag],
         parameters: [
-          { name: 'id', in: 'path', type: 'string', required: true, description: `${resourceName} ID` },
+          {
+            name: 'id',
+            in: 'path',
+            type: 'string',
+            required: true,
+            description: `${resourceName} ID`,
+          },
         ],
         requestBody: {
           type: resourceName,
           properties: schema,
         },
         responses: [
-          { status: 200, description: `${resourceName} updated`, schema: { $ref: `#/components/schemas/${resourceName}` } },
+          {
+            status: 200,
+            description: `${resourceName} updated`,
+            schema: { $ref: `#/components/schemas/${resourceName}` },
+          },
           { status: 404, description: `${resourceName} not found` },
           { status: 400, description: 'Validation error' },
           { status: 401, description: 'Unauthorized' },
@@ -346,7 +399,13 @@ export class ApiDocsGeneratorService {
         description: `Delete a ${resourceName}`,
         tags: [tag],
         parameters: [
-          { name: 'id', in: 'path', type: 'string', required: true, description: `${resourceName} ID` },
+          {
+            name: 'id',
+            in: 'path',
+            type: 'string',
+            required: true,
+            description: `${resourceName} ID`,
+          },
         ],
         responses: [
           { status: 204, description: `${resourceName} deleted` },
