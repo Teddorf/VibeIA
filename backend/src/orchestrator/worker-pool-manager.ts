@@ -46,6 +46,7 @@ export class WorkerPoolManager {
     maxWorkers: number = this.config.workers.maxPerAgent,
   ): Promise<void> {
     const queue = this.queueProvider.getQueue<AgentJobData>(`agent:${agentId}`);
+    queue.setConcurrency(maxWorkers);
 
     this.pools.set(agentId, {
       queue,

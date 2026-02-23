@@ -11,6 +11,7 @@ import { OrchestratorService } from './orchestrator.service';
 import { OrchestratorController } from './orchestrator.controller';
 import { WorkerPoolManager } from './worker-pool-manager';
 import { WorkerPoolController } from './worker-pool.controller';
+import { AgentJobRunner } from './agent-job-runner';
 import { TraceContext } from '../observability/trace';
 import { StructuredLogger } from '../observability/structured-logger';
 
@@ -23,6 +24,7 @@ import { StructuredLogger } from '../observability/structured-logger';
     ResultEvaluator,
     OrchestratorService,
     WorkerPoolManager,
+    AgentJobRunner,
     TraceContext,
     StructuredLogger,
   ],
@@ -33,6 +35,7 @@ import { StructuredLogger } from '../observability/structured-logger';
     Scheduler,
     ModelRouter,
     WorkerPoolManager,
+    AgentJobRunner,
     TraceContext,
     StructuredLogger,
   ],

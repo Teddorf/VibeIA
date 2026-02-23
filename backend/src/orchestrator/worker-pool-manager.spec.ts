@@ -14,6 +14,7 @@ describe('WorkerPoolManager', () => {
       process: jest.fn(),
       getWaiting: jest.fn().mockResolvedValue([]),
       getActive: jest.fn().mockResolvedValue([]),
+      setConcurrency: jest.fn(),
     };
     mockQueueProvider = {
       getQueue: jest.fn().mockReturnValue(mockQueue),
