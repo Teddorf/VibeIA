@@ -1,17 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import { PlansService } from './plans.service';
 import { Plan } from '../../schemas/plan.schema';
 import { LlmService } from '../llm/llm.service';
-import { CreatePlanDto } from './dto/create-plan.dto';
-
 import { UsersService } from '../users/users.service';
 import { ProjectsService } from '../projects/projects.service';
 import { BadRequestException } from '@nestjs/common';
+import { PLAN_REPOSITORY } from '../../providers/repository-tokens';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
 
 describe('PlansService', () => {
   let service: PlansService;
   let llmService: LlmService;
+  let mockPlanRepo: jest.Mocked<IRepository<Plan>>;
 
   const mockLlmResponse = {
     plan: {
@@ -25,12 +25,12 @@ describe('PlansService', () => {
               description: 'Configure MongoDB',
               estimatedTime: 10,
               dependencies: [],
-              status: 'pending'
-            }
+              status: 'pending',
+            },
           ],
           estimatedTime: 60,
-          status: 'pending'
-        }
+          status: 'pending',
+        },
       ],
       estimatedTime: 60,
     },
@@ -53,20 +53,6 @@ describe('PlansService', () => {
     status: 'pending',
   };
 
-  const mockPlanModel = {
-    find: jest.fn().mockReturnValue({
-      sort: jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue([mockPlan]),
-      }),
-    }),
-    findById: jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(mockPlan),
-    }),
-    findByIdAndUpdate: jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue({ ...mockPlan, status: 'in_progress' }),
-    }),
-  };
-
   const mockUsersService = {
     hasLLMConfigured: jest.fn(),
     getActiveLLMApiKeys: jest.fn(),
@@ -78,12 +64,29 @@ describe('PlansService', () => {
   };
 
   beforeEach(async () => {
+    mockPlanRepo = {
+      findById: jest.fn().mockResolvedValue(mockPlan),
+      findOne: jest.fn().mockResolvedValue(mockPlan),
+      find: jest.fn().mockResolvedValue([mockPlan]),
+      create: jest.fn().mockResolvedValue(mockPlan),
+      update: jest
+        .fn()
+        .mockResolvedValue({ ...mockPlan, status: 'in_progress' }),
+      delete: jest.fn().mockResolvedValue(true),
+      findOneAndUpdate: jest.fn().mockResolvedValue(mockPlan),
+      findOneAndDelete: jest.fn().mockResolvedValue(mockPlan),
+      updateMany: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
+      count: jest.fn().mockResolvedValue(0),
+      insertMany: jest.fn().mockResolvedValue([]),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PlansService,
         {
-          provide: getModelToken(Plan.name),
-          useValue: mockPlanModel,
+          provide: PLAN_REPOSITORY,
+          useValue: mockPlanRepo,
         },
         {
           provide: LlmService,
@@ -114,14 +117,20 @@ describe('PlansService', () => {
     it('should return all plans for a user', async () => {
       const result = await service.findAll('user123');
 
-      expect(mockPlanModel.find).toHaveBeenCalledWith({ userId: 'user123' });
+      expect(mockPlanRepo.find).toHaveBeenCalledWith(
+        { userId: 'user123' },
+        { sort: { createdAt: -1 } },
+      );
       expect(result).toEqual([mockPlan]);
     });
 
     it('should filter by projectId when provided', async () => {
       const result = await service.findAll('user123', 'proj123');
 
-      expect(mockPlanModel.find).toHaveBeenCalledWith({ userId: 'user123', projectId: 'proj123' });
+      expect(mockPlanRepo.find).toHaveBeenCalledWith(
+        { userId: 'user123', projectId: 'proj123' },
+        { sort: { createdAt: -1 } },
+      );
       expect(result).toEqual([mockPlan]);
     });
   });
@@ -130,7 +139,7 @@ describe('PlansService', () => {
     it('should return a plan by id without userId check (internal)', async () => {
       const result = await service.findOne('plan123');
 
-      expect(mockPlanModel.findById).toHaveBeenCalledWith('plan123');
+      expect(mockPlanRepo.findById).toHaveBeenCalledWith('plan123');
       expect(result).toEqual(mockPlan);
     });
 
@@ -141,35 +150,37 @@ describe('PlansService', () => {
 
     it('should throw BadRequestException if userId does not match', async () => {
       const otherUserPlan = { ...mockPlan, userId: 'otherUser' };
-      // Create a fresh mock context to avoid side effects
-      mockPlanModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(otherUserPlan),
-      });
+      mockPlanRepo.findById.mockResolvedValue(otherUserPlan as any);
 
-      await expect(service.findOne('plan123', 'user123')).rejects.toThrow(BadRequestException);
+      await expect(service.findOne('plan123', 'user123')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
   describe('updateStatus', () => {
     it('should update plan status if user owns plan', async () => {
-      // Reset standard mock for success case
-      mockPlanModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockPlan),
+      mockPlanRepo.findById.mockResolvedValue(mockPlan as any);
+
+      const result = await service.updateStatus(
+        'plan123',
+        'in_progress',
+        'user123',
+      );
+
+      expect(mockPlanRepo.update).toHaveBeenCalledWith('plan123', {
+        status: 'in_progress',
       });
-
-      const result = await service.updateStatus('plan123', 'in_progress', 'user123');
-
-      expect(mockPlanModel.findByIdAndUpdate).toHaveBeenCalled();
-      expect(result.status).toBe('in_progress');
+      expect(result!.status).toBe('in_progress');
     });
 
     it('should fail to update status if user does not own plan', async () => {
       const otherUserPlan = { ...mockPlan, userId: 'otherUser' };
-      mockPlanModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(otherUserPlan),
-      });
+      mockPlanRepo.findById.mockResolvedValue(otherUserPlan as any);
 
-      await expect(service.updateStatus('plan123', 'in_progress', 'user123')).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateStatus('plan123', 'in_progress', 'user123'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

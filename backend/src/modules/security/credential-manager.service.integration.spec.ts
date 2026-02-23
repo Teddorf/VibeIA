@@ -21,6 +21,8 @@ import {
   CredentialSchema,
 } from './schemas/credential.schema';
 import { CredentialProvider } from './dto/security.dto';
+import { CREDENTIAL_REPOSITORY } from '../../providers/repository-tokens';
+import { createRepositoryProvider } from '../../providers/repository-providers.factory';
 
 // Extended timeout for Windows MongoDB startup
 const DB_TEST_TIMEOUT = 60000;
@@ -44,6 +46,7 @@ describe('CredentialManagerService Integration', () => {
       ],
       providers: [
         CredentialManagerService,
+        createRepositoryProvider(CREDENTIAL_REPOSITORY, Credential.name),
         {
           provide: ConfigService,
           useValue: {

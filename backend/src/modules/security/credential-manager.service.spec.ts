@@ -1,16 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { CredentialManagerService } from './credential-manager.service';
-import { Credential, CredentialStatus } from './schemas/credential.schema';
-import { CredentialProvider, DEFAULT_GITIGNORE_SECRETS } from './dto/security.dto';
+import { CredentialStatus } from './schemas/credential.schema';
+import {
+  CredentialProvider,
+  DEFAULT_GITIGNORE_SECRETS,
+} from './dto/security.dto';
+import { CREDENTIAL_REPOSITORY } from '../../providers/repository-tokens';
 
 // Mock fetch globally
 global.fetch = jest.fn();
 
 describe('CredentialManagerService', () => {
   let service: CredentialManagerService;
-  let credentialModel: any;
+  let credentialRepo: any;
 
   const mockUserId = 'user-123';
   const mockCredentialId = 'cred-123';
@@ -28,41 +31,31 @@ describe('CredentialManagerService', () => {
     lastUsedAt: null,
     tokenExpiresAt: null,
     rotationDays: 90,
-    save: jest.fn(),
   };
 
-  function createMockModel() {
-    const MockModel: any = function (this: any, doc: any) {
-      Object.assign(this, doc);
-      this.save = jest.fn().mockResolvedValue({ ...this, _id: mockCredentialId });
+  function createMockRepo() {
+    return {
+      findById: jest.fn().mockResolvedValue(null),
+      findOne: jest.fn().mockResolvedValue(null),
+      find: jest.fn().mockResolvedValue([]),
+      create: jest
+        .fn()
+        .mockImplementation((doc) =>
+          Promise.resolve({ ...doc, _id: mockCredentialId }),
+        ),
+      update: jest.fn().mockResolvedValue(null),
+      delete: jest.fn().mockResolvedValue(true),
+      findOneAndUpdate: jest.fn().mockResolvedValue(null),
+      findOneAndDelete: jest.fn().mockResolvedValue(null),
+      updateMany: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
+      count: jest.fn().mockResolvedValue(0),
+      insertMany: jest.fn().mockResolvedValue([]),
     };
-
-    MockModel.findOne = jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(null),
-    });
-    MockModel.findById = jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(null),
-    });
-    MockModel.find = jest.fn().mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue([]),
-      }),
-    });
-    MockModel.findOneAndDelete = jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(null),
-    });
-    MockModel.findOneAndUpdate = jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(null),
-    });
-    MockModel.findByIdAndUpdate = jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(null),
-    });
-
-    return MockModel;
   }
 
   beforeEach(async () => {
-    credentialModel = createMockModel();
+    credentialRepo = createMockRepo();
 
     const mockConfigService = {
       get: jest.fn((key: string) => {
@@ -74,7 +67,7 @@ describe('CredentialManagerService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CredentialManagerService,
-        { provide: getModelToken(Credential.name), useValue: credentialModel },
+        { provide: CREDENTIAL_REPOSITORY, useValue: credentialRepo },
         { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
@@ -117,13 +110,11 @@ describe('CredentialManagerService', () => {
 
   describe('getCredential', () => {
     it('should query database with correct parameters', async () => {
-      credentialModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+      credentialRepo.findOne.mockResolvedValue(null);
 
       await service.getCredential(mockUserId, CredentialProvider.GITHUB);
 
-      expect(credentialModel.findOne).toHaveBeenCalledWith({
+      expect(credentialRepo.findOne).toHaveBeenCalledWith({
         userId: mockUserId,
         provider: CredentialProvider.GITHUB,
         status: CredentialStatus.ACTIVE,
@@ -131,11 +122,12 @@ describe('CredentialManagerService', () => {
     });
 
     it('should return null if credential not found', async () => {
-      credentialModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+      credentialRepo.findOne.mockResolvedValue(null);
 
-      const result = await service.getCredential(mockUserId, CredentialProvider.GITHUB);
+      const result = await service.getCredential(
+        mockUserId,
+        CredentialProvider.GITHUB,
+      );
 
       expect(result).toBeNull();
     });
@@ -146,25 +138,23 @@ describe('CredentialManagerService', () => {
         tokenExpiresAt: new Date('2020-01-01'), // Past date
       };
 
-      credentialModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(expiredCred),
-      });
+      credentialRepo.findOne.mockResolvedValue(expiredCred);
 
-      const result = await service.getCredential(mockUserId, CredentialProvider.GITHUB);
+      const result = await service.getCredential(
+        mockUserId,
+        CredentialProvider.GITHUB,
+      );
 
       expect(result).toBeNull();
-      expect(credentialModel.findByIdAndUpdate).toHaveBeenCalledWith(
-        mockCredentialId,
-        { status: CredentialStatus.EXPIRED },
-      );
+      expect(credentialRepo.update).toHaveBeenCalledWith(mockCredentialId, {
+        status: CredentialStatus.EXPIRED,
+      });
     });
   });
 
   describe('getCredentialById', () => {
     it('should return null if credential not found', async () => {
-      credentialModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+      credentialRepo.findById.mockResolvedValue(null);
 
       const result = await service.getCredentialById('nonexistent-id');
 
@@ -177,9 +167,7 @@ describe('CredentialManagerService', () => {
         tokenExpiresAt: new Date('2020-01-01'),
       };
 
-      credentialModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(expiredCred),
-      });
+      credentialRepo.findById.mockResolvedValue(expiredCred);
 
       const result = await service.getCredentialById(mockCredentialId);
 
@@ -187,9 +175,7 @@ describe('CredentialManagerService', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      credentialModel.findById.mockReturnValue({
-        exec: jest.fn().mockRejectedValue(new Error('DB error')),
-      });
+      credentialRepo.findById.mockRejectedValue(new Error('DB error'));
 
       const result = await service.getCredentialById(mockCredentialId);
 
@@ -216,26 +202,21 @@ describe('CredentialManagerService', () => {
         },
       ];
 
-      credentialModel.find.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(credentials),
-        }),
-      });
+      credentialRepo.find.mockResolvedValue(credentials);
 
       const result = await service.listCredentials(mockUserId);
 
       expect(result).toHaveLength(2);
       expect(result[0].provider).toBe('github');
       expect(result[1].provider).toBe('vercel');
-      expect(credentialModel.find).toHaveBeenCalledWith({ userId: mockUserId });
+      expect(credentialRepo.find).toHaveBeenCalledWith(
+        { userId: mockUserId },
+        { select: '-encryptedToken -encryptedRefreshToken' },
+      );
     });
 
     it('should return empty array if no credentials', async () => {
-      credentialModel.find.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue([]),
-        }),
-      });
+      credentialRepo.find.mockResolvedValue([]);
 
       const result = await service.listCredentials(mockUserId);
 
@@ -245,23 +226,24 @@ describe('CredentialManagerService', () => {
 
   describe('deleteCredential', () => {
     it('should delete credential successfully', async () => {
-      credentialModel.findOneAndDelete.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ _id: mockCredentialId }),
+      credentialRepo.findOneAndDelete.mockResolvedValue({
+        _id: mockCredentialId,
       });
 
-      const result = await service.deleteCredential(mockUserId, mockCredentialId);
+      const result = await service.deleteCredential(
+        mockUserId,
+        mockCredentialId,
+      );
 
       expect(result).toBe(true);
-      expect(credentialModel.findOneAndDelete).toHaveBeenCalledWith({
+      expect(credentialRepo.findOneAndDelete).toHaveBeenCalledWith({
         _id: mockCredentialId,
         userId: mockUserId,
       });
     });
 
     it('should return false if credential not found', async () => {
-      credentialModel.findOneAndDelete.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+      credentialRepo.findOneAndDelete.mockResolvedValue(null);
 
       const result = await service.deleteCredential(mockUserId, 'nonexistent');
 
@@ -269,11 +251,12 @@ describe('CredentialManagerService', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      credentialModel.findOneAndDelete.mockReturnValue({
-        exec: jest.fn().mockRejectedValue(new Error('DB error')),
-      });
+      credentialRepo.findOneAndDelete.mockRejectedValue(new Error('DB error'));
 
-      const result = await service.deleteCredential(mockUserId, mockCredentialId);
+      const result = await service.deleteCredential(
+        mockUserId,
+        mockCredentialId,
+      );
 
       expect(result).toBe(false);
     });
@@ -281,8 +264,8 @@ describe('CredentialManagerService', () => {
 
   describe('rotateCredential', () => {
     it('should rotate credential successfully', async () => {
-      credentialModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ _id: mockCredentialId }),
+      credentialRepo.findOneAndUpdate.mockResolvedValue({
+        _id: mockCredentialId,
       });
 
       const result = await service.rotateCredential(
@@ -292,13 +275,11 @@ describe('CredentialManagerService', () => {
       );
 
       expect(result).toBe(true);
-      expect(credentialModel.findOneAndUpdate).toHaveBeenCalled();
+      expect(credentialRepo.findOneAndUpdate).toHaveBeenCalled();
     });
 
     it('should return false if credential not found', async () => {
-      credentialModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+      credentialRepo.findOneAndUpdate.mockResolvedValue(null);
 
       const result = await service.rotateCredential(
         mockUserId,
@@ -310,9 +291,7 @@ describe('CredentialManagerService', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      credentialModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockRejectedValue(new Error('DB error')),
-      });
+      credentialRepo.findOneAndUpdate.mockRejectedValue(new Error('DB error'));
 
       const result = await service.rotateCredential(
         mockUserId,
@@ -332,9 +311,7 @@ describe('CredentialManagerService', () => {
         updatedAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000), // 100 days ago
       };
 
-      credentialModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(oldCredential),
-      });
+      credentialRepo.findById.mockResolvedValue(oldCredential);
 
       const result = await service.shouldRotate(mockCredentialId);
 
@@ -348,9 +325,7 @@ describe('CredentialManagerService', () => {
         updatedAt: new Date(), // Just updated
       };
 
-      credentialModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(recentCredential),
-      });
+      credentialRepo.findById.mockResolvedValue(recentCredential);
 
       const result = await service.shouldRotate(mockCredentialId);
 
@@ -358,9 +333,7 @@ describe('CredentialManagerService', () => {
     });
 
     it('should return false if credential not found', async () => {
-      credentialModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+      credentialRepo.findById.mockResolvedValue(null);
 
       const result = await service.shouldRotate('nonexistent');
 
@@ -368,9 +341,7 @@ describe('CredentialManagerService', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      credentialModel.findById.mockReturnValue({
-        exec: jest.fn().mockRejectedValue(new Error('DB error')),
-      });
+      credentialRepo.findById.mockRejectedValue(new Error('DB error'));
 
       const result = await service.shouldRotate(mockCredentialId);
 
@@ -395,7 +366,10 @@ describe('CredentialManagerService', () => {
       );
 
       expect(result.valid).toBe(true);
-      expect(result.accountInfo).toEqual({ login: 'testuser', name: 'Test User' });
+      expect(result.accountInfo).toEqual({
+        login: 'testuser',
+        name: 'Test User',
+      });
     });
 
     it('should return invalid for bad GitHub token', async () => {
@@ -431,7 +405,9 @@ describe('CredentialManagerService', () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         json: () =>
-          Promise.resolve({ user: { username: 'testuser', email: 'test@example.com' } }),
+          Promise.resolve({
+            user: { username: 'testuser', email: 'test@example.com' },
+          }),
       });
 
       const result = await service.validateToken(
@@ -440,14 +416,19 @@ describe('CredentialManagerService', () => {
       );
 
       expect(result.valid).toBe(true);
-      expect(result.accountInfo).toEqual({ username: 'testuser', email: 'test@example.com' });
+      expect(result.accountInfo).toEqual({
+        username: 'testuser',
+        email: 'test@example.com',
+      });
     });
 
     it('should validate Railway token successfully', async () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         json: () =>
-          Promise.resolve({ data: { me: { name: 'Test', email: 'test@example.com' } } }),
+          Promise.resolve({
+            data: { me: { name: 'Test', email: 'test@example.com' } },
+          }),
       });
 
       const result = await service.validateToken(
@@ -456,7 +437,10 @@ describe('CredentialManagerService', () => {
       );
 
       expect(result.valid).toBe(true);
-      expect(result.accountInfo).toEqual({ name: 'Test', email: 'test@example.com' });
+      expect(result.accountInfo).toEqual({
+        name: 'Test',
+        email: 'test@example.com',
+      });
     });
 
     it('should return invalid for Railway token with errors', async () => {
@@ -510,7 +494,9 @@ describe('CredentialManagerService', () => {
 
       expect(result.length).toBe(DEFAULT_GITIGNORE_SECRETS.length + 2);
       expect(result.find((e) => e.pattern === '*.secret')).toBeDefined();
-      expect(result.find((e) => e.pattern === 'private-config.json')).toBeDefined();
+      expect(
+        result.find((e) => e.pattern === 'private-config.json'),
+      ).toBeDefined();
     });
   });
 

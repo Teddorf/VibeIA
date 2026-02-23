@@ -31,6 +31,11 @@ import {
   RollbackActionSchema,
 } from './schemas/rollback-action.schema';
 import { SetupProvider, SetupTaskStatus } from './dto/setup.dto';
+import {
+  SETUP_STATE_REPOSITORY,
+  ROLLBACK_ACTION_REPOSITORY,
+} from '../../providers/repository-tokens';
+import { createRepositoryProvider } from '../../providers/repository-providers.factory';
 
 // Extended timeout for Windows MongoDB startup
 const DB_TEST_TIMEOUT = 60000;
@@ -106,6 +111,11 @@ describe('SetupOrchestratorService Integration', () => {
       ],
       providers: [
         SetupOrchestratorService,
+        createRepositoryProvider(SETUP_STATE_REPOSITORY, SetupState.name),
+        createRepositoryProvider(
+          ROLLBACK_ACTION_REPOSITORY,
+          RollbackAction.name,
+        ),
         { provide: NeonSetupService, useValue: mockNeonSetupService },
         { provide: VercelSetupService, useValue: mockVercelSetupService },
         { provide: RailwaySetupService, useValue: mockRailwaySetupService },

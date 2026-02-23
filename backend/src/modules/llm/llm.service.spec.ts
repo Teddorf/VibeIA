@@ -2,10 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { LlmService } from './llm.service';
 import { UserLLMConfig } from './interfaces/llm-provider.interface';
+import { LLM_PROVIDER } from '../../providers/tokens';
+import { ILLMProvider } from '../../providers/interfaces/llm-provider.interface';
+import { InputSanitizer } from './sanitization/input-sanitizer';
 
 describe('LlmService', () => {
   let service: LlmService;
-
+  let mockAnthropicAdapter: jest.Mocked<ILLMProvider>;
+  let mockOpenAIAdapter: jest.Mocked<ILLMProvider>;
   const mockWizardData = {
     stage1: { projectName: 'Test Project', description: 'Test Description' },
     stage2: { target_users: 'Developers', main_features: 'API, Dashboard' },
@@ -20,37 +24,63 @@ describe('LlmService', () => {
     preferences: {
       primaryProvider: 'anthropic',
       fallbackEnabled: true,
-      fallbackOrder: ['anthropic', 'openai', 'gemini'],
+      fallbackOrder: ['anthropic', 'openai'],
     },
   };
 
-  const mockPlanResponse = {
-    plan: {
-      phases: [
-        {
-          name: 'Phase 1',
-          estimatedTime: 60,
-          tasks: [
-            {
-              id: 't1',
-              name: 'Setup Database',
-              description: 'Configure MongoDB',
-              estimatedTime: 10,
-              dependencies: [],
-            },
-          ],
-        },
-      ],
-      estimatedTime: 60,
-    },
-    provider: 'anthropic',
-    tokensUsed: 1500,
-    cost: 0.005,
+  const mockPlanData = {
+    phases: [
+      {
+        name: 'Phase 1',
+        estimatedTime: 60,
+        tasks: [
+          {
+            id: 't1',
+            name: 'Setup Database',
+            description: 'Configure MongoDB',
+            estimatedTime: 10,
+            dependencies: [],
+          },
+        ],
+      },
+    ],
+    estimatedTime: 60,
   };
 
   beforeEach(async () => {
+    mockAnthropicAdapter = {
+      name: 'anthropic',
+      generateText: jest.fn(),
+      generateJSON: jest.fn().mockResolvedValue({
+        data: mockPlanData,
+        tokensUsed: 1500,
+        cost: 0.005,
+      }),
+      validateApiKey: jest.fn().mockResolvedValue(true),
+      estimateCost: jest.fn().mockReturnValue(0.005),
+    };
+
+    mockOpenAIAdapter = {
+      name: 'openai',
+      generateText: jest.fn(),
+      generateJSON: jest.fn().mockResolvedValue({
+        data: mockPlanData,
+        tokensUsed: 1200,
+        cost: 0.004,
+      }),
+      validateApiKey: jest.fn().mockResolvedValue(true),
+      estimateCost: jest.fn().mockReturnValue(0.004),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [LlmService],
+      providers: [
+        LlmService,
+        {
+          provide: LLM_PROVIDER,
+          useValue: [mockAnthropicAdapter, mockOpenAIAdapter],
+        },
+        InputSanitizer,
+      ],
     }).compile();
 
     service = module.get<LlmService>(LlmService);
@@ -65,46 +95,45 @@ describe('LlmService', () => {
       const emptyConfig: UserLLMConfig = {
         apiKeys: {},
         preferences: {
-          primaryProvider: null,
+          primaryProvider: undefined,
           fallbackEnabled: true,
           fallbackOrder: [],
         },
       };
 
-      await expect(service.generatePlan(mockWizardData, emptyConfig)).rejects.toThrow(
-        BadRequestException,
+      await expect(
+        service.generatePlan(mockWizardData, emptyConfig),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should use primary provider adapter when configured', async () => {
+      const result = await service.generatePlan(mockWizardData, mockUserConfig);
+
+      expect(mockAnthropicAdapter.generateJSON).toHaveBeenCalled();
+      expect(result).toEqual({
+        plan: mockPlanData,
+        provider: 'anthropic',
+        tokensUsed: 1500,
+        cost: 0.005,
+      });
+    });
+
+    it('should fallback to next adapter on failure', async () => {
+      mockAnthropicAdapter.generateJSON.mockRejectedValueOnce(
+        new Error('Anthropic API error'),
       );
-    });
-
-    it('should use primary provider when configured', async () => {
-      const anthropicProvider = (service as any).providers.get('anthropic');
-      anthropicProvider.generatePlan = jest.fn().mockResolvedValue(mockPlanResponse);
 
       const result = await service.generatePlan(mockWizardData, mockUserConfig);
 
-      expect(anthropicProvider.generatePlan).toHaveBeenCalled();
-      expect(result).toEqual(mockPlanResponse);
-    });
-
-    it('should fallback to next provider when primary fails', async () => {
-      const anthropicProvider = (service as any).providers.get('anthropic');
-      const openaiProvider = (service as any).providers.get('openai');
-
-      const openaiResponse = { ...mockPlanResponse, provider: 'openai' };
-
-      anthropicProvider.generatePlan = jest.fn().mockRejectedValue(new Error('Anthropic API error'));
-      openaiProvider.generatePlan = jest.fn().mockResolvedValue(openaiResponse);
-
-      const result = await service.generatePlan(mockWizardData, mockUserConfig);
-
-      expect(anthropicProvider.generatePlan).toHaveBeenCalled();
-      expect(openaiProvider.generatePlan).toHaveBeenCalled();
+      expect(mockAnthropicAdapter.generateJSON).toHaveBeenCalled();
+      expect(mockOpenAIAdapter.generateJSON).toHaveBeenCalled();
       expect(result.provider).toBe('openai');
     });
 
     it('should throw when fallback is disabled and primary fails', async () => {
-      const anthropicProvider = (service as any).providers.get('anthropic');
-      anthropicProvider.generatePlan = jest.fn().mockRejectedValue(new Error('API error'));
+      mockAnthropicAdapter.generateJSON.mockRejectedValueOnce(
+        new Error('API error'),
+      );
 
       const noFallbackConfig: UserLLMConfig = {
         ...mockUserConfig,
@@ -114,39 +143,34 @@ describe('LlmService', () => {
         },
       };
 
-      await expect(service.generatePlan(mockWizardData, noFallbackConfig)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.generatePlan(mockWizardData, noFallbackConfig),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw when all providers fail', async () => {
-      const anthropicProvider = (service as any).providers.get('anthropic');
-      const openaiProvider = (service as any).providers.get('openai');
-
-      anthropicProvider.generatePlan = jest.fn().mockRejectedValue(new Error('Anthropic error'));
-      openaiProvider.generatePlan = jest.fn().mockRejectedValue(new Error('OpenAI error'));
-
-      await expect(service.generatePlan(mockWizardData, mockUserConfig)).rejects.toThrow(
-        BadRequestException,
+      mockAnthropicAdapter.generateJSON.mockRejectedValueOnce(
+        new Error('Anthropic error'),
       );
+      mockOpenAIAdapter.generateJSON.mockRejectedValueOnce(
+        new Error('OpenAI error'),
+      );
+
+      await expect(
+        service.generatePlan(mockWizardData, mockUserConfig),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('estimateCost', () => {
-    it('should estimate cost using default provider when no config', () => {
-      const anthropicProvider = (service as any).providers.get('anthropic');
-      anthropicProvider.estimateCost = jest.fn().mockReturnValue(0.01);
-
+    it('should estimate cost using default provider (anthropic) when no config', () => {
       const cost = service.estimateCost(mockWizardData);
 
-      expect(anthropicProvider.estimateCost).toHaveBeenCalled();
-      expect(cost).toBe(0.01);
+      expect(mockAnthropicAdapter.estimateCost).toHaveBeenCalled();
+      expect(cost).toBe(0.005);
     });
 
     it('should estimate cost using user primary provider', () => {
-      const openaiProvider = (service as any).providers.get('openai');
-      openaiProvider.estimateCost = jest.fn().mockReturnValue(0.02);
-
       const openaiConfig: UserLLMConfig = {
         ...mockUserConfig,
         preferences: {
@@ -157,8 +181,8 @@ describe('LlmService', () => {
 
       const cost = service.estimateCost(mockWizardData, openaiConfig);
 
-      expect(openaiProvider.estimateCost).toHaveBeenCalled();
-      expect(cost).toBe(0.02);
+      expect(mockOpenAIAdapter.estimateCost).toHaveBeenCalled();
+      expect(cost).toBe(0.004);
     });
 
     it('should return 0 if provider not found', () => {
@@ -177,28 +201,25 @@ describe('LlmService', () => {
   });
 
   describe('getAvailableProviders', () => {
-    it('should return list of available providers', () => {
+    it('should return adapter names', () => {
       const providers = service.getAvailableProviders();
 
-      expect(providers).toContain('anthropic');
-      expect(providers).toContain('openai');
-      expect(providers).toContain('gemini');
+      expect(providers).toEqual(['anthropic', 'openai']);
     });
   });
 
   describe('validateApiKey', () => {
-    it('should return false for invalid provider', async () => {
-      const result = await service.validateApiKey('invalid', 'key');
+    it('should return false for unknown provider', async () => {
+      const result = await service.validateApiKey('nonexistent', 'some-key');
       expect(result).toBe(false);
     });
 
-    it('should call provider validateApiKey', async () => {
-      const anthropicProvider = (service as any).providers.get('anthropic');
-      anthropicProvider.validateApiKey = jest.fn().mockResolvedValue(true);
-
+    it('should delegate to adapter validateApiKey', async () => {
       const result = await service.validateApiKey('anthropic', 'test-key');
 
-      expect(anthropicProvider.validateApiKey).toHaveBeenCalledWith('test-key');
+      expect(mockAnthropicAdapter.validateApiKey).toHaveBeenCalledWith(
+        'test-key',
+      );
       expect(result).toBe(true);
     });
   });

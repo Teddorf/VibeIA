@@ -5,6 +5,7 @@ import { GoogleAuthController } from './google-auth.controller';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
+import { OAuthStateService } from './services/oauth-state.service';
 
 // Mock fetch globally
 global.fetch = jest.fn();
@@ -14,6 +15,7 @@ describe('GoogleAuthController', () => {
   let configService: jest.Mocked<ConfigService>;
   let usersService: jest.Mocked<UsersService>;
   let authService: jest.Mocked<AuthService>;
+  let oauthStateService: OAuthStateService;
 
   const mockConfigValues = {
     GOOGLE_CLIENT_ID: 'test-google-client-id',
@@ -64,6 +66,7 @@ describe('GoogleAuthController', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: UsersService, useValue: mockUsersService },
         { provide: AuthService, useValue: mockAuthService },
+        OAuthStateService,
       ],
     }).compile();
 
@@ -71,6 +74,7 @@ describe('GoogleAuthController', () => {
     configService = module.get(ConfigService);
     usersService = module.get(UsersService);
     authService = module.get(AuthService);
+    oauthStateService = module.get(OAuthStateService);
 
     jest.clearAllMocks();
   });
@@ -111,11 +115,13 @@ describe('GoogleAuthController', () => {
         redirect: jest.fn(),
       } as unknown as Response;
 
-      await controller.initiateOAuth(mockRes, undefined, 'user-123');
+      await controller.initiateOAuth(mockRes, 'connect', 'user-123');
 
       const redirectUrl = (mockRes.redirect as jest.Mock).mock.calls[0][0];
       const stateParam = new URL(redirectUrl).searchParams.get('state');
-      const decodedState = JSON.parse(Buffer.from(stateParam!, 'base64').toString());
+      const decodedState = JSON.parse(
+        Buffer.from(stateParam!, 'base64').toString(),
+      );
       expect(decodedState.userId).toBe('user-123');
       expect(decodedState.type).toBe('connect');
     });
@@ -138,18 +144,23 @@ describe('GoogleAuthController', () => {
       const moduleWithoutConfig = await Test.createTestingModule({
         controllers: [GoogleAuthController],
         providers: [
-          { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
+          {
+            provide: ConfigService,
+            useValue: { get: jest.fn().mockReturnValue('') },
+          },
           { provide: UsersService, useValue: {} },
           { provide: AuthService, useValue: {} },
+          OAuthStateService,
         ],
       }).compile();
 
-      const controllerWithoutConfig = moduleWithoutConfig.get<GoogleAuthController>(GoogleAuthController);
+      const controllerWithoutConfig =
+        moduleWithoutConfig.get<GoogleAuthController>(GoogleAuthController);
       const mockRes = { redirect: jest.fn() } as unknown as Response;
 
-      await expect(controllerWithoutConfig.initiateOAuth(mockRes)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        controllerWithoutConfig.initiateOAuth(mockRes),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -159,6 +170,7 @@ describe('GoogleAuthController', () => {
     beforeEach(() => {
       mockRes = {
         redirect: jest.fn(),
+        cookie: jest.fn(),
       } as unknown as Response;
     });
 
@@ -187,7 +199,11 @@ describe('GoogleAuthController', () => {
     it('should handle login flow and redirect with tokens', async () => {
       (global.fetch as jest.Mock)
         .mockResolvedValueOnce({
-          json: () => Promise.resolve({ access_token: 'google-token', token_type: 'Bearer' }),
+          json: () =>
+            Promise.resolve({
+              access_token: 'google-token',
+              token_type: 'Bearer',
+            }),
         })
         .mockResolvedValueOnce({
           ok: true,
@@ -196,9 +212,15 @@ describe('GoogleAuthController', () => {
 
       authService.loginWithOAuth.mockResolvedValue(mockTokens as any);
 
-      const loginState = Buffer.from(JSON.stringify({ csrfState: 'csrf-123', type: 'login' })).toString('base64');
+      const validState = oauthStateService.generateState('login');
 
-      await controller.handleCallback('auth-code-123', loginState, '', '', mockRes);
+      await controller.handleCallback(
+        'auth-code-123',
+        validState,
+        '',
+        '',
+        mockRes,
+      );
 
       expect(authService.loginWithOAuth).toHaveBeenCalledWith(
         'google',
@@ -215,7 +237,11 @@ describe('GoogleAuthController', () => {
     it('should handle connect flow and redirect to dashboard', async () => {
       (global.fetch as jest.Mock)
         .mockResolvedValueOnce({
-          json: () => Promise.resolve({ access_token: 'google-token', token_type: 'Bearer' }),
+          json: () =>
+            Promise.resolve({
+              access_token: 'google-token',
+              token_type: 'Bearer',
+            }),
         })
         .mockResolvedValueOnce({
           ok: true,
@@ -224,9 +250,15 @@ describe('GoogleAuthController', () => {
 
       usersService.connectGoogle.mockResolvedValue(undefined);
 
-      const connectState = Buffer.from(JSON.stringify({ userId: 'user-123', type: 'connect' })).toString('base64');
+      const validState = oauthStateService.generateState('connect', 'user-123');
 
-      await controller.handleCallback('auth-code-123', connectState, '', '', mockRes);
+      await controller.handleCallback(
+        'auth-code-123',
+        validState,
+        '',
+        '',
+        mockRes,
+      );
 
       expect(usersService.connectGoogle).toHaveBeenCalledWith(
         'user-123',
@@ -242,10 +274,22 @@ describe('GoogleAuthController', () => {
 
     it('should redirect with error if token exchange fails', async () => {
       (global.fetch as jest.Mock).mockResolvedValueOnce({
-        json: () => Promise.resolve({ error: 'invalid_grant', error_description: 'Invalid code' }),
+        json: () =>
+          Promise.resolve({
+            error: 'invalid_grant',
+            error_description: 'Invalid code',
+          }),
       });
 
-      await controller.handleCallback('invalid-code', '', '', '', mockRes);
+      const validState = oauthStateService.generateState('login');
+
+      await controller.handleCallback(
+        'invalid-code',
+        validState,
+        '',
+        '',
+        mockRes,
+      );
 
       expect(mockRes.redirect).toHaveBeenCalledWith(
         expect.stringContaining('error=Invalid+code'),
@@ -253,9 +297,19 @@ describe('GoogleAuthController', () => {
     });
 
     it('should redirect with generic error on exception', async () => {
-      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
+      (global.fetch as jest.Mock).mockRejectedValueOnce(
+        new Error('Network error'),
+      );
 
-      await controller.handleCallback('auth-code-123', '', '', '', mockRes);
+      const validState = oauthStateService.generateState('login');
+
+      await controller.handleCallback(
+        'auth-code-123',
+        validState,
+        '',
+        '',
+        mockRes,
+      );
 
       expect(mockRes.redirect).toHaveBeenCalledWith(
         expect.stringContaining('error=Failed+to+authenticate+with+Google'),
@@ -275,12 +329,16 @@ describe('GoogleAuthController', () => {
 
       const result = await controller.getStatus(mockUser as any);
 
-      expect(usersService.getGoogleConnectionStatus).toHaveBeenCalledWith('user-123');
+      expect(usersService.getGoogleConnectionStatus).toHaveBeenCalledWith(
+        'user-123',
+      );
       expect(result).toEqual(mockStatus);
     });
 
     it('should return not connected status', async () => {
-      usersService.getGoogleConnectionStatus.mockResolvedValue({ connected: false });
+      usersService.getGoogleConnectionStatus.mockResolvedValue({
+        connected: false,
+      });
 
       const result = await controller.getStatus(mockUser as any);
 
@@ -303,7 +361,9 @@ describe('GoogleAuthController', () => {
     it('should return Google OAuth URL with user state', () => {
       const result = controller.getAuthUrl(mockUser as any);
 
-      expect(result.url).toContain('https://accounts.google.com/o/oauth2/v2/auth');
+      expect(result.url).toContain(
+        'https://accounts.google.com/o/oauth2/v2/auth',
+      );
       expect(result.url).toContain('client_id=test-google-client-id');
       expect(result.url).toContain('response_type=code');
       expect(result.url).toContain('access_type=offline');
@@ -313,13 +373,18 @@ describe('GoogleAuthController', () => {
       const moduleWithoutConfig = await Test.createTestingModule({
         controllers: [GoogleAuthController],
         providers: [
-          { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
+          {
+            provide: ConfigService,
+            useValue: { get: jest.fn().mockReturnValue('') },
+          },
           { provide: UsersService, useValue: {} },
           { provide: AuthService, useValue: {} },
+          OAuthStateService,
         ],
       }).compile();
 
-      const controllerWithoutConfig = moduleWithoutConfig.get<GoogleAuthController>(GoogleAuthController);
+      const controllerWithoutConfig =
+        moduleWithoutConfig.get<GoogleAuthController>(GoogleAuthController);
 
       expect(() => controllerWithoutConfig.getAuthUrl(mockUser as any)).toThrow(
         BadRequestException,

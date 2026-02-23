@@ -1,13 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { getModelToken } from '@nestjs/mongoose';
 import { NeonSetupService } from './neon-setup.service';
 import { VercelSetupService } from './vercel-setup.service';
 import { RailwaySetupService } from './railway-setup.service';
 import { SetupOrchestratorService } from './setup-orchestrator.service';
 import { SetupTaskStatus, SetupProvider } from './dto/setup.dto';
-import { SetupState } from './schemas/setup-state.schema';
-import { RollbackAction } from './schemas/rollback-action.schema';
+import {
+  SETUP_STATE_REPOSITORY,
+  ROLLBACK_ACTION_REPOSITORY,
+} from '../../providers/repository-tokens';
 import { NeonExecutor } from './executors/NeonExecutor';
 import { VercelExecutor } from './executors/VercelExecutor';
 import { RailwayExecutor } from './executors/RailwayExecutor';
@@ -44,7 +45,9 @@ describe('NeonSetupService', () => {
 
   it('should select optimal region', () => {
     expect(service.selectOptimalRegion()).toBe('aws-us-east-1');
-    expect(service.selectOptimalRegion('aws-eu-central-1')).toBe('aws-eu-central-1');
+    expect(service.selectOptimalRegion('aws-eu-central-1')).toBe(
+      'aws-eu-central-1',
+    );
     expect(service.selectOptimalRegion('invalid-region')).toBe('aws-us-east-1');
   });
 
@@ -95,7 +98,8 @@ describe('NeonSetupService', () => {
   });
 
   it('should validate connection string format', async () => {
-    const validUrl = 'postgresql://user:pass@host.neon.tech/dbname?sslmode=require';
+    const validUrl =
+      'postgresql://user:pass@host.neon.tech/dbname?sslmode=require';
     const invalidUrl = 'not-a-valid-url';
 
     expect(await service.validateConnection(validUrl)).toBe(true);
@@ -277,32 +281,29 @@ describe('SetupOrchestratorService', () => {
   let vercelService: VercelSetupService;
   let railwayService: RailwaySetupService;
 
-  // Mock model that can be used as constructor
-  function createMockModel() {
-    const MockModel: any = function (this: any, doc: any) {
-      Object.assign(this, doc);
-      this.save = jest.fn().mockResolvedValue(this);
+  function createMockRepo() {
+    return {
+      findById: jest.fn().mockResolvedValue(null),
+      findOne: jest.fn().mockResolvedValue(null),
+      find: jest.fn().mockResolvedValue([]),
+      create: jest
+        .fn()
+        .mockImplementation((doc) =>
+          Promise.resolve({ ...doc, _id: 'mock-id' }),
+        ),
+      update: jest.fn().mockResolvedValue(null),
+      delete: jest.fn().mockResolvedValue(true),
+      findOneAndUpdate: jest.fn().mockResolvedValue(null),
+      findOneAndDelete: jest.fn().mockResolvedValue(null),
+      updateMany: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
+      count: jest.fn().mockResolvedValue(0),
+      insertMany: jest.fn().mockResolvedValue([]),
     };
-    MockModel.create = jest.fn().mockImplementation((doc) => {
-      const instance = new MockModel(doc);
-      return Promise.resolve(instance);
-    });
-    MockModel.findOne = jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(null),
-    });
-    MockModel.findOneAndUpdate = jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(null),
-    });
-    MockModel.find = jest.fn().mockReturnValue({
-      sort: jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue([]),
-      }),
-    });
-    return MockModel;
   }
 
-  const mockSetupStateModel = createMockModel();
-  const mockRollbackActionModel = createMockModel();
+  const mockSetupStateRepo = createMockRepo();
+  const mockRollbackActionRepo = createMockRepo();
 
   const createMockExecutor = (provider: string) => ({
     provider,
@@ -317,12 +318,12 @@ describe('SetupOrchestratorService', () => {
       providers: [
         SetupOrchestratorService,
         {
-          provide: getModelToken(SetupState.name),
-          useValue: mockSetupStateModel,
+          provide: SETUP_STATE_REPOSITORY,
+          useValue: mockSetupStateRepo,
         },
         {
-          provide: getModelToken(RollbackAction.name),
-          useValue: mockRollbackActionModel,
+          provide: ROLLBACK_ACTION_REPOSITORY,
+          useValue: mockRollbackActionRepo,
         },
         {
           provide: NeonSetupService,
@@ -491,7 +492,9 @@ describe('SetupOrchestratorService', () => {
 
   it.skip('should handle rollback on failure', async () => {
     // Make Vercel fail
-    jest.spyOn(vercelService, 'execute').mockRejectedValueOnce(new Error('Vercel API error'));
+    jest
+      .spyOn(vercelService, 'execute')
+      .mockRejectedValueOnce(new Error('Vercel API error'));
 
     const { result } = await service.execute({
       projectId: 'proj-1',

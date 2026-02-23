@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { GitService } from '../git/git.service';
 import { AuthService } from './auth.service';
+import { OAuthStateService } from './services/oauth-state.service';
 
 // Mock fetch globally
 global.fetch = jest.fn();
@@ -16,6 +17,7 @@ describe('GitHubAuthController', () => {
   let usersService: jest.Mocked<UsersService>;
   let gitService: jest.Mocked<GitService>;
   let authService: jest.Mocked<AuthService>;
+  let oauthStateService: OAuthStateService;
 
   const mockConfigValues = {
     GITHUB_CLIENT_ID: 'test-client-id',
@@ -70,6 +72,7 @@ describe('GitHubAuthController', () => {
         { provide: UsersService, useValue: mockUsersService },
         { provide: GitService, useValue: mockGitService },
         { provide: AuthService, useValue: mockAuthService },
+        OAuthStateService,
       ],
     }).compile();
 
@@ -78,6 +81,7 @@ describe('GitHubAuthController', () => {
     usersService = module.get(UsersService);
     gitService = module.get(GitService);
     authService = module.get(AuthService);
+    oauthStateService = module.get(OAuthStateService);
 
     jest.clearAllMocks();
   });
@@ -118,13 +122,15 @@ describe('GitHubAuthController', () => {
         redirect: jest.fn(),
       } as unknown as Response;
 
-      await controller.initiateOAuth(mockRes, undefined, 'user-123');
+      await controller.initiateOAuth(mockRes, 'connect', 'user-123');
 
       const redirectUrl = (mockRes.redirect as jest.Mock).mock.calls[0][0];
       expect(redirectUrl).toContain('state=');
       // State should contain userId encoded
       const stateParam = new URL(redirectUrl).searchParams.get('state');
-      const decodedState = JSON.parse(Buffer.from(stateParam!, 'base64').toString());
+      const decodedState = JSON.parse(
+        Buffer.from(stateParam!, 'base64').toString(),
+      );
       expect(decodedState.userId).toBe('user-123');
       expect(decodedState.type).toBe('connect');
     });
@@ -134,19 +140,24 @@ describe('GitHubAuthController', () => {
       const moduleWithoutConfig = await Test.createTestingModule({
         controllers: [GitHubAuthController],
         providers: [
-          { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
+          {
+            provide: ConfigService,
+            useValue: { get: jest.fn().mockReturnValue('') },
+          },
           { provide: UsersService, useValue: {} },
           { provide: GitService, useValue: {} },
           { provide: AuthService, useValue: {} },
+          OAuthStateService,
         ],
       }).compile();
 
-      const controllerWithoutConfig = moduleWithoutConfig.get<GitHubAuthController>(GitHubAuthController);
+      const controllerWithoutConfig =
+        moduleWithoutConfig.get<GitHubAuthController>(GitHubAuthController);
       const mockRes = { redirect: jest.fn() } as unknown as Response;
 
-      await expect(controllerWithoutConfig.initiateOAuth(mockRes)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        controllerWithoutConfig.initiateOAuth(mockRes),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -156,6 +167,7 @@ describe('GitHubAuthController', () => {
     beforeEach(() => {
       mockRes = {
         redirect: jest.fn(),
+        cookie: jest.fn(),
       } as unknown as Response;
     });
 
@@ -184,7 +196,11 @@ describe('GitHubAuthController', () => {
     it('should handle login flow and redirect with tokens', async () => {
       (global.fetch as jest.Mock)
         .mockResolvedValueOnce({
-          json: () => Promise.resolve({ access_token: 'github-token', token_type: 'bearer' }),
+          json: () =>
+            Promise.resolve({
+              access_token: 'github-token',
+              token_type: 'bearer',
+            }),
         })
         .mockResolvedValueOnce({
           ok: true,
@@ -193,9 +209,15 @@ describe('GitHubAuthController', () => {
 
       authService.loginWithOAuth.mockResolvedValue(mockTokens as any);
 
-      const loginState = Buffer.from(JSON.stringify({ csrfState: 'csrf-123', type: 'login' })).toString('base64');
+      const validState = oauthStateService.generateState('login');
 
-      await controller.handleCallback('auth-code-123', loginState, '', '', mockRes);
+      await controller.handleCallback(
+        'auth-code-123',
+        validState,
+        '',
+        '',
+        mockRes,
+      );
 
       expect(authService.loginWithOAuth).toHaveBeenCalledWith(
         'github',
@@ -213,7 +235,11 @@ describe('GitHubAuthController', () => {
     it('should handle connect flow and redirect to dashboard', async () => {
       (global.fetch as jest.Mock)
         .mockResolvedValueOnce({
-          json: () => Promise.resolve({ access_token: 'github-token', token_type: 'bearer' }),
+          json: () =>
+            Promise.resolve({
+              access_token: 'github-token',
+              token_type: 'bearer',
+            }),
         })
         .mockResolvedValueOnce({
           ok: true,
@@ -222,9 +248,15 @@ describe('GitHubAuthController', () => {
 
       usersService.connectGitHub.mockResolvedValue(undefined);
 
-      const connectState = Buffer.from(JSON.stringify({ userId: 'user-123', type: 'connect' })).toString('base64');
+      const validState = oauthStateService.generateState('connect', 'user-123');
 
-      await controller.handleCallback('auth-code-123', connectState, '', '', mockRes);
+      await controller.handleCallback(
+        'auth-code-123',
+        validState,
+        '',
+        '',
+        mockRes,
+      );
 
       expect(usersService.connectGitHub).toHaveBeenCalledWith(
         'user-123',
@@ -250,15 +282,28 @@ describe('GitHubAuthController', () => {
         })
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve([
-            { email: 'secondary@example.com', primary: false, verified: true },
-            { email: 'primary@example.com', primary: true, verified: true },
-          ]),
+          json: () =>
+            Promise.resolve([
+              {
+                email: 'secondary@example.com',
+                primary: false,
+                verified: true,
+              },
+              { email: 'primary@example.com', primary: true, verified: true },
+            ]),
         });
 
       authService.loginWithOAuth.mockResolvedValue(mockTokens as any);
 
-      await controller.handleCallback('auth-code-123', '', '', '', mockRes);
+      const validState = oauthStateService.generateState('login');
+
+      await controller.handleCallback(
+        'auth-code-123',
+        validState,
+        '',
+        '',
+        mockRes,
+      );
 
       expect(authService.loginWithOAuth).toHaveBeenCalledWith(
         'github',
@@ -272,10 +317,22 @@ describe('GitHubAuthController', () => {
 
     it('should redirect with error if token exchange fails', async () => {
       (global.fetch as jest.Mock).mockResolvedValueOnce({
-        json: () => Promise.resolve({ error: 'bad_verification_code', error_description: 'Invalid code' }),
+        json: () =>
+          Promise.resolve({
+            error: 'bad_verification_code',
+            error_description: 'Invalid code',
+          }),
       });
 
-      await controller.handleCallback('invalid-code', '', '', '', mockRes);
+      const validState = oauthStateService.generateState('login');
+
+      await controller.handleCallback(
+        'invalid-code',
+        validState,
+        '',
+        '',
+        mockRes,
+      );
 
       expect(mockRes.redirect).toHaveBeenCalledWith(
         expect.stringContaining('error=Invalid+code'),
@@ -283,9 +340,19 @@ describe('GitHubAuthController', () => {
     });
 
     it('should redirect with generic error on exception', async () => {
-      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
+      (global.fetch as jest.Mock).mockRejectedValueOnce(
+        new Error('Network error'),
+      );
 
-      await controller.handleCallback('auth-code-123', '', '', '', mockRes);
+      const validState = oauthStateService.generateState('login');
+
+      await controller.handleCallback(
+        'auth-code-123',
+        validState,
+        '',
+        '',
+        mockRes,
+      );
 
       expect(mockRes.redirect).toHaveBeenCalledWith(
         expect.stringContaining('error=Failed+to+authenticate+with+GitHub'),
@@ -301,7 +368,10 @@ describe('GitHubAuthController', () => {
         connectedAt: new Date(),
       });
       usersService.getGitHubAccessToken.mockResolvedValue('valid-token');
-      gitService.verifyToken.mockResolvedValue({ valid: true, scopes: ['repo', 'user'] });
+      gitService.verifyToken.mockResolvedValue({
+        valid: true,
+        scopes: ['repo', 'user'],
+      });
 
       const result = await controller.getStatus(mockUser as any);
 
@@ -325,7 +395,9 @@ describe('GitHubAuthController', () => {
     });
 
     it('should return not connected if no GitHub connection', async () => {
-      usersService.getGitHubConnectionStatus.mockResolvedValue({ connected: false });
+      usersService.getGitHubConnectionStatus.mockResolvedValue({
+        connected: false,
+      });
 
       const result = await controller.getStatus(mockUser as any);
 
@@ -353,7 +425,9 @@ describe('GitHubAuthController', () => {
       expect(result.url).toContain('state=');
 
       const stateParam = new URL(result.url).searchParams.get('state');
-      const decodedState = JSON.parse(Buffer.from(stateParam!, 'base64').toString());
+      const decodedState = JSON.parse(
+        Buffer.from(stateParam!, 'base64').toString(),
+      );
       expect(decodedState.userId).toBe('user-123');
       expect(decodedState.type).toBe('connect');
     });
@@ -362,14 +436,19 @@ describe('GitHubAuthController', () => {
       const moduleWithoutConfig = await Test.createTestingModule({
         controllers: [GitHubAuthController],
         providers: [
-          { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
+          {
+            provide: ConfigService,
+            useValue: { get: jest.fn().mockReturnValue('') },
+          },
           { provide: UsersService, useValue: {} },
           { provide: GitService, useValue: {} },
           { provide: AuthService, useValue: {} },
+          OAuthStateService,
         ],
       }).compile();
 
-      const controllerWithoutConfig = moduleWithoutConfig.get<GitHubAuthController>(GitHubAuthController);
+      const controllerWithoutConfig =
+        moduleWithoutConfig.get<GitHubAuthController>(GitHubAuthController);
 
       expect(() => controllerWithoutConfig.getAuthUrl(mockUser as any)).toThrow(
         BadRequestException,

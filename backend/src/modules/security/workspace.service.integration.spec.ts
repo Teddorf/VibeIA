@@ -19,6 +19,8 @@ import {
   WorkspaceSchema,
   WorkspaceStatus,
 } from './schemas/workspace.schema';
+import { WORKSPACE_REPOSITORY } from '../../providers/repository-tokens';
+import { createRepositoryProvider } from '../../providers/repository-providers.factory';
 
 // Extended timeout for Windows MongoDB startup
 const DB_TEST_TIMEOUT = 60000;
@@ -40,7 +42,10 @@ describe('WorkspaceService Integration', () => {
           { name: Workspace.name, schema: WorkspaceSchema },
         ]),
       ],
-      providers: [WorkspaceService],
+      providers: [
+        WorkspaceService,
+        createRepositoryProvider(WORKSPACE_REPOSITORY, Workspace.name),
+      ],
     }).compile();
 
     service = module.get<WorkspaceService>(WorkspaceService);
@@ -283,10 +288,7 @@ describe('WorkspaceService Integration', () => {
 
     it('should throw for non-existent workspace', async () => {
       await expect(
-        service.extendWorkspace(
-          new mongoose.Types.ObjectId().toString(),
-          '1h',
-        ),
+        service.extendWorkspace(new mongoose.Types.ObjectId().toString(), '1h'),
       ).rejects.toThrow('not found');
     });
   });
