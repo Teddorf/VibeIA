@@ -134,7 +134,7 @@ export class AnthropicLLMAdapter implements ILLMProvider {
         totalTokens: message.usage.input_tokens + message.usage.output_tokens,
       },
       model: request.model,
-      finishReason: message.stop_reason === 'end_turn' ? 'stop' : 'stop',
+      finishReason: this.mapFinishReason(message.stop_reason),
       latencyMs,
       cached: false,
       providerId: this.name,
@@ -210,6 +210,22 @@ export class AnthropicLLMAdapter implements ILLMProvider {
       'vision',
     ];
     return supported.includes(capability);
+  }
+
+  private mapFinishReason(
+    reason: string | null | undefined,
+  ): 'stop' | 'length' | 'content-filter' | 'error' {
+    switch (reason) {
+      case 'end_turn':
+      case 'stop_sequence':
+        return 'stop';
+      case 'max_tokens':
+        return 'length';
+      case 'content_filter':
+        return 'content-filter';
+      default:
+        return 'stop';
+    }
   }
 
   private calculateCost(inputTokens: number, outputTokens: number): number {

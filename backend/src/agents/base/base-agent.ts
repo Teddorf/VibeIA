@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { LLM_DEFAULTS } from '../../config/defaults';
+import { VibeConfig } from '../../config/vibe-config';
 import {
   EarlyTermination,
   EarlyTerminationResult,
@@ -18,6 +19,12 @@ import {
 export abstract class BaseAgent implements IAgent {
   protected readonly logger: Logger;
   abstract readonly profile: AgentProfile;
+
+  private static _vibeConfig: VibeConfig | null = null;
+
+  static setVibeConfig(config: VibeConfig): void {
+    BaseAgent._vibeConfig = config;
+  }
 
   constructor() {
     this.logger = new Logger(this.constructor.name);
@@ -152,6 +159,14 @@ export abstract class BaseAgent implements IAgent {
     inputPerMillionTokens: number;
     outputPerMillionTokens: number;
   } {
+    if (BaseAgent._vibeConfig) {
+      const tier = this.profile.defaultModelTier;
+      const pricing = BaseAgent._vibeConfig.providers.llm.pricing[tier];
+      return {
+        inputPerMillionTokens: pricing.inputPerMillionTokens,
+        outputPerMillionTokens: pricing.outputPerMillionTokens,
+      };
+    }
     switch (this.profile.defaultModelTier) {
       case 'fast':
         return {
@@ -174,6 +189,11 @@ export abstract class BaseAgent implements IAgent {
   }
 
   private getDefaultModelId(): string {
+    if (BaseAgent._vibeConfig) {
+      return BaseAgent._vibeConfig.providers.llm.modelMapping[
+        this.profile.defaultModelTier
+      ];
+    }
     switch (this.profile.defaultModelTier) {
       case 'fast':
         return LLM_DEFAULTS.gemini.planModel;

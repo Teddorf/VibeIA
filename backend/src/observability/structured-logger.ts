@@ -71,6 +71,26 @@ export class StructuredLogger {
       },
       message,
     };
+    // Collect extra context keys into data
+    if (context) {
+      const knownKeys = new Set([
+        'traceId',
+        'source',
+        'method',
+        'durationMs',
+        'tokensUsed',
+        'costUSD',
+        'tokens',
+        'error',
+      ]);
+      const extra: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(context)) {
+        if (!knownKeys.has(key) && value !== undefined) {
+          extra[key] = value;
+        }
+      }
+      if (Object.keys(extra).length > 0) log.data = extra;
+    }
     if (context?.durationMs !== undefined) log.duration = context.durationMs;
     if (context?.tokens) log.tokens = context.tokens;
     if (context?.costUSD !== undefined) log.cost = context.costUSD;

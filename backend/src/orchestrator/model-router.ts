@@ -1,5 +1,4 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { LLM_DEFAULTS } from '../config/defaults';
 import { VIBE_CONFIG } from '../providers/tokens';
 import { VibeConfig } from '../config/vibe-config';
 import { ModelTier, ModelPricing } from '../agents/protocol';
@@ -25,24 +24,10 @@ export class ModelRouter {
   }
 
   getPricing(tier: ModelTier): ModelPricing {
-    switch (tier) {
-      case 'fast':
-        return {
-          inputPerMillionTokens: LLM_DEFAULTS.gemini.pricing.inputPerMillion,
-          outputPerMillionTokens: LLM_DEFAULTS.gemini.pricing.outputPerMillion,
-        };
-      case 'powerful':
-        return {
-          inputPerMillionTokens: LLM_DEFAULTS.anthropic.pricing.inputPerMillion,
-          outputPerMillionTokens:
-            LLM_DEFAULTS.anthropic.pricing.outputPerMillion,
-        };
-      case 'balanced':
-      default:
-        return {
-          inputPerMillionTokens: LLM_DEFAULTS.openai.pricing.inputPerMillion,
-          outputPerMillionTokens: LLM_DEFAULTS.openai.pricing.outputPerMillion,
-        };
-    }
+    const pricing = this.config.providers.llm.pricing[tier];
+    return {
+      inputPerMillionTokens: pricing.inputPerMillionTokens,
+      outputPerMillionTokens: pricing.outputPerMillionTokens,
+    };
   }
 }

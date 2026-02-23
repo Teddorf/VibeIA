@@ -109,7 +109,7 @@ describe('LocalFileSystemAdapter', () => {
     expect(meta.isFile).toBe(true);
     expect(meta.isDirectory).toBe(false);
     expect(new Date(meta.modifiedAt).getTime()).not.toBeNaN();
-    expect(new Date(meta.createdAt).getTime()).not.toBeNaN();
+    expect(new Date(meta.createdAt!).getTime()).not.toBeNaN();
   });
 
   it('should glob for files', async () => {

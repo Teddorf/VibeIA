@@ -3,7 +3,7 @@ export interface FileMetadata {
   isDirectory: boolean;
   isFile: boolean;
   modifiedAt: Date;
-  createdAt: Date;
+  createdAt?: Date;
 }
 
 export interface IFileSystemProvider {

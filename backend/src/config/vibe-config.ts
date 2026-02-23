@@ -73,6 +73,48 @@ const ModelMappingSchema = z.object({
   powerful: z.string().default(LLM_DEFAULTS.anthropic.planModel),
 });
 
+const PricingSchema = z.object({
+  fast: z
+    .object({
+      inputPerMillionTokens: z
+        .number()
+        .default(LLM_DEFAULTS.gemini.pricing.inputPerMillion),
+      outputPerMillionTokens: z
+        .number()
+        .default(LLM_DEFAULTS.gemini.pricing.outputPerMillion),
+    })
+    .default(() => ({
+      inputPerMillionTokens: LLM_DEFAULTS.gemini.pricing.inputPerMillion,
+      outputPerMillionTokens: LLM_DEFAULTS.gemini.pricing.outputPerMillion,
+    })),
+  balanced: z
+    .object({
+      inputPerMillionTokens: z
+        .number()
+        .default(LLM_DEFAULTS.openai.pricing.inputPerMillion),
+      outputPerMillionTokens: z
+        .number()
+        .default(LLM_DEFAULTS.openai.pricing.outputPerMillion),
+    })
+    .default(() => ({
+      inputPerMillionTokens: LLM_DEFAULTS.openai.pricing.inputPerMillion,
+      outputPerMillionTokens: LLM_DEFAULTS.openai.pricing.outputPerMillion,
+    })),
+  powerful: z
+    .object({
+      inputPerMillionTokens: z
+        .number()
+        .default(LLM_DEFAULTS.anthropic.pricing.inputPerMillion),
+      outputPerMillionTokens: z
+        .number()
+        .default(LLM_DEFAULTS.anthropic.pricing.outputPerMillion),
+    })
+    .default(() => ({
+      inputPerMillionTokens: LLM_DEFAULTS.anthropic.pricing.inputPerMillion,
+      outputPerMillionTokens: LLM_DEFAULTS.anthropic.pricing.outputPerMillion,
+    })),
+});
+
 const ProvidersConfigSchema = z.object({
   llm: z
     .object({
@@ -82,10 +124,12 @@ const ProvidersConfigSchema = z.object({
       fallbackOrder: z
         .array(z.string())
         .default(['anthropic', 'openai', 'gemini']),
+      pricing: PricingSchema.default(() => PricingSchema.parse({})),
     })
     .default(() => ({
       modelMapping: ModelMappingSchema.parse({}),
       fallbackOrder: ['anthropic', 'openai', 'gemini'],
+      pricing: PricingSchema.parse({}),
     })),
 });
 

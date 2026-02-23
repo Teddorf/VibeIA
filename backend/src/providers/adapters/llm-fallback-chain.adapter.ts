@@ -39,11 +39,21 @@ export class LLMFallbackChainAdapter implements ILLMFallbackChain {
   }
 
   async *stream(request: LLMRequest): AsyncIterable<LLMStreamChunk> {
-    const active = this.getActiveProvider();
-    if (!active) {
-      throw new Error('No LLM providers available');
+    let lastError: Error | null = null;
+
+    for (const provider of this._providers) {
+      try {
+        yield* provider.stream(request);
+        return;
+      } catch (error: any) {
+        lastError = error;
+        this.logger.warn(
+          `Provider ${provider.name} stream failed, trying next: ${error.message}`,
+        );
+      }
     }
-    yield* active.stream(request);
+
+    throw lastError ?? new Error('No LLM providers available for streaming');
   }
 
   addProvider(provider: ILLMProvider): void {

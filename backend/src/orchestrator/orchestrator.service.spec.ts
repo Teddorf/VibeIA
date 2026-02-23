@@ -10,7 +10,10 @@ describe('OrchestratorService', () => {
     onNodeFail: jest.Mock;
   };
   let mockResultEvaluator: { evaluate: jest.Mock };
-  let mockEventsGateway: { emitExecutionEvent: jest.Mock };
+  let mockEventsGateway: {
+    emitExecutionEvent: jest.Mock;
+    emitWorkerStatusUpdate: jest.Mock;
+  };
   let mockPlanRepo: Record<string, jest.Mock>;
 
   beforeEach(() => {
@@ -41,6 +44,7 @@ describe('OrchestratorService', () => {
 
     mockEventsGateway = {
       emitExecutionEvent: jest.fn(),
+      emitWorkerStatusUpdate: jest.fn(),
     };
 
     mockPlanRepo = {

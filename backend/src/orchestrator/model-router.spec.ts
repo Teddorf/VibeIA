@@ -1,18 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ModelRouter } from './model-router';
-import { LLM_DEFAULTS } from '../config/defaults';
 import { VIBE_CONFIG } from '../providers/tokens';
-import { loadVibeConfig } from '../config/vibe-config';
+import { loadVibeConfig, VibeConfig } from '../config/vibe-config';
 
 describe('ModelRouter', () => {
   let router: ModelRouter;
+  let config: VibeConfig;
 
   beforeEach(async () => {
+    config = loadVibeConfig();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ModelRouter,
-        { provide: VIBE_CONFIG, useValue: loadVibeConfig() },
-      ],
+      providers: [ModelRouter, { provide: VIBE_CONFIG, useValue: config }],
     }).compile();
 
     router = module.get(ModelRouter);
@@ -20,28 +18,34 @@ describe('ModelRouter', () => {
 
   describe('resolve', () => {
     it('should return gemini model for fast tier', () => {
-      expect(router.resolve('fast')).toBe(LLM_DEFAULTS.gemini.planModel);
+      expect(router.resolve('fast')).toBe(
+        config.providers.llm.modelMapping.fast,
+      );
     });
 
     it('should return anthropic model for powerful tier', () => {
-      expect(router.resolve('powerful')).toBe(LLM_DEFAULTS.anthropic.planModel);
+      expect(router.resolve('powerful')).toBe(
+        config.providers.llm.modelMapping.powerful,
+      );
     });
 
     it('should return openai model for balanced tier', () => {
-      expect(router.resolve('balanced')).toBe(LLM_DEFAULTS.openai.planModel);
+      expect(router.resolve('balanced')).toBe(
+        config.providers.llm.modelMapping.balanced,
+      );
     });
   });
 
   describe('getMaxTokens', () => {
     it('should return max tokens for each tier', () => {
       expect(router.getMaxTokens('fast')).toBe(
-        LLM_DEFAULTS.gemini.maxOutputTokens,
+        config.llm.gemini.maxOutputTokens,
       );
       expect(router.getMaxTokens('powerful')).toBe(
-        LLM_DEFAULTS.anthropic.maxTokensPlan,
+        config.llm.anthropic.maxTokensPlan,
       );
       expect(router.getMaxTokens('balanced')).toBe(
-        LLM_DEFAULTS.openai.maxTokensPlan,
+        config.llm.openai.maxTokensPlan,
       );
     });
   });
@@ -50,17 +54,17 @@ describe('ModelRouter', () => {
     it('should return pricing for each tier with new field names', () => {
       const fast = router.getPricing('fast');
       expect(fast.inputPerMillionTokens).toBe(
-        LLM_DEFAULTS.gemini.pricing.inputPerMillion,
+        config.providers.llm.pricing.fast.inputPerMillionTokens,
       );
 
       const powerful = router.getPricing('powerful');
       expect(powerful.inputPerMillionTokens).toBe(
-        LLM_DEFAULTS.anthropic.pricing.inputPerMillion,
+        config.providers.llm.pricing.powerful.inputPerMillionTokens,
       );
 
       const balanced = router.getPricing('balanced');
       expect(balanced.inputPerMillionTokens).toBe(
-        LLM_DEFAULTS.openai.pricing.inputPerMillion,
+        config.providers.llm.pricing.balanced.inputPerMillionTokens,
       );
     });
   });
