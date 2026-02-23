@@ -26,6 +26,7 @@ describe('Scheduler', () => {
     mockPlanRepo = {
       findById: jest.fn(),
       update: jest.fn().mockResolvedValue(null),
+      getReadyNodes: jest.fn().mockResolvedValue([]),
     };
 
     mockVcs = {
@@ -65,6 +66,9 @@ describe('Scheduler', () => {
         },
       ]);
       mockPlanRepo.findById.mockResolvedValue(plan);
+      mockPlanRepo.getReadyNodes.mockResolvedValue([
+        { nodeId: 'n1', agentId: 'coder' },
+      ]);
 
       const count = await scheduler.dispatch('plan-1', 'trace-1');
       expect(count).toBe(1);
@@ -83,6 +87,9 @@ describe('Scheduler', () => {
         },
       ]);
       mockPlanRepo.findById.mockResolvedValue(plan);
+      mockPlanRepo.getReadyNodes.mockResolvedValue([
+        { nodeId: 'n1', agentId: 'coder' },
+      ]);
 
       await scheduler.dispatch('plan-1', 'trace-1');
       expect(mockVcs.createBranch).toHaveBeenCalledWith(
@@ -107,6 +114,9 @@ describe('Scheduler', () => {
         },
       ]);
       mockPlanRepo.findById.mockResolvedValue(plan);
+      mockPlanRepo.getReadyNodes.mockResolvedValue([
+        { nodeId: 'n1', agentId: 'coder' },
+      ]);
 
       const count = await scheduler.dispatch('plan-1', 'trace-1');
       expect(count).toBe(1); // should still dispatch successfully
@@ -139,6 +149,9 @@ describe('Scheduler', () => {
         },
       ]);
       mockPlanRepo.findById.mockResolvedValue(plan);
+      mockPlanRepo.getReadyNodes.mockResolvedValue([
+        { nodeId: 'n2', agentId: 'reviewer' },
+      ]);
 
       const output = {
         taskId: 't1',

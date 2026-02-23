@@ -197,6 +197,7 @@ const TaskDefaultsConfigSchema = z.object({
   tokenBudget: z.number().default(4096),
   contextCacheTtlMs: z.number().default(5 * 60 * 1000),
   decisionCacheTtlMs: z.number().default(10 * 60 * 1000),
+  charsPerToken: z.number().default(LLM_DEFAULTS.charsPerToken),
   reviewRequiredForTypes: z
     .array(z.string())
     .default(['code-generation', 'refactor']),

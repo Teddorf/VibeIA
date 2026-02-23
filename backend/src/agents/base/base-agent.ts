@@ -1,6 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { LLM_DEFAULTS } from '../../config/defaults';
-import { VibeConfig } from '../../config/vibe-config';
+import { VibeConfig, loadVibeConfig } from '../../config/vibe-config';
 import {
   EarlyTermination,
   EarlyTerminationResult,
@@ -14,6 +13,7 @@ import {
   CostEstimate,
   ValidationError,
   ExecutionMetrics,
+  TaskDefinition,
 } from '../protocol';
 
 export abstract class BaseAgent implements IAgent {
@@ -92,7 +92,8 @@ export abstract class BaseAgent implements IAgent {
   }
 
   protected estimateTokens(text: string): number {
-    return Math.ceil(text.length / LLM_DEFAULTS.charsPerToken);
+    const config = BaseAgent._vibeConfig ?? loadVibeConfig();
+    return Math.ceil(text.length / config.taskDefaults.charsPerToken);
   }
 
   protected checkEarlyTermination(
@@ -159,49 +160,17 @@ export abstract class BaseAgent implements IAgent {
     inputPerMillionTokens: number;
     outputPerMillionTokens: number;
   } {
-    if (BaseAgent._vibeConfig) {
-      const tier = this.profile.defaultModelTier;
-      const pricing = BaseAgent._vibeConfig.providers.llm.pricing[tier];
-      return {
-        inputPerMillionTokens: pricing.inputPerMillionTokens,
-        outputPerMillionTokens: pricing.outputPerMillionTokens,
-      };
-    }
-    switch (this.profile.defaultModelTier) {
-      case 'fast':
-        return {
-          inputPerMillionTokens: LLM_DEFAULTS.gemini.pricing.inputPerMillion,
-          outputPerMillionTokens: LLM_DEFAULTS.gemini.pricing.outputPerMillion,
-        };
-      case 'powerful':
-        return {
-          inputPerMillionTokens: LLM_DEFAULTS.anthropic.pricing.inputPerMillion,
-          outputPerMillionTokens:
-            LLM_DEFAULTS.anthropic.pricing.outputPerMillion,
-        };
-      case 'balanced':
-      default:
-        return {
-          inputPerMillionTokens: LLM_DEFAULTS.openai.pricing.inputPerMillion,
-          outputPerMillionTokens: LLM_DEFAULTS.openai.pricing.outputPerMillion,
-        };
-    }
+    const config = BaseAgent._vibeConfig ?? loadVibeConfig();
+    const tier = this.profile.defaultModelTier;
+    const pricing = config.providers.llm.pricing[tier];
+    return {
+      inputPerMillionTokens: pricing.inputPerMillionTokens,
+      outputPerMillionTokens: pricing.outputPerMillionTokens,
+    };
   }
 
   private getDefaultModelId(): string {
-    if (BaseAgent._vibeConfig) {
-      return BaseAgent._vibeConfig.providers.llm.modelMapping[
-        this.profile.defaultModelTier
-      ];
-    }
-    switch (this.profile.defaultModelTier) {
-      case 'fast':
-        return LLM_DEFAULTS.gemini.planModel;
-      case 'powerful':
-        return LLM_DEFAULTS.anthropic.planModel;
-      case 'balanced':
-      default:
-        return LLM_DEFAULTS.openai.planModel;
-    }
+    const config = BaseAgent._vibeConfig ?? loadVibeConfig();
+    return config.providers.llm.modelMapping[this.profile.defaultModelTier];
   }
 }

@@ -3,8 +3,7 @@ import { QUEUE_PROVIDER, VCS_PROVIDER } from '../providers/tokens';
 import { EXECUTION_PLAN_REPOSITORY } from '../providers/repository-tokens';
 import { IQueueProvider } from '../providers/interfaces/queue-provider.interface';
 import { IVCSProvider } from '../providers/interfaces/vcs-provider.interface';
-import { IRepository } from '../providers/interfaces/database-provider.interface';
-import { ExecutionPlan } from '../entities/execution-plan.schema';
+import { IExecutionPlanRepository } from '../providers/interfaces/execution-plan-repository.interface';
 import { AgentJobData, AgentOutput, NodeStatus } from '../agents/protocol';
 
 @Injectable()
@@ -14,7 +13,7 @@ export class Scheduler {
   constructor(
     @Inject(QUEUE_PROVIDER) private readonly queueProvider: IQueueProvider,
     @Inject(EXECUTION_PLAN_REPOSITORY)
-    private readonly planRepo: IRepository<ExecutionPlan>,
+    private readonly planRepo: IExecutionPlanRepository,
     @Inject(VCS_PROVIDER) private readonly vcs: IVCSProvider,
   ) {}
 
@@ -36,17 +35,20 @@ export class Scheduler {
       throw new Error(`Plan '${planId}' not found`);
     }
 
-    const readyNodes = this.findReadyNodes(plan);
+    const readyNodes = await this.planRepo.getReadyNodes(planId);
     this.logger.log(
       `Dispatching ${readyNodes.length} ready nodes for plan ${planId}`,
     );
 
-    for (const node of readyNodes) {
+    for (const readyNode of readyNodes) {
+      const node = plan.dag.find((n) => n.nodeId === readyNode.nodeId);
+      if (!node) continue;
+
       const jobData: AgentJobData = {
         taskId: node.taskDefinition.id,
         pipelineId: planId,
         projectId: plan.projectId,
-        agentId: node.agentId,
+        agentId: readyNode.agentId,
         taskDefinition: node.taskDefinition,
         contextKeys: node.taskDefinition.tags,
         previousOutputIds: node.dependencies,
@@ -55,12 +57,14 @@ export class Scheduler {
       };
 
       const queue = this.queueProvider.getQueue<AgentJobData>(
-        `agent:${node.agentId}`,
+        `agent:${readyNode.agentId}`,
       );
       await queue.add(jobData);
 
       node.status = 'queued';
-      this.logger.log(`Queued node ${node.nodeId} → agent:${node.agentId}`);
+      this.logger.log(
+        `Queued node ${node.nodeId} → agent:${readyNode.agentId}`,
+      );
     }
 
     await this.planRepo.update(planId, { dag: plan.dag });
@@ -135,16 +139,6 @@ export class Scheduler {
       `Node ${nodeId} failed in plan ${planId}: ${error}. ` +
         `Skipped ${dependents.length} dependent nodes.`,
     );
-  }
-
-  private findReadyNodes(plan: ExecutionPlan) {
-    return plan.dag.filter((node) => {
-      if (node.status !== 'pending') return false;
-      return node.dependencies.every((depId) => {
-        const dep = plan.dag.find((n) => n.nodeId === depId);
-        return dep && dep.status === 'completed';
-      });
-    });
   }
 
   private findDependents(plan: ExecutionPlan, nodeId: string) {

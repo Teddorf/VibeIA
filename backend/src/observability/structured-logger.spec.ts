@@ -144,5 +144,25 @@ describe('StructuredLogger', () => {
       const parsed = JSON.parse(logSpy.mock.calls[0][0]);
       expect(parsed.traceId).toBe('custom-id');
     });
+
+    it('should populate data field with extra context keys', () => {
+      logger.log('msg', {
+        source: 'Planner',
+        customField: 'hello',
+        requestId: 42,
+      });
+      const parsed = JSON.parse(logSpy.mock.calls[0][0]);
+      expect(parsed.data).toBeDefined();
+      expect(parsed.data.customField).toBe('hello');
+      expect(parsed.data.requestId).toBe(42);
+      // Known keys should NOT appear in data
+      expect(parsed.data.source).toBeUndefined();
+    });
+
+    it('should not include data field when no extra keys present', () => {
+      logger.log('msg', { source: 'Planner', durationMs: 10 });
+      const parsed = JSON.parse(logSpy.mock.calls[0][0]);
+      expect(parsed.data).toBeUndefined();
+    });
   });
 });

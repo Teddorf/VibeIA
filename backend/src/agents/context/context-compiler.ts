@@ -4,7 +4,6 @@ import { CACHE_PROVIDER, VIBE_CONFIG } from '../../providers/tokens';
 import { IRepository } from '../../providers/interfaces/database-provider.interface';
 import { ICacheProvider } from '../../providers/interfaces/cache-provider.interface';
 import { ContextEntryEntity } from '../../entities/context-entry.schema';
-import { LLM_DEFAULTS } from '../../config/defaults';
 import { VibeConfig } from '../../config/vibe-config';
 import { CompiledContext, ContextEntry, TaskDefinition } from '../protocol';
 
@@ -76,7 +75,7 @@ export class ContextCompiler {
   }
 
   estimateTokens(text: string): number {
-    return Math.ceil(text.length / LLM_DEFAULTS.charsPerToken);
+    return Math.ceil(text.length / this.config.taskDefaults.charsPerToken);
   }
 
   private trimToTokenBudget(
