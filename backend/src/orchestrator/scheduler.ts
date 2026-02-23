@@ -5,6 +5,7 @@ import { IQueueProvider } from '../providers/interfaces/queue-provider.interface
 import { IVCSProvider } from '../providers/interfaces/vcs-provider.interface';
 import { IExecutionPlanRepository } from '../providers/interfaces/execution-plan-repository.interface';
 import { AgentJobData, AgentOutput, NodeStatus } from '../agents/protocol';
+import { ExecutionPlan } from '../entities/execution-plan.schema';
 
 @Injectable()
 export class Scheduler {
@@ -50,7 +51,7 @@ export class Scheduler {
         pipelineId: planId,
         projectId: plan.projectId,
         agentId: readyNode.agentId,
-        taskDefinition: node.taskDefinition,
+        taskDefinition: node.taskDefinition as any,
         contextKeys: node.taskDefinition.tags,
         previousOutputIds: node.dependencies,
         configOverrides: {},
