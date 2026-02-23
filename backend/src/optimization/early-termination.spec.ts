@@ -60,4 +60,37 @@ describe('EarlyTermination', () => {
     const conditions = et.getDefaultStopConditions();
     expect(conditions.length).toBeGreaterThan(0);
   });
+
+  describe('streamWithEarlyTermination', () => {
+    async function* mockStream(chunks: string[]): AsyncIterable<any> {
+      for (const delta of chunks) {
+        yield { delta };
+      }
+    }
+
+    it('should pass through clean stream', async () => {
+      const et = new EarlyTermination();
+      const chunks: any[] = [];
+      for await (const c of et.streamWithEarlyTermination(
+        mockStream(['hello', ' world']),
+      )) {
+        chunks.push(c);
+      }
+      expect(chunks.length).toBe(2);
+      expect(chunks[0].delta).toBe('hello');
+    });
+
+    it('should abort stream on stop condition', async () => {
+      const et = new EarlyTermination();
+      const chunks: any[] = [];
+      for await (const c of et.streamWithEarlyTermination(
+        mockStream(['This ', 'has ', 'infinite loop ', 'detected']),
+      )) {
+        chunks.push(c);
+      }
+      // Should stop at or after 'infinite loop'
+      const last = chunks[chunks.length - 1];
+      expect(last.finishReason).toBe('stop');
+    });
+  });
 });

@@ -27,7 +27,7 @@ describe('DecisionCache', () => {
     mockCacheProvider = {
       get: jest.fn().mockResolvedValue(null),
       set: jest.fn().mockResolvedValue(undefined),
-      del: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn().mockResolvedValue(undefined),
     };
     cache = new DecisionCache(mockCacheProvider as any, loadVibeConfig());
   });
@@ -91,7 +91,7 @@ describe('DecisionCache', () => {
   describe('invalidate', () => {
     it('should delete cached decision', async () => {
       await cache.invalidate('key');
-      expect(mockCacheProvider.del).toHaveBeenCalledWith('key');
+      expect(mockCacheProvider.delete).toHaveBeenCalledWith('key');
     });
   });
 });

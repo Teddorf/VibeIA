@@ -42,6 +42,6 @@ export class DecisionCache {
   }
 
   async invalidate(key: string): Promise<void> {
-    await this.cache.del(key);
+    await this.cache.delete(key);
   }
 }

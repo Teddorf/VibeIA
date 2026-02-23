@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { LLMStreamChunk } from '../providers/interfaces/llm-provider.interface';
 
 export interface StopCondition {
   pattern: RegExp;
@@ -61,6 +62,28 @@ export class EarlyTermination {
     }
 
     return { output, terminated: false };
+  }
+
+  async *streamWithEarlyTermination(
+    source: AsyncIterable<LLMStreamChunk>,
+    stopConditions: StopCondition[] = DEFAULT_STOP_CONDITIONS,
+  ): AsyncGenerator<LLMStreamChunk> {
+    let accumulated = '';
+    for await (const chunk of source) {
+      accumulated += chunk.delta;
+      // Check stop conditions on accumulated text
+      for (const condition of stopConditions) {
+        if (
+          condition.action === 'abort' &&
+          condition.pattern.test(accumulated)
+        ) {
+          this.logger.warn(`Stream early termination: ${condition.reason}`);
+          yield { delta: '', finishReason: 'stop' };
+          return;
+        }
+      }
+      yield chunk;
+    }
   }
 
   getDefaultStopConditions(): StopCondition[] {
