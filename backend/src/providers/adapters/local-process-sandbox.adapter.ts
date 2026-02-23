@@ -3,6 +3,7 @@ import {
   ISandboxProvider,
   ISandbox,
   ISandboxExecResult,
+  SandboxConfig,
 } from '../interfaces/sandbox-provider.interface';
 import { exec } from 'child_process';
 import * as fs from 'fs/promises';
@@ -11,9 +12,14 @@ import * as os from 'os';
 import { randomUUID } from 'crypto';
 
 class LocalProcessSandbox implements ISandbox {
-  constructor(private readonly workDir: string) {}
+  public readonly id: string;
+
+  constructor(private readonly workDir: string) {
+    this.id = randomUUID();
+  }
 
   exec(command: string, timeoutMs = 30000): Promise<ISandboxExecResult> {
+    const start = Date.now();
     return new Promise((resolve) => {
       exec(
         command,
@@ -24,10 +30,12 @@ class LocalProcessSandbox implements ISandbox {
           shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
         },
         (error, stdout, stderr) => {
+          const durationMs = Date.now() - start;
           resolve({
             stdout: stdout || '',
             stderr: stderr || '',
             exitCode: error?.code ?? (error ? 1 : 0),
+            durationMs,
           });
         },
       );
@@ -45,6 +53,11 @@ class LocalProcessSandbox implements ISandbox {
     return fs.readFile(full, 'utf-8');
   }
 
+  async listFiles(dir?: string): Promise<string[]> {
+    const target = dir ? path.join(this.workDir, dir) : this.workDir;
+    return fs.readdir(target);
+  }
+
   async destroy(): Promise<void> {
     await fs.rm(this.workDir, { recursive: true, force: true });
   }
@@ -54,6 +67,14 @@ class LocalProcessSandbox implements ISandbox {
 export class LocalProcessSandboxAdapter implements ISandboxProvider {
   async create(_options?: Record<string, unknown>): Promise<ISandbox> {
     const workDir = path.join(os.tmpdir(), `vibe-sandbox-${randomUUID()}`);
+    await fs.mkdir(workDir, { recursive: true });
+    return new LocalProcessSandbox(workDir);
+  }
+
+  async createSandbox(config?: SandboxConfig): Promise<ISandbox> {
+    const workDir = config?.workDir
+      ? config.workDir
+      : path.join(os.tmpdir(), `vibe-sandbox-${randomUUID()}`);
     await fs.mkdir(workDir, { recursive: true });
     return new LocalProcessSandbox(workDir);
   }
