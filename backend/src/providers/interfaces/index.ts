@@ -1,5 +1,6 @@
 export * from './provider.interface';
 export * from './llm-provider.interface';
+export * from './llm-fallback-chain.interface';
 export * from './queue-provider.interface';
 export * from './cache-provider.interface';
 export * from './database-provider.interface';

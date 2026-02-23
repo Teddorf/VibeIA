@@ -48,4 +48,33 @@ describe('OpenAILLMAdapter', () => {
     const cost = adapter.estimateCost('hello world');
     expect(cost).toBeGreaterThanOrEqual(0);
   });
+
+  it('should list models', () => {
+    const models = adapter.listModels();
+    expect(models.length).toBeGreaterThan(0);
+    expect(models[0].tier).toBeDefined();
+  });
+
+  it('should get model pricing', () => {
+    const pricing = adapter.getModelPricing('any-model');
+    expect(pricing.inputPerMillionTokens).toBeGreaterThan(0);
+  });
+
+  it('should report capabilities', () => {
+    expect(adapter.supportsCapability('text')).toBe(true);
+    expect(adapter.supportsCapability('function-calling')).toBe(true);
+    expect(adapter.supportsCapability('vision')).toBe(false);
+  });
+
+  it('should complete via SPEC method', async () => {
+    process.env.OPENAI_API_KEY = 'sk-test';
+    const response = await adapter.complete({
+      messages: [{ role: 'user', content: 'test' }],
+      model: 'gpt-4-turbo-preview',
+      maxTokens: 100,
+    });
+    expect(response.content).toBe('{"result": "ok"}');
+    expect(response.usage.totalTokens).toBe(120);
+    expect(response.providerId).toBe('openai');
+  });
 });

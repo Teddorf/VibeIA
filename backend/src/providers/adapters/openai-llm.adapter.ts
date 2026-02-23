@@ -5,6 +5,12 @@ import {
   ILLMProviderOptions,
   ILLMProviderResult,
   ILLMProviderJSONResult,
+  LLMRequest,
+  LLMResponse,
+  LLMStreamChunk,
+  ModelInfo,
+  ModelPricingSpec,
+  LLMCapability,
 } from '../interfaces/llm-provider.interface';
 import { LLM_DEFAULTS } from '../../config/defaults';
 
@@ -94,6 +100,118 @@ export class OpenAILLMAdapter implements ILLMProvider {
     return (
       (estimatedTokens / 1000000) * LLM_DEFAULTS.openai.pricing.inputPerMillion
     );
+  }
+
+  // ─── SPEC v2.2 methods ────────────────────────────────────────────────────
+
+  async complete(request: LLMRequest): Promise<LLMResponse> {
+    const apiKey = process.env.OPENAI_API_KEY ?? '';
+    const client = this.createClient(apiKey);
+    const start = Date.now();
+
+    const messages = request.messages.map((m) => ({
+      role: m.role,
+      content:
+        typeof m.content === 'string'
+          ? m.content
+          : m.content.map((b) => b.text ?? '').join(''),
+    }));
+
+    const params: any = {
+      model: request.model,
+      max_tokens: request.maxTokens,
+      temperature: request.temperature,
+      messages,
+    };
+    if (request.responseFormat === 'json') {
+      params.response_format = { type: 'json_object' };
+    }
+
+    const completion = await client.chat.completions.create(params);
+    const latencyMs = Date.now() - start;
+
+    return {
+      content: completion.choices[0].message.content || '',
+      usage: {
+        inputTokens: completion.usage?.prompt_tokens || 0,
+        outputTokens: completion.usage?.completion_tokens || 0,
+        cachedTokens: 0,
+        totalTokens: completion.usage?.total_tokens || 0,
+      },
+      model: request.model,
+      finishReason:
+        completion.choices[0].finish_reason === 'stop' ? 'stop' : 'length',
+      latencyMs,
+      cached: false,
+      providerId: this.name,
+    };
+  }
+
+  async *stream(request: LLMRequest): AsyncIterable<LLMStreamChunk> {
+    const apiKey = process.env.OPENAI_API_KEY ?? '';
+    const client = this.createClient(apiKey);
+
+    const messages = request.messages.map((m) => ({
+      role: m.role,
+      content:
+        typeof m.content === 'string'
+          ? m.content
+          : m.content.map((b) => b.text ?? '').join(''),
+    }));
+
+    const stream = await client.chat.completions.create({
+      model: request.model,
+      max_tokens: request.maxTokens,
+      temperature: request.temperature,
+      messages,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content ?? '';
+      const finishReason = chunk.choices[0]?.finish_reason;
+      yield {
+        delta,
+        finishReason: finishReason === 'stop' ? 'stop' : undefined,
+      };
+    }
+  }
+
+  listModels(): ModelInfo[] {
+    return [
+      {
+        modelId: LLM_DEFAULTS.openai.planModel,
+        displayName: 'GPT-4 Turbo Preview',
+        tier: 'balanced',
+        contextWindow: 128000,
+        capabilities: ['text', 'json', 'streaming', 'function-calling', 'code'],
+      },
+      {
+        modelId: LLM_DEFAULTS.openai.validationModel,
+        displayName: 'GPT-3.5 Turbo',
+        tier: 'fast',
+        contextWindow: 16384,
+        capabilities: ['text', 'json', 'streaming', 'function-calling', 'code'],
+      },
+    ];
+  }
+
+  getModelPricing(_modelId: string): ModelPricingSpec {
+    return {
+      inputPerMillionTokens: LLM_DEFAULTS.openai.pricing.inputPerMillion,
+      outputPerMillionTokens: LLM_DEFAULTS.openai.pricing.outputPerMillion,
+    };
+  }
+
+  supportsCapability(capability: LLMCapability): boolean {
+    const supported: LLMCapability[] = [
+      'text',
+      'json',
+      'streaming',
+      'function-calling',
+      'code',
+    ];
+    return supported.includes(capability);
   }
 
   private calculateCost(

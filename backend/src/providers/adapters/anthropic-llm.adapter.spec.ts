@@ -43,4 +43,37 @@ describe('AnthropicLLMAdapter', () => {
     const cost = adapter.estimateCost('hello world');
     expect(cost).toBeGreaterThanOrEqual(0);
   });
+
+  it('should list models', () => {
+    const models = adapter.listModels();
+    expect(models.length).toBeGreaterThan(0);
+    expect(models[0].modelId).toBeDefined();
+    expect(models[0].tier).toBeDefined();
+    expect(models[0].capabilities).toContain('text');
+  });
+
+  it('should get model pricing', () => {
+    const pricing = adapter.getModelPricing('any-model');
+    expect(pricing.inputPerMillionTokens).toBeGreaterThan(0);
+    expect(pricing.outputPerMillionTokens).toBeGreaterThan(0);
+  });
+
+  it('should report supported capabilities', () => {
+    expect(adapter.supportsCapability('text')).toBe(true);
+    expect(adapter.supportsCapability('streaming')).toBe(true);
+    expect(adapter.supportsCapability('function-calling')).toBe(false);
+  });
+
+  it('should complete via SPEC method', async () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    const response = await adapter.complete({
+      messages: [{ role: 'user', content: 'test' }],
+      model: 'claude-sonnet-4-20250514',
+      maxTokens: 100,
+    });
+    expect(response.content).toBe('{"result": "ok"}');
+    expect(response.usage.inputTokens).toBe(100);
+    expect(response.usage.outputTokens).toBe(50);
+    expect(response.providerId).toBe('anthropic');
+  });
 });

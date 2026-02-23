@@ -9,8 +9,10 @@ import {
   LLM_PROVIDER,
   VCS_PROVIDER,
   VIBE_CONFIG,
+  LLM_FALLBACK_CHAIN,
 } from './tokens';
 import { VIBE_CONFIG_KEY, loadVibeConfig } from '../config/vibe-config';
+import { LLMFallbackChainAdapter } from './adapters/llm-fallback-chain.adapter';
 import { InMemoryQueueAdapter } from './adapters/in-memory-queue.adapter';
 import { InMemoryCacheAdapter } from './adapters/in-memory-cache.adapter';
 import { LocalProcessSandboxAdapter } from './adapters/local-process-sandbox.adapter';
@@ -43,6 +45,11 @@ export class ProvidersModule {
         ) => [anthropic, openai, gemini],
         inject: [AnthropicLLMAdapter, OpenAILLMAdapter, GeminiLLMAdapter],
       },
+      LLMFallbackChainAdapter,
+      {
+        provide: LLM_FALLBACK_CHAIN,
+        useExisting: LLMFallbackChainAdapter,
+      },
       {
         provide: VIBE_CONFIG,
         useFactory: (config: ConfigService) => {
@@ -69,6 +76,7 @@ export class ProvidersModule {
         OpenAILLMAdapter,
         GeminiLLMAdapter,
         VIBE_CONFIG,
+        LLM_FALLBACK_CHAIN,
       ],
     };
   }
