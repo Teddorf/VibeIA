@@ -58,12 +58,44 @@ describe('OrchestratorService', () => {
       update: jest.fn().mockResolvedValue(null),
     };
 
+    const mockDecisionCache = {
+      getCachedDecision: jest.fn().mockResolvedValue(null),
+      cacheDecision: jest.fn().mockResolvedValue(undefined),
+      buildKey: jest.fn().mockReturnValue('key'),
+      computeContextHash: jest.fn().mockReturnValue('hash'),
+    };
+
+    const mockCostTracker = {
+      checkBudget: jest.fn().mockResolvedValue({
+        allowed: true,
+        remaining: 10,
+        currentSpend: 0,
+        budgetLimit: 10,
+      }),
+      trackCost: jest.fn().mockResolvedValue(undefined),
+      getCostForProject: jest.fn().mockResolvedValue({
+        totalCostUSD: 0,
+        totalTokensUsed: 0,
+        executionCount: 0,
+        byAgent: {},
+      }),
+    };
+
+    const mockPromptCompiler = {
+      compileSystemPrompt: jest.fn().mockReturnValue('system prompt'),
+      registerModule: jest.fn(),
+      getModuleCount: jest.fn().mockReturnValue(0),
+    };
+
     service = new OrchestratorService(
       mockPlanner as any,
       mockScheduler as any,
       mockResultEvaluator as any,
       new TraceContext(),
       mockEventsGateway as any,
+      mockDecisionCache as any,
+      mockCostTracker as any,
+      mockPromptCompiler as any,
       mockPlanRepo as any,
     );
   });

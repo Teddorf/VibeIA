@@ -9,6 +9,9 @@ import { ResultEvaluator } from './result-evaluator';
 import { TraceContext } from '../observability/trace';
 import { generateTraceId } from '../observability/trace';
 import { AgentOutput } from '../agents/protocol';
+import { DecisionCache } from '../optimization/decision-cache';
+import { CostTracker } from '../optimization/cost-tracker';
+import { PromptCompiler } from '../optimization/prompt-compiler';
 
 @Injectable()
 export class OrchestratorService {
@@ -20,6 +23,9 @@ export class OrchestratorService {
     private readonly resultEvaluator: ResultEvaluator,
     private readonly traceContext: TraceContext,
     private readonly eventsGateway: EventsGateway,
+    private readonly decisionCache: DecisionCache,
+    private readonly costTracker: CostTracker,
+    private readonly promptCompiler: PromptCompiler,
     @Inject(EXECUTION_PLAN_REPOSITORY)
     private readonly planRepo: IRepository<ExecutionPlan>,
   ) {}
@@ -32,6 +38,15 @@ export class OrchestratorService {
     const traceId = generateTraceId();
     this.traceContext.setTraceId(traceId);
     this.logger.log(`[${traceId}] Executing intent: "${intent}"`);
+
+    // Check budget before planning
+    const budgetCheck = await this.costTracker.checkBudget(projectId, 0);
+    if (!budgetCheck.allowed) {
+      throw new Error(
+        `Budget exceeded for project ${projectId}: ` +
+          `$${budgetCheck.currentSpend.toFixed(2)} / $${budgetCheck.budgetLimit}`,
+      );
+    }
 
     const plan = await this.planner.createPlan(intent, projectId, options);
     const planId = (plan as any)._id?.toString() ?? (plan as any).id;
@@ -89,7 +104,7 @@ export class OrchestratorService {
 
     const evaluation = await this.resultEvaluator.evaluate(
       output,
-      node.taskDefinition,
+      node.taskDefinition as any,
     );
 
     if (!evaluation.passed) {
@@ -113,6 +128,17 @@ export class OrchestratorService {
       agentId: output.agentId,
       metrics: output.metrics,
     });
+
+    // Track cost for completed agent execution
+    if (output.metrics) {
+      await this.costTracker.trackCost({
+        projectId: plan.projectId,
+        pipelineId: planId,
+        taskId: output.taskId,
+        agentId: output.agentId,
+        metrics: output.metrics as any,
+      } as any);
+    }
 
     if (planComplete) {
       this.emitPipelineEvent(planId, 'pipeline_completed', {

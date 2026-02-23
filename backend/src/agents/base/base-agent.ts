@@ -1,6 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { LLM_DEFAULTS } from '../../config/defaults';
 import {
+  EarlyTermination,
+  EarlyTerminationResult,
+  StopCondition,
+} from '../../optimization/early-termination';
+import {
   IAgent,
   AgentProfile,
   AgentInput,
@@ -82,6 +87,15 @@ export abstract class BaseAgent implements IAgent {
 
   protected estimateTokens(text: string): number {
     return Math.ceil(text.length / LLM_DEFAULTS.charsPerToken);
+  }
+
+  protected checkEarlyTermination(
+    output: string,
+    customConditions?: StopCondition[],
+  ): EarlyTerminationResult {
+    const et = new EarlyTermination();
+    const conditions = customConditions ?? et.getDefaultStopConditions();
+    return et.executeWithEarlyTermination(output, conditions);
   }
 
   protected startMetrics(): ExecutionMetrics {

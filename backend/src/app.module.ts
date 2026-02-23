@@ -27,6 +27,7 @@ import { TeamsModule } from './modules/teams/teams.module';
 import { CodebaseAnalysisModule } from './modules/codebase-analysis/codebase-analysis.module';
 import { AgentsModule } from './agents/agents.module';
 import { OrchestratorModule } from './orchestrator/orchestrator.module';
+import { OptimizationModule } from './optimization/optimization.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { OrchestratorModule } from './orchestrator/orchestrator.module';
     CodebaseAnalysisModule,
     AgentsModule,
     OrchestratorModule,
+    OptimizationModule,
     ProvidersModule.forRoot(),
     ThrottlerModule.forRoot([
       {
