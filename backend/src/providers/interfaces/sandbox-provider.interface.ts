@@ -6,8 +6,10 @@ export interface ISandboxExecResult {
 }
 
 export interface SandboxConfig {
-  timeoutMs?: number;
+  image?: string;
   memoryMb?: number;
+  cpus?: number;
+  timeoutMs?: number;
   env?: Record<string, string>;
   workDir?: string;
 }
