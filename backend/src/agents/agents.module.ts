@@ -35,6 +35,11 @@ import { ContextCompiler } from './context/context-compiler';
 import { CoderAgent } from './coder/coder-agent';
 import { ReviewerAgent } from './reviewer/reviewer-agent';
 import { DevOpsAgent } from './devops/devops-agent';
+import { AnalystAgent } from './analyst/analyst-agent';
+import { ArchitectAgent } from './architect/architect-agent';
+import { TesterAgent } from './tester/tester-agent';
+import { DocAgent } from './doc/doc-agent';
+import { FixerAgent } from './fixer/fixer-agent';
 
 @Module({
   imports: [
@@ -62,6 +67,11 @@ import { DevOpsAgent } from './devops/devops-agent';
     CoderAgent,
     ReviewerAgent,
     DevOpsAgent,
+    AnalystAgent,
+    ArchitectAgent,
+    TesterAgent,
+    DocAgent,
+    FixerAgent,
   ],
   exports: [
     EXECUTION_PLAN_REPOSITORY,
@@ -75,6 +85,11 @@ import { DevOpsAgent } from './devops/devops-agent';
     CoderAgent,
     ReviewerAgent,
     DevOpsAgent,
+    AnalystAgent,
+    ArchitectAgent,
+    TesterAgent,
+    DocAgent,
+    FixerAgent,
   ],
 })
 export class AgentsModule implements OnModuleInit {
@@ -83,11 +98,21 @@ export class AgentsModule implements OnModuleInit {
     private readonly coderAgent: CoderAgent,
     private readonly reviewerAgent: ReviewerAgent,
     private readonly devOpsAgent: DevOpsAgent,
+    private readonly analystAgent: AnalystAgent,
+    private readonly architectAgent: ArchitectAgent,
+    private readonly testerAgent: TesterAgent,
+    private readonly docAgent: DocAgent,
+    private readonly fixerAgent: FixerAgent,
   ) {}
 
   onModuleInit() {
     this.registry.register(this.coderAgent);
     this.registry.register(this.reviewerAgent);
     this.registry.register(this.devOpsAgent);
+    this.registry.register(this.analystAgent);
+    this.registry.register(this.architectAgent);
+    this.registry.register(this.testerAgent);
+    this.registry.register(this.docAgent);
+    this.registry.register(this.fixerAgent);
   }
 }
