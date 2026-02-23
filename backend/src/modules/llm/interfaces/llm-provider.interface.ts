@@ -1,18 +1,6 @@
 import { CodebaseAnalysis } from '../../codebase-analysis/dto/analysis-result.dto';
 import { PlanType, ImportContext } from '../../plans/dto/create-plan.dto';
 
-export interface LLMProviderOptions {
-  apiKey: string;
-}
-
-export interface LLMProvider {
-  name: string;
-  generatePlan(wizardData: any, options: LLMProviderOptions): Promise<LLMResponse>;
-  generateCode(task: any, context: any, options: LLMProviderOptions): Promise<{ files: { path: string; content: string }[] }>;
-  estimateCost(prompt: string): number;
-  validateApiKey(apiKey: string): Promise<boolean>;
-}
-
 export interface LLMResponse {
   plan: any;
   provider: string;
