@@ -37,6 +37,14 @@ class InMemoryQueue<T> implements IQueue<T> {
 
   process(handler: (job: IJob<T>) => Promise<void>): void {
     this.handler = handler;
+    // Drain any jobs that were added before the handler was registered
+    this.drainExisting();
+  }
+
+  private async drainExisting(): Promise<void> {
+    while (this.waiting.length > 0 && this.handler && !this.paused) {
+      await this.processNext();
+    }
   }
 
   async getWaiting(): Promise<IJob<T>[]> {

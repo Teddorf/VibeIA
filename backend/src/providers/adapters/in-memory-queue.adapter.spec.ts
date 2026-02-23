@@ -114,4 +114,49 @@ describe('InMemoryQueueAdapter', () => {
     // Should return the same queue on subsequent calls
     expect(adapter.getQueue('new-queue')).toBe(queue);
   });
+
+  it('should drain existing waiting jobs when process() is called', async () => {
+    const queue = adapter.getQueue<string>('drain-test');
+    const processed: string[] = [];
+
+    // Add jobs BEFORE registering handler
+    await queue.add('before-1');
+    await queue.add('before-2');
+
+    const waiting = await queue.getWaiting();
+    expect(waiting).toHaveLength(2);
+
+    // Register handler — should drain existing jobs
+    queue.process(async (job) => {
+      processed.push(job.data);
+    });
+
+    // Wait for async drain to complete
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(processed).toEqual(['before-1', 'before-2']);
+    const waitingAfter = await queue.getWaiting();
+    expect(waitingAfter).toHaveLength(0);
+  });
+
+  it('should process jobs added both before and after handler registration', async () => {
+    const queue = adapter.getQueue<string>('mixed-test');
+    const processed: string[] = [];
+
+    // Add job before handler
+    await queue.add('pre-handler');
+
+    // Register handler
+    queue.process(async (job) => {
+      processed.push(job.data);
+    });
+
+    // Wait for drain
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Add job after handler
+    await queue.add('post-handler');
+
+    expect(processed).toEqual(['pre-handler', 'post-handler']);
+  });
 });
