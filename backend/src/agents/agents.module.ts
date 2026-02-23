@@ -1,6 +1,9 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { createRepositoryProvider } from '../providers/repository-providers.factory';
+import { ExecutionPlanRepositoryAdapter } from '../providers/adapters/execution-plan-repository.adapter';
+import { AgentExecutionRepositoryAdapter } from '../providers/adapters/agent-execution-repository.adapter';
+import { AgentContextRepositoryAdapter } from '../providers/adapters/agent-context-repository.adapter';
 import {
   EXECUTION_PLAN_REPOSITORY,
   AGENT_EXECUTION_REPOSITORY,
@@ -53,9 +56,18 @@ import { FixerAgent } from './fixer/fixer-agent';
     QualityGatesModule,
   ],
   providers: [
-    createRepositoryProvider(EXECUTION_PLAN_REPOSITORY, ExecutionPlan.name),
-    createRepositoryProvider(AGENT_EXECUTION_REPOSITORY, AgentExecution.name),
-    createRepositoryProvider(AGENT_CONTEXT_REPOSITORY, ContextEntryEntity.name),
+    {
+      provide: EXECUTION_PLAN_REPOSITORY,
+      useClass: ExecutionPlanRepositoryAdapter,
+    },
+    {
+      provide: AGENT_EXECUTION_REPOSITORY,
+      useClass: AgentExecutionRepositoryAdapter,
+    },
+    {
+      provide: AGENT_CONTEXT_REPOSITORY,
+      useClass: AgentContextRepositoryAdapter,
+    },
     createRepositoryProvider(
       WORKER_POOL_CONFIG_REPOSITORY,
       WorkerPoolConfig.name,

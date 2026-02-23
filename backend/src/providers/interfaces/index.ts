@@ -9,3 +9,6 @@ export * from './deploy-provider.interface';
 export * from './sandbox-provider.interface';
 export * from './filesystem-provider.interface';
 export * from './git-host-provider.interface';
+export * from './execution-plan-repository.interface';
+export * from './agent-context-repository.interface';
+export * from './agent-execution-repository.interface';
