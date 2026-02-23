@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { createRepositoryProvider } from '../providers/repository-providers.factory';
 import {
@@ -28,9 +28,13 @@ import {
   AgentProfileEntity,
   AgentProfileSchema,
 } from '../entities/agent-profile.schema';
+import { QualityGatesModule } from '../modules/quality-gates/quality-gates.module';
 import { AgentRegistry } from './registry/agent-registry';
 import { ContextStoreService } from './context/context-store.service';
 import { ContextCompiler } from './context/context-compiler';
+import { CoderAgent } from './coder/coder-agent';
+import { ReviewerAgent } from './reviewer/reviewer-agent';
+import { DevOpsAgent } from './devops/devops-agent';
 
 @Module({
   imports: [
@@ -41,6 +45,7 @@ import { ContextCompiler } from './context/context-compiler';
       { name: WorkerPoolConfig.name, schema: WorkerPoolConfigSchema },
       { name: AgentProfileEntity.name, schema: AgentProfileSchema },
     ]),
+    QualityGatesModule,
   ],
   providers: [
     createRepositoryProvider(EXECUTION_PLAN_REPOSITORY, ExecutionPlan.name),
@@ -54,6 +59,9 @@ import { ContextCompiler } from './context/context-compiler';
     AgentRegistry,
     ContextStoreService,
     ContextCompiler,
+    CoderAgent,
+    ReviewerAgent,
+    DevOpsAgent,
   ],
   exports: [
     EXECUTION_PLAN_REPOSITORY,
@@ -64,6 +72,22 @@ import { ContextCompiler } from './context/context-compiler';
     AgentRegistry,
     ContextStoreService,
     ContextCompiler,
+    CoderAgent,
+    ReviewerAgent,
+    DevOpsAgent,
   ],
 })
-export class AgentsModule {}
+export class AgentsModule implements OnModuleInit {
+  constructor(
+    private readonly registry: AgentRegistry,
+    private readonly coderAgent: CoderAgent,
+    private readonly reviewerAgent: ReviewerAgent,
+    private readonly devOpsAgent: DevOpsAgent,
+  ) {}
+
+  onModuleInit() {
+    this.registry.register(this.coderAgent);
+    this.registry.register(this.reviewerAgent);
+    this.registry.register(this.devOpsAgent);
+  }
+}
