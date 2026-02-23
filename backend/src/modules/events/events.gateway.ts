@@ -13,7 +13,21 @@ import { Logger, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 export interface ExecutionEvent {
-  type: 'status_update' | 'task_started' | 'task_completed' | 'task_failed' | 'phase_completed' | 'execution_completed' | 'error' | 'log';
+  type:
+    | 'status_update'
+    | 'task_started'
+    | 'task_completed'
+    | 'task_failed'
+    | 'phase_completed'
+    | 'execution_completed'
+    | 'error'
+    | 'log'
+    | 'worker_status_update'
+    | 'agent_started'
+    | 'agent_completed'
+    | 'agent_failed'
+    | 'pipeline_progress'
+    | string;
   planId: string;
   timestamp: Date;
   data: Record<string, any>;
@@ -26,12 +40,17 @@ export interface ExecutionEvent {
   },
   namespace: '/execution',
 })
-export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class EventsGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(EventsGateway.name);
-  private connectedClients: Map<string, { socket: Socket; userId?: string; planId?: string }> = new Map();
+  private connectedClients: Map<
+    string,
+    { socket: Socket; userId?: string; planId?: string }
+  > = new Map();
 
   constructor(private jwtService: JwtService) {}
 
@@ -42,7 +61,9 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   async handleConnection(client: Socket) {
     try {
       // Try to authenticate via token in handshake
-      const token = client.handshake.auth?.token || client.handshake.headers?.authorization?.split(' ')[1];
+      const token =
+        client.handshake.auth?.token ||
+        client.handshake.headers?.authorization?.split(' ')[1];
 
       let userId: string | undefined;
       if (token) {
@@ -55,7 +76,9 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       }
 
       this.connectedClients.set(client.id, { socket: client, userId });
-      this.logger.log(`Client connected: ${client.id} (user: ${userId || 'anonymous'})`);
+      this.logger.log(
+        `Client connected: ${client.id} (user: ${userId || 'anonymous'})`,
+      );
     } catch (error) {
       this.logger.error(`Error during connection: ${error.message}`);
     }
@@ -89,7 +112,9 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     if (clientInfo) {
       clientInfo.planId = undefined;
       client.leave(`plan:${data.planId}`);
-      this.logger.log(`Client ${client.id} unsubscribed from plan: ${data.planId}`);
+      this.logger.log(
+        `Client ${client.id} unsubscribed from plan: ${data.planId}`,
+      );
     }
     return { event: 'unsubscribed', data: { planId: data.planId } };
   }
@@ -110,7 +135,12 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     });
   }
 
-  emitTaskStarted(planId: string, phaseIndex: number, taskId: string, taskName: string) {
+  emitTaskStarted(
+    planId: string,
+    phaseIndex: number,
+    taskId: string,
+    taskName: string,
+  ) {
     this.emitExecutionEvent(planId, {
       type: 'task_started',
       planId,
@@ -119,7 +149,13 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     });
   }
 
-  emitTaskCompleted(planId: string, phaseIndex: number, taskId: string, taskName: string, filesGenerated?: number) {
+  emitTaskCompleted(
+    planId: string,
+    phaseIndex: number,
+    taskId: string,
+    taskName: string,
+    filesGenerated?: number,
+  ) {
     this.emitExecutionEvent(planId, {
       type: 'task_completed',
       planId,
@@ -128,7 +164,13 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     });
   }
 
-  emitTaskFailed(planId: string, phaseIndex: number, taskId: string, taskName: string, error: string) {
+  emitTaskFailed(
+    planId: string,
+    phaseIndex: number,
+    taskId: string,
+    taskName: string,
+    error: string,
+  ) {
     this.emitExecutionEvent(planId, {
       type: 'task_failed',
       planId,
@@ -146,7 +188,14 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     });
   }
 
-  emitExecutionCompleted(planId: string, summary: { totalTasks: number; completedTasks: number; failedTasks: number }) {
+  emitExecutionCompleted(
+    planId: string,
+    summary: {
+      totalTasks: number;
+      completedTasks: number;
+      failedTasks: number;
+    },
+  ) {
     this.emitExecutionEvent(planId, {
       type: 'execution_completed',
       planId,
@@ -164,12 +213,84 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     });
   }
 
-  emitLog(planId: string, message: string, level: 'info' | 'warn' | 'error' = 'info') {
+  emitLog(
+    planId: string,
+    message: string,
+    level: 'info' | 'warn' | 'error' = 'info',
+  ) {
     this.emitExecutionEvent(planId, {
       type: 'log',
       planId,
       timestamp: new Date(),
       data: { message, level },
+    });
+  }
+
+  // ─── Pipeline / Worker Events ──────────────────────────────────────────────
+
+  @SubscribeMessage('subscribe_pipeline')
+  handleSubscribePipeline(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { pipelineId: string },
+  ) {
+    client.join(`pipeline:${data.pipelineId}`);
+    this.logger.log(
+      `Client ${client.id} subscribed to pipeline: ${data.pipelineId}`,
+    );
+    return { event: 'subscribed', data: { pipelineId: data.pipelineId } };
+  }
+
+  emitWorkerStatusUpdate(agentId: string, status: Record<string, any>) {
+    this.server.emit('worker_status_update', {
+      type: 'worker_status_update',
+      timestamp: new Date(),
+      data: { agentId, ...status },
+    });
+  }
+
+  emitAgentStarted(planId: string, agentId: string, taskId: string) {
+    this.emitExecutionEvent(planId, {
+      type: 'agent_started',
+      planId,
+      timestamp: new Date(),
+      data: { agentId, taskId },
+    });
+  }
+
+  emitAgentCompleted(
+    planId: string,
+    agentId: string,
+    taskId: string,
+    metrics: Record<string, any>,
+  ) {
+    this.emitExecutionEvent(planId, {
+      type: 'agent_completed',
+      planId,
+      timestamp: new Date(),
+      data: { agentId, taskId, metrics },
+    });
+  }
+
+  emitAgentFailed(
+    planId: string,
+    agentId: string,
+    taskId: string,
+    error: string,
+  ) {
+    this.emitExecutionEvent(planId, {
+      type: 'agent_failed',
+      planId,
+      timestamp: new Date(),
+      data: { agentId, taskId, error },
+    });
+  }
+
+  emitPipelineProgress(planId: string, progress: Record<string, any>) {
+    this.emitExecutionEvent(planId, {
+      type: 'pipeline_progress',
+      planId,
+      timestamp: new Date(),
+      data: progress,
     });
   }
 

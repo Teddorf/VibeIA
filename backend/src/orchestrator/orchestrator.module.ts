@@ -8,6 +8,8 @@ import { Scheduler } from './scheduler';
 import { ResultEvaluator } from './result-evaluator';
 import { OrchestratorService } from './orchestrator.service';
 import { OrchestratorController } from './orchestrator.controller';
+import { WorkerPoolManager } from './worker-pool-manager';
+import { WorkerPoolController } from './worker-pool.controller';
 import { TraceContext } from '../observability/trace';
 import { StructuredLogger } from '../observability/structured-logger';
 
@@ -19,15 +21,17 @@ import { StructuredLogger } from '../observability/structured-logger';
     Scheduler,
     ResultEvaluator,
     OrchestratorService,
+    WorkerPoolManager,
     TraceContext,
     StructuredLogger,
   ],
-  controllers: [OrchestratorController],
+  controllers: [OrchestratorController, WorkerPoolController],
   exports: [
     OrchestratorService,
     Planner,
     Scheduler,
     ModelRouter,
+    WorkerPoolManager,
     TraceContext,
     StructuredLogger,
   ],
