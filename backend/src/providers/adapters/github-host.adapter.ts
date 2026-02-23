@@ -125,7 +125,7 @@ export class GitHubHostAdapter implements IGitHostProvider {
     };
   }
 
-  private mapRepo(r: any): IGitHostRepo {
+  private mapRepo(r: Record<string, any>): IGitHostRepo {
     return {
       id: r.id,
       name: r.name,

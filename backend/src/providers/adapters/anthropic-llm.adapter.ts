@@ -24,6 +24,7 @@ export class AnthropicLLMAdapter implements ILLMProvider {
     const message = await client.messages.create({
       model: options.model || LLM_DEFAULTS.anthropic.planModel,
       max_tokens: options.maxTokens || LLM_DEFAULTS.anthropic.maxTokensPlan,
+      temperature: options.temperature,
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -46,7 +47,14 @@ export class AnthropicLLMAdapter implements ILLMProvider {
     options: ILLMProviderOptions,
   ): Promise<ILLMProviderJSONResult<T>> {
     const result = await this.generateText(prompt, options);
-    const data = JSON.parse(result.text) as T;
+    let data: T;
+    try {
+      data = JSON.parse(result.text) as T;
+    } catch {
+      throw new Error(
+        `Anthropic returned invalid JSON: ${result.text.substring(0, 200)}`,
+      );
+    }
     return { data, tokensUsed: result.tokensUsed, cost: result.cost };
   }
 

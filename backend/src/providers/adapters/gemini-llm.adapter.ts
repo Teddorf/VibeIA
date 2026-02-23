@@ -60,7 +60,14 @@ export class GeminiLLMAdapter implements ILLMProvider {
 
     const result = await model.generateContent(prompt);
     const text = result.response.text();
-    const data = JSON.parse(text) as T;
+    let data: T;
+    try {
+      data = JSON.parse(text) as T;
+    } catch {
+      throw new Error(
+        `Gemini returned invalid JSON: ${text.substring(0, 200)}`,
+      );
+    }
     const tokensUsed = this.estimateTokens(prompt, text);
 
     return {

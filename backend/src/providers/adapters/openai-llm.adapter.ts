@@ -24,6 +24,7 @@ export class OpenAILLMAdapter implements ILLMProvider {
     const completion = await client.chat.completions.create({
       model: options.model || LLM_DEFAULTS.openai.planModel,
       max_tokens: options.maxTokens || LLM_DEFAULTS.openai.maxTokensPlan,
+      temperature: options.temperature,
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -48,12 +49,20 @@ export class OpenAILLMAdapter implements ILLMProvider {
     const completion = await client.chat.completions.create({
       model: options.model || LLM_DEFAULTS.openai.planModel,
       max_tokens: options.maxTokens || LLM_DEFAULTS.openai.maxTokensPlan,
+      temperature: options.temperature,
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
     });
 
     const text = completion.choices[0].message.content || '{}';
-    const data = JSON.parse(text) as T;
+    let data: T;
+    try {
+      data = JSON.parse(text) as T;
+    } catch {
+      throw new Error(
+        `OpenAI returned invalid JSON: ${text.substring(0, 200)}`,
+      );
+    }
     const tokensUsed = completion.usage?.total_tokens || 0;
 
     return {

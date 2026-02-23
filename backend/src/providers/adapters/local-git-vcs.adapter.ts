@@ -1,15 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import simpleGit, { SimpleGit } from 'simple-git';
 import { IVCSProvider } from '../interfaces/vcs-provider.interface';
 
 @Injectable()
 export class LocalGitVCSAdapter implements IVCSProvider {
+  private readonly logger = new Logger(LocalGitVCSAdapter.name);
+
   private getGit(repoPath?: string): SimpleGit {
     return simpleGit(repoPath);
   }
 
   async clone(repoUrl: string, destPath: string): Promise<void> {
-    await simpleGit().clone(repoUrl, destPath);
+    try {
+      await simpleGit().clone(repoUrl, destPath);
+    } catch (error: any) {
+      throw new Error(`Failed to clone ${repoUrl}: ${error.message}`);
+    }
   }
 
   async commit(
@@ -32,11 +38,15 @@ export class LocalGitVCSAdapter implements IVCSProvider {
     remote = 'origin',
     branch?: string,
   ): Promise<void> {
-    const git = this.getGit(repoPath);
-    if (branch) {
-      await git.push(remote, branch);
-    } else {
-      await git.push(remote);
+    try {
+      const git = this.getGit(repoPath);
+      if (branch) {
+        await git.push(remote, branch);
+      } else {
+        await git.push(remote);
+      }
+    } catch (error: any) {
+      throw new Error(`Failed to push to ${remote}: ${error.message}`);
     }
   }
 
@@ -45,11 +55,15 @@ export class LocalGitVCSAdapter implements IVCSProvider {
     remote = 'origin',
     branch?: string,
   ): Promise<void> {
-    const git = this.getGit(repoPath);
-    if (branch) {
-      await git.pull(remote, branch);
-    } else {
-      await git.pull(remote);
+    try {
+      const git = this.getGit(repoPath);
+      if (branch) {
+        await git.pull(remote, branch);
+      } else {
+        await git.pull(remote);
+      }
+    } catch (error: any) {
+      throw new Error(`Failed to pull from ${remote}: ${error.message}`);
     }
   }
 

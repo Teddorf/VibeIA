@@ -30,8 +30,3 @@ export interface ILLMProvider {
   validateApiKey(apiKey: string): Promise<boolean>;
   estimateCost(prompt: string): number;
 }
-
-export interface ILLMFallbackChain {
-  execute<T>(fn: (provider: ILLMProvider) => Promise<T>): Promise<T>;
-  getProviders(): ILLMProvider[];
-}
