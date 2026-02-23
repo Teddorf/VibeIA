@@ -13,7 +13,7 @@ const createMockAgent = (overrides: Partial<AgentProfile> = {}): IAgent => ({
     ...overrides,
   },
   execute: jest.fn(),
-  validateInput: jest.fn().mockReturnValue([]),
+  validateInput: jest.fn().mockReturnValue(null),
   estimateCost: jest.fn(),
   canHandle: jest.fn().mockReturnValue(true),
 });

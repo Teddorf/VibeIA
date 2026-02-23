@@ -10,8 +10,6 @@ import {
   AgentProfile,
   AgentInput,
   AgentOutput,
-  TaskDefinition,
-  CompiledContext,
   CostEstimate,
   ValidationError,
   ExecutionMetrics,
@@ -27,7 +25,7 @@ export abstract class BaseAgent implements IAgent {
 
   abstract execute(input: AgentInput): Promise<AgentOutput>;
 
-  validateInput(input: AgentInput): ValidationError[] {
+  validateInput(input: AgentInput): ValidationError[] | null {
     const errors: ValidationError[] = [];
 
     if (!input.taskDefinition) {
@@ -57,18 +55,19 @@ export abstract class BaseAgent implements IAgent {
       });
     }
 
-    return errors;
+    return errors.length > 0 ? errors : null;
   }
 
-  estimateCost(task: TaskDefinition, context: CompiledContext): CostEstimate {
+  estimateCost(input: AgentInput): CostEstimate {
+    const { taskDefinition: task, context } = input;
     const inputTokens =
       context.tokenCount + this.estimateTokens(task.description);
     const outputTokens = Math.ceil(inputTokens * 0.5);
     const pricing = this.getDefaultPricing();
 
     const costUSD =
-      (inputTokens / 1_000_000) * pricing.inputPerMillion +
-      (outputTokens / 1_000_000) * pricing.outputPerMillion;
+      (inputTokens / 1_000_000) * pricing.inputPerMillionTokens +
+      (outputTokens / 1_000_000) * pricing.outputPerMillionTokens;
 
     return {
       estimatedInputTokens: inputTokens,
@@ -149,15 +148,28 @@ export abstract class BaseAgent implements IAgent {
     };
   }
 
-  private getDefaultPricing() {
+  private getDefaultPricing(): {
+    inputPerMillionTokens: number;
+    outputPerMillionTokens: number;
+  } {
     switch (this.profile.defaultModelTier) {
       case 'fast':
-        return LLM_DEFAULTS.gemini.pricing;
+        return {
+          inputPerMillionTokens: LLM_DEFAULTS.gemini.pricing.inputPerMillion,
+          outputPerMillionTokens: LLM_DEFAULTS.gemini.pricing.outputPerMillion,
+        };
       case 'powerful':
-        return LLM_DEFAULTS.anthropic.pricing;
+        return {
+          inputPerMillionTokens: LLM_DEFAULTS.anthropic.pricing.inputPerMillion,
+          outputPerMillionTokens:
+            LLM_DEFAULTS.anthropic.pricing.outputPerMillion,
+        };
       case 'balanced':
       default:
-        return LLM_DEFAULTS.openai.pricing;
+        return {
+          inputPerMillionTokens: LLM_DEFAULTS.openai.pricing.inputPerMillion,
+          outputPerMillionTokens: LLM_DEFAULTS.openai.pricing.outputPerMillion,
+        };
     }
   }
 

@@ -48,7 +48,11 @@ export type ContextType =
 
 export type ContextScope = 'global' | 'domain' | 'task';
 
-export type ContextUpdateOperation = 'add' | 'update' | 'invalidate';
+export type ContextUpdateOperation =
+  | 'add'
+  | 'update'
+  | 'invalidate'
+  | 'supersede';
 
 // ─── Core Interfaces ────────────────────────────────────────────────────────
 
@@ -93,7 +97,11 @@ export interface CompiledContext {
   tokenCount: number;
   compiledAt: Date;
   cacheKey: string;
-  scope: ContextScope;
+  scope: {
+    global: ContextEntry[];
+    domainSpecific: ContextEntry[];
+    taskSpecific: ContextEntry[];
+  };
 }
 
 export interface AgentConfiguration {
@@ -139,7 +147,7 @@ export interface Artifact {
 export interface AgentOutput {
   taskId: string;
   agentId: string;
-  status: 'success' | 'failure' | 'partial';
+  status: 'success' | 'failure' | 'partial' | 'needs-review';
   artifacts: Artifact[];
   contextUpdates: ContextUpdate[];
   metrics: ExecutionMetrics;
@@ -161,7 +169,7 @@ export interface AgentJobData {
   taskDefinition: TaskDefinition;
   contextKeys: string[];
   previousOutputIds: string[];
-  configOverrides: AgentConfiguration;
+  configOverrides?: Partial<AgentConfiguration>;
   traceId: string;
 }
 
@@ -183,9 +191,9 @@ export interface ValidationError {
 }
 
 export interface ModelPricing {
-  inputPerMillion: number;
-  outputPerMillion: number;
-  cachedPerMillion?: number;
+  inputPerMillionTokens: number;
+  outputPerMillionTokens: number;
+  cachedInputPerMillionTokens?: number;
 }
 
 // ─── DAG Types ──────────────────────────────────────────────────────────────
@@ -213,7 +221,7 @@ export interface ParsedIntent {
 export interface IAgent {
   readonly profile: AgentProfile;
   execute(input: AgentInput): Promise<AgentOutput>;
-  validateInput(input: AgentInput): ValidationError[];
-  estimateCost(task: TaskDefinition, context: CompiledContext): CostEstimate;
+  validateInput(input: AgentInput): ValidationError[] | null;
+  estimateCost(input: AgentInput): CostEstimate;
   canHandle(task: TaskDefinition): boolean;
 }

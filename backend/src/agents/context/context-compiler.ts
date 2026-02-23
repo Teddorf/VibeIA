@@ -5,12 +5,7 @@ import { IRepository } from '../../providers/interfaces/database-provider.interf
 import { ICacheProvider } from '../../providers/interfaces/cache-provider.interface';
 import { ContextEntryEntity } from '../../entities/context-entry.schema';
 import { LLM_DEFAULTS } from '../../config/defaults';
-import {
-  CompiledContext,
-  ContextEntry,
-  TaskDefinition,
-  ContextScope,
-} from '../protocol';
+import { CompiledContext, ContextEntry, TaskDefinition } from '../protocol';
 
 const CONTEXT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_TOKEN_BUDGET = 4096;
@@ -61,14 +56,15 @@ export class ContextCompiler {
     const allEntries = [...taskEntries, ...domainEntries, ...globalEntries];
     const trimmed = this.trimToTokenBudget(allEntries, budget);
     const tokenCount = trimmed.reduce((sum, e) => sum + (e.tokenCount || 0), 0);
+    const entries = trimmed.map((e) => this.toContextEntry(e));
 
     const compiled: CompiledContext = {
-      entries: trimmed.map((e) => this.toContextEntry(e)),
+      entries,
       tokenBudget: budget,
       tokenCount,
       compiledAt: new Date(),
       cacheKey,
-      scope: this.determineScope(trimmed),
+      scope: this.determineScope(entries),
     };
 
     await this.cache.set(cacheKey, compiled, CONTEXT_CACHE_TTL_MS);
@@ -107,10 +103,12 @@ export class ContextCompiler {
     return `ctx:${agentId}:${taskId}:${pipelineId}`;
   }
 
-  private determineScope(entries: ContextEntryEntity[]): ContextScope {
-    if (entries.some((e) => e.scope === 'task')) return 'task';
-    if (entries.some((e) => e.scope === 'domain')) return 'domain';
-    return 'global';
+  private determineScope(entries: ContextEntry[]): CompiledContext['scope'] {
+    return {
+      global: entries.filter((e) => e.scope === 'global'),
+      domainSpecific: entries.filter((e) => e.scope === 'domain'),
+      taskSpecific: entries.filter((e) => e.scope === 'task'),
+    };
   }
 
   private toContextEntry(entity: ContextEntryEntity): ContextEntry {

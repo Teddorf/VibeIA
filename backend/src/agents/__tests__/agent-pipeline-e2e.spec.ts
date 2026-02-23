@@ -85,7 +85,7 @@ describe('Agent Pipeline E2E', () => {
     tokenCount: 0,
     compiledAt: new Date(),
     cacheKey: 'test',
-    scope: 'task',
+    scope: { global: [], domainSpecific: [], taskSpecific: [] },
   };
 
   beforeEach(() => {
@@ -233,18 +233,24 @@ describe('Agent Pipeline E2E', () => {
   });
 
   it('should estimate costs for all agents', () => {
-    const task: TaskDefinition = {
-      id: 't1',
-      type: 'code-generation',
-      description: 'Test task',
-      tags: ['code-generation'],
-      dependencies: [],
-      priority: 1,
-      timeoutMs: 30000,
+    const input: AgentInput = {
+      taskDefinition: {
+        id: 't1',
+        type: 'code-generation',
+        description: 'Test task',
+        tags: ['code-generation'],
+        dependencies: [],
+        priority: 1,
+        timeoutMs: 30000,
+      },
+      context: emptyContext,
+      previousOutputs: [],
+      config: {},
+      traceId: 'trace-cost',
     };
 
     for (const agent of registry.getAll()) {
-      const estimate = agent.estimateCost(task, emptyContext);
+      const estimate = agent.estimateCost(input);
       expect(estimate.estimatedCostUSD).toBeGreaterThanOrEqual(0);
       expect(estimate.modelTier).toBeDefined();
     }
@@ -269,7 +275,7 @@ describe('Agent Pipeline E2E', () => {
 
     for (const agent of registry.getAll()) {
       const errors = agent.validateInput(input);
-      expect(errors).toEqual([]);
+      expect(errors).toBeNull();
     }
   });
 });

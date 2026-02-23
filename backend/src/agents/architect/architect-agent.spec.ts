@@ -19,7 +19,7 @@ describe('ArchitectAgent', () => {
       tokenBudget: 4000,
       tokenCount: 0,
       compiledAt: new Date(),
-      scope: 'global' as const,
+      scope: { global: [], domainSpecific: [], taskSpecific: [] },
     },
     previousOutputs: [],
     config: {

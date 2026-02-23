@@ -64,7 +64,7 @@ describe('ContextCompiler', () => {
         tokenCount: 0,
         compiledAt: new Date(),
         cacheKey: 'ctx:agent:task-1:pipe-1',
-        scope: 'global',
+        scope: { global: [], domainSpecific: [], taskSpecific: [] },
       };
       mockCache.get.mockResolvedValue(cached);
 
@@ -87,7 +87,9 @@ describe('ContextCompiler', () => {
 
       expect(result.entries).toHaveLength(3);
       expect(result.tokenCount).toBe(450);
-      expect(result.scope).toBe('task');
+      expect(result.scope.taskSpecific).toHaveLength(1);
+      expect(result.scope.domainSpecific).toHaveLength(1);
+      expect(result.scope.global).toHaveLength(1);
     });
 
     it('should trim entries to token budget', async () => {

@@ -50,19 +50,20 @@ export class ModelRouter {
     switch (tier) {
       case 'fast':
         return {
-          inputPerMillion: LLM_DEFAULTS.gemini.pricing.inputPerMillion,
-          outputPerMillion: LLM_DEFAULTS.gemini.pricing.outputPerMillion,
+          inputPerMillionTokens: LLM_DEFAULTS.gemini.pricing.inputPerMillion,
+          outputPerMillionTokens: LLM_DEFAULTS.gemini.pricing.outputPerMillion,
         };
       case 'powerful':
         return {
-          inputPerMillion: LLM_DEFAULTS.anthropic.pricing.inputPerMillion,
-          outputPerMillion: LLM_DEFAULTS.anthropic.pricing.outputPerMillion,
+          inputPerMillionTokens: LLM_DEFAULTS.anthropic.pricing.inputPerMillion,
+          outputPerMillionTokens:
+            LLM_DEFAULTS.anthropic.pricing.outputPerMillion,
         };
       case 'balanced':
       default:
         return {
-          inputPerMillion: LLM_DEFAULTS.openai.pricing.inputPerMillion,
-          outputPerMillion: LLM_DEFAULTS.openai.pricing.outputPerMillion,
+          inputPerMillionTokens: LLM_DEFAULTS.openai.pricing.inputPerMillion,
+          outputPerMillionTokens: LLM_DEFAULTS.openai.pricing.outputPerMillion,
         };
     }
   }

@@ -1,11 +1,5 @@
 import { BaseAgent } from './base-agent';
-import {
-  AgentProfile,
-  AgentInput,
-  AgentOutput,
-  TaskDefinition,
-  CompiledContext,
-} from '../protocol';
+import { AgentProfile, AgentInput, AgentOutput } from '../protocol';
 
 class TestAgent extends BaseAgent {
   readonly profile: AgentProfile = {
@@ -51,7 +45,7 @@ describe('BaseAgent', () => {
       tokenCount: 100,
       compiledAt: new Date(),
       cacheKey: 'key',
-      scope: 'task',
+      scope: { global: [], domainSpecific: [], taskSpecific: [] },
     },
     previousOutputs: [],
     config: {},
@@ -60,15 +54,16 @@ describe('BaseAgent', () => {
   });
 
   describe('validateInput', () => {
-    it('should return no errors for valid input', () => {
+    it('should return null for valid input', () => {
       const errors = agent.validateInput(makeInput());
-      expect(errors).toEqual([]);
+      expect(errors).toBeNull();
     });
 
     it('should return error for missing taskDefinition', () => {
       const errors = agent.validateInput(
         makeInput({ taskDefinition: undefined as any }),
       );
+      expect(errors).not.toBeNull();
       expect(errors).toContainEqual(
         expect.objectContaining({ code: 'MISSING_TASK_DEFINITION' }),
       );
@@ -76,6 +71,7 @@ describe('BaseAgent', () => {
 
     it('should return error for missing traceId', () => {
       const errors = agent.validateInput(makeInput({ traceId: '' }));
+      expect(errors).not.toBeNull();
       expect(errors).toContainEqual(
         expect.objectContaining({ code: 'MISSING_TRACE_ID' }),
       );
@@ -83,26 +79,31 @@ describe('BaseAgent', () => {
   });
 
   describe('estimateCost', () => {
-    it('should return a cost estimate', () => {
-      const task: TaskDefinition = {
-        id: 't1',
-        type: 'testing',
-        description: 'A test task',
-        tags: ['test'],
-        dependencies: [],
-        priority: 1,
-        timeoutMs: 30000,
-      };
-      const ctx: CompiledContext = {
-        entries: [],
-        tokenBudget: 4096,
-        tokenCount: 200,
-        compiledAt: new Date(),
-        cacheKey: 'k',
-        scope: 'task',
+    it('should return a cost estimate when given AgentInput', () => {
+      const input: AgentInput = {
+        taskDefinition: {
+          id: 't1',
+          type: 'testing',
+          description: 'A test task',
+          tags: ['test'],
+          dependencies: [],
+          priority: 1,
+          timeoutMs: 30000,
+        },
+        context: {
+          entries: [],
+          tokenBudget: 4096,
+          tokenCount: 200,
+          compiledAt: new Date(),
+          cacheKey: 'k',
+          scope: { global: [], domainSpecific: [], taskSpecific: [] },
+        },
+        previousOutputs: [],
+        config: {},
+        traceId: 'trace-cost',
       };
 
-      const estimate = agent.estimateCost(task, ctx);
+      const estimate = agent.estimateCost(input);
       expect(estimate.estimatedInputTokens).toBeGreaterThan(0);
       expect(estimate.estimatedOutputTokens).toBeGreaterThan(0);
       expect(estimate.estimatedCostUSD).toBeGreaterThan(0);

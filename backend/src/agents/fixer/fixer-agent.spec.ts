@@ -29,7 +29,7 @@ describe('FixerAgent', () => {
       tokenBudget: 4000,
       tokenCount: 10,
       compiledAt: new Date(),
-      scope: 'task' as const,
+      scope: { global: [], domainSpecific: [], taskSpecific: [] },
     },
     previousOutputs: [
       {

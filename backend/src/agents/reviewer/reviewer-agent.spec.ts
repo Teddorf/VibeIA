@@ -37,7 +37,7 @@ describe('ReviewerAgent', () => {
       tokenCount: 0,
       compiledAt: new Date(),
       cacheKey: 'k',
-      scope: 'task',
+      scope: { global: [], domainSpecific: [], taskSpecific: [] },
     },
     previousOutputs: [
       {

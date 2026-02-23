@@ -70,31 +70,42 @@ describe('All Agents Conformance', () => {
 
     it('should validate input correctly', () => {
       const errors = a.validateInput({} as any);
-      expect(errors.length).toBeGreaterThan(0);
-      expect(errors.some((e) => e.code === 'MISSING_TASK_DEFINITION')).toBe(
+      expect(errors).not.toBeNull();
+      expect(errors!.length).toBeGreaterThan(0);
+      expect(errors!.some((e) => e.code === 'MISSING_TASK_DEFINITION')).toBe(
         true,
       );
     });
 
     it('should estimate cost', () => {
-      const task = {
-        id: 't1',
-        type: 'code-generation' as const,
-        description: 'Test task',
-        tags: ['test'],
-        dependencies: [],
-        priority: 1,
-        timeoutMs: 30000,
-      };
-      const context = {
-        entries: [],
-        tokenBudget: 4000,
-        tokenCount: 100,
-        compiledAt: new Date(),
-        scope: 'task' as const,
+      const input = {
+        taskDefinition: {
+          id: 't1',
+          type: 'code-generation' as const,
+          description: 'Test task',
+          tags: ['test'],
+          dependencies: [],
+          priority: 1,
+          timeoutMs: 30000,
+        },
+        context: {
+          entries: [],
+          tokenBudget: 4000,
+          tokenCount: 100,
+          compiledAt: new Date(),
+          cacheKey: '',
+          scope: {
+            global: [] as any[],
+            domainSpecific: [] as any[],
+            taskSpecific: [] as any[],
+          },
+        },
+        previousOutputs: [],
+        config: {},
+        traceId: 'trace-conformance',
       };
 
-      const estimate = a.estimateCost(task, context);
+      const estimate = a.estimateCost(input as any);
       expect(estimate.estimatedInputTokens).toBeGreaterThan(0);
       expect(estimate.estimatedCostUSD).toBeGreaterThanOrEqual(0);
       expect(estimate.modelTier).toBeTruthy();

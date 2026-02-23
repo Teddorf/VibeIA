@@ -56,19 +56,19 @@ describe('ModelRouter', () => {
   });
 
   describe('getPricing', () => {
-    it('should return pricing for each tier', () => {
+    it('should return pricing for each tier with new field names', () => {
       const fast = router.getPricing('fast');
-      expect(fast.inputPerMillion).toBe(
+      expect(fast.inputPerMillionTokens).toBe(
         LLM_DEFAULTS.gemini.pricing.inputPerMillion,
       );
 
       const powerful = router.getPricing('powerful');
-      expect(powerful.inputPerMillion).toBe(
+      expect(powerful.inputPerMillionTokens).toBe(
         LLM_DEFAULTS.anthropic.pricing.inputPerMillion,
       );
 
       const balanced = router.getPricing('balanced');
-      expect(balanced.inputPerMillion).toBe(
+      expect(balanced.inputPerMillionTokens).toBe(
         LLM_DEFAULTS.openai.pricing.inputPerMillion,
       );
     });

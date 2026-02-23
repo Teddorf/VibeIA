@@ -12,6 +12,7 @@ import {
   ParsedIntent,
   PlanStatus,
   TaskType,
+  AgentInput,
 } from '../agents/protocol';
 
 export interface CreatePlanOptions {
@@ -48,13 +49,19 @@ export class Planner {
     for (const node of dag) {
       const agents = this.agentRegistry.canHandle(node.taskDefinition);
       if (agents.length > 0) {
-        const estimate = agents[0].estimateCost(node.taskDefinition, {
-          entries: [],
-          tokenBudget: 4096,
-          tokenCount: 0,
-          compiledAt: new Date(),
-          cacheKey: '',
-          scope: 'global',
+        const estimate = agents[0].estimateCost({
+          taskDefinition: node.taskDefinition,
+          context: {
+            entries: [],
+            tokenBudget: 4096,
+            tokenCount: 0,
+            compiledAt: new Date(),
+            cacheKey: '',
+            scope: { global: [], domainSpecific: [], taskSpecific: [] },
+          },
+          previousOutputs: [],
+          config: {},
+          traceId: '',
         });
         estimatedCost += estimate.estimatedCostUSD;
       }
