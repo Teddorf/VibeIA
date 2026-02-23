@@ -369,4 +369,54 @@ describe('SPEC v2.2 Compliance', () => {
       expect(meta.isFile).toBe(true);
     });
   });
+
+  describe('Zero-Hardcode Verification', () => {
+    const fs = require('fs');
+    const path = require('path');
+
+    function collectTsFiles(dir: string): string[] {
+      const results: string[] = [];
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory() && entry.name !== 'node_modules') {
+          results.push(...collectTsFiles(full));
+        } else if (
+          entry.name.endsWith('.ts') &&
+          !entry.name.endsWith('.spec.ts') &&
+          !entry.name.endsWith('.test.ts') &&
+          entry.name !== 'defaults.ts'
+        ) {
+          results.push(full);
+        }
+      }
+      return results;
+    }
+
+    const prohibitedConstants = [
+      'DEFAULT_DECISION_TTL_MS',
+      'DEFAULT_COST_LIMIT_USD',
+      'DEFAULT_MAX_WORKERS_PER_AGENT',
+      'DEFAULT_TOTAL_MAX_WORKERS',
+      'CONTEXT_CACHE_TTL_MS',
+      'DEFAULT_TOKEN_BUDGET',
+    ];
+
+    it('should have zero hardcoded constants outside defaults.ts and tests', () => {
+      const srcDir = path.resolve(__dirname, '..', '..', '..');
+      const files = collectTsFiles(srcDir);
+      const violations: string[] = [];
+
+      for (const file of files) {
+        const content = fs.readFileSync(file, 'utf-8');
+        for (const constant of prohibitedConstants) {
+          if (content.includes(constant)) {
+            const rel = path.relative(srcDir, file);
+            violations.push(`${rel} contains ${constant}`);
+          }
+        }
+      }
+
+      expect(violations).toEqual([]);
+    });
+  });
 });
