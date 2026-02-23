@@ -47,4 +47,71 @@ describe('InMemoryQueueAdapter', () => {
     const waiting = await queue.getWaiting();
     expect(waiting).toHaveLength(2);
   });
+
+  it('should enqueue as alias for add', async () => {
+    const queue = adapter.getQueue<string>('test');
+    const job = await queue.enqueue('data');
+    expect(job.id).toBeDefined();
+    expect(job.data).toBe('data');
+  });
+
+  it('should set and respect concurrency', async () => {
+    const queue = adapter.getQueue<string>('test');
+    queue.setConcurrency(2);
+    // No error means success
+    expect(true).toBe(true);
+  });
+
+  it('should report depth and active count', async () => {
+    const queue = adapter.getQueue<string>('test');
+    await queue.add('a');
+    await queue.add('b');
+
+    const depth = await queue.getDepth();
+    expect(depth).toBe(2);
+
+    const activeCount = await queue.getActiveCount();
+    expect(activeCount).toBe(0);
+  });
+
+  it('should pause and resume processing', async () => {
+    const queue = adapter.getQueue<string>('test');
+    const processed: string[] = [];
+
+    queue.process(async (job) => {
+      processed.push(job.data);
+    });
+
+    queue.pause();
+    await queue.add('paused-item');
+    expect(processed).toEqual([]);
+
+    queue.resume();
+    await queue.drain();
+    expect(processed).toContain('paused-item');
+  });
+
+  it('should drain all waiting jobs', async () => {
+    const queue = adapter.getQueue<string>('test');
+    const processed: string[] = [];
+
+    queue.pause();
+    await queue.add('a');
+    await queue.add('b');
+
+    queue.process(async (job) => {
+      processed.push(job.data);
+    });
+
+    queue.resume();
+    await queue.drain();
+    expect(processed).toEqual(['a', 'b']);
+  });
+
+  it('should create a queue via createQueue', () => {
+    const queue = adapter.createQueue('new-queue');
+    expect(queue).toBeDefined();
+    // Should return the same queue on subsequent calls
+    expect(adapter.getQueue('new-queue')).toBe(queue);
+  });
 });

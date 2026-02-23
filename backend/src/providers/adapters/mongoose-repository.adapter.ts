@@ -99,4 +99,20 @@ export class MongooseRepository<T> implements IRepository<T> {
     const docs = await this.model.insertMany(data);
     return docs.map((doc) => (doc as any).toObject()) as T[];
   }
+
+  async findMany(
+    filter: Record<string, any>,
+    options?: FindOptions,
+  ): Promise<T[]> {
+    return this.find(filter, options);
+  }
+
+  async createMany(data: Partial<T>[]): Promise<T[]> {
+    return this.insertMany(data);
+  }
+
+  async exists(filter: Record<string, any>): Promise<boolean> {
+    const count = await this.model.countDocuments(filter).exec();
+    return count > 0;
+  }
 }

@@ -190,4 +190,44 @@ describe('MongooseRepository', () => {
       ]);
     });
   });
+
+  describe('findMany', () => {
+    it('should delegate to find', async () => {
+      const docs = [{ _id: '1' }, { _id: '2' }];
+      const chain = chainable(docs);
+      mockModel.find.mockReturnValue(chain);
+      const result = await repo.findMany({ active: true }, { limit: 5 });
+      expect(result).toEqual(docs);
+      expect(mockModel.find).toHaveBeenCalledWith({ active: true });
+    });
+  });
+
+  describe('createMany', () => {
+    it('should delegate to insertMany', async () => {
+      const docs = [
+        { _id: '1', name: 'a', toObject: () => ({ _id: '1', name: 'a' }) },
+      ];
+      mockModel.insertMany.mockResolvedValue(docs);
+      const result = await repo.createMany([{ name: 'a' }]);
+      expect(result).toEqual([{ _id: '1', name: 'a' }]);
+    });
+  });
+
+  describe('exists', () => {
+    it('should return true when documents match', async () => {
+      mockModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(3),
+      });
+      const result = await repo.exists({ active: true });
+      expect(result).toBe(true);
+    });
+
+    it('should return false when no documents match', async () => {
+      mockModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(0),
+      });
+      const result = await repo.exists({ active: true });
+      expect(result).toBe(false);
+    });
+  });
 });

@@ -4,4 +4,7 @@ export interface ICacheProvider {
   del(key: string): Promise<void>;
   has(key: string): Promise<boolean>;
   clear(): Promise<void>;
+  delete(key: string): Promise<void>;
+  flush(): Promise<void>;
+  deletePattern(pattern: string): Promise<void>;
 }

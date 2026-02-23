@@ -6,6 +6,9 @@ export interface FindOptions {
   lean?: boolean;
 }
 
+export type QueryFilter<T> = Record<string, any>;
+export type QueryOptions = FindOptions;
+
 export interface IRepository<T> {
   findById(id: string): Promise<T | null>;
   findOne(filter: Record<string, any>): Promise<T | null>;
@@ -26,6 +29,9 @@ export interface IRepository<T> {
   deleteMany(filter: Record<string, any>): Promise<{ deletedCount: number }>;
   count(filter?: Record<string, any>): Promise<number>;
   insertMany(data: Partial<T>[]): Promise<T[]>;
+  findMany(filter: Record<string, any>, options?: FindOptions): Promise<T[]>;
+  createMany(data: Partial<T>[]): Promise<T[]>;
+  exists(filter: Record<string, any>): Promise<boolean>;
 }
 
 export interface IDatabaseProvider {

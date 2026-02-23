@@ -42,4 +42,28 @@ describe('InMemoryCacheAdapter', () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(await cache.get('key')).toBeNull();
   });
+
+  it('should delete a key via delete()', async () => {
+    await cache.set('key', 'value');
+    await cache.delete('key');
+    expect(await cache.get('key')).toBeNull();
+  });
+
+  it('should flush all keys', async () => {
+    await cache.set('a', 1);
+    await cache.set('b', 2);
+    await cache.flush();
+    expect(await cache.get('a')).toBeNull();
+    expect(await cache.get('b')).toBeNull();
+  });
+
+  it('should delete keys matching a pattern', async () => {
+    await cache.set('user:1', 'alice');
+    await cache.set('user:2', 'bob');
+    await cache.set('session:1', 'token');
+    await cache.deletePattern('^user:');
+    expect(await cache.get('user:1')).toBeNull();
+    expect(await cache.get('user:2')).toBeNull();
+    expect(await cache.get('session:1')).toBe('token');
+  });
 });

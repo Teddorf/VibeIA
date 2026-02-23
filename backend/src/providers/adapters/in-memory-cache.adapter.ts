@@ -41,4 +41,21 @@ export class InMemoryCacheAdapter implements ICacheProvider {
   async clear(): Promise<void> {
     this.store.clear();
   }
+
+  async delete(key: string): Promise<void> {
+    return this.del(key);
+  }
+
+  async flush(): Promise<void> {
+    return this.clear();
+  }
+
+  async deletePattern(pattern: string): Promise<void> {
+    const regex = new RegExp(pattern);
+    for (const key of this.store.keys()) {
+      if (regex.test(key)) {
+        this.store.delete(key);
+      }
+    }
+  }
 }
