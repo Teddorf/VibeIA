@@ -1,10 +1,31 @@
+export interface FindOptions {
+  sort?: Record<string, 1 | -1>;
+  skip?: number;
+  limit?: number;
+  select?: string | Record<string, 0 | 1>;
+  lean?: boolean;
+}
+
 export interface IRepository<T> {
   findById(id: string): Promise<T | null>;
-  findOne(filter: Partial<T>): Promise<T | null>;
-  find(filter: Partial<T>): Promise<T[]>;
+  findOne(filter: Record<string, any>): Promise<T | null>;
+  find(filter: Record<string, any>, options?: FindOptions): Promise<T[]>;
   create(data: Partial<T>): Promise<T>;
-  update(id: string, data: Partial<T>): Promise<T | null>;
+  update(id: string, data: Record<string, any>): Promise<T | null>;
   delete(id: string): Promise<boolean>;
+  findOneAndUpdate(
+    filter: Record<string, any>,
+    update: Record<string, any>,
+    options?: { new?: boolean; upsert?: boolean },
+  ): Promise<T | null>;
+  findOneAndDelete(filter: Record<string, any>): Promise<T | null>;
+  updateMany(
+    filter: Record<string, any>,
+    update: Record<string, any>,
+  ): Promise<{ modifiedCount: number }>;
+  deleteMany(filter: Record<string, any>): Promise<{ deletedCount: number }>;
+  count(filter?: Record<string, any>): Promise<number>;
+  insertMany(data: Partial<T>[]): Promise<T[]>;
 }
 
 export interface IDatabaseProvider {

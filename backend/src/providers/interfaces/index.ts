@@ -6,3 +6,4 @@ export * from './vcs-provider.interface';
 export * from './deploy-provider.interface';
 export * from './sandbox-provider.interface';
 export * from './filesystem-provider.interface';
+export * from './git-host-provider.interface';
