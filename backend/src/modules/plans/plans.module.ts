@@ -6,6 +6,8 @@ import { Plan, PlanSchema } from '../../schemas/plan.schema';
 import { LlmModule } from '../llm/llm.module';
 import { UsersModule } from '../users/users.module';
 import { ProjectsModule } from '../projects/projects.module';
+import { createRepositoryProvider } from '../../providers/repository-providers.factory';
+import { PLAN_REPOSITORY } from '../../providers/repository-tokens';
 
 @Module({
   imports: [
@@ -15,7 +17,10 @@ import { ProjectsModule } from '../projects/projects.module';
     forwardRef(() => ProjectsModule),
   ],
   controllers: [PlansController],
-  providers: [PlansService],
+  providers: [
+    PlansService,
+    createRepositoryProvider(PLAN_REPOSITORY, Plan.name),
+  ],
   exports: [PlansService],
 })
 export class PlansModule {}

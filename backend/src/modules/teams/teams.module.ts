@@ -9,10 +9,27 @@ import { GitLabProvider } from './git-providers/gitlab.provider';
 import { BitbucketProvider } from './git-providers/bitbucket.provider';
 import { Team, TeamSchema } from './schemas/team.schema';
 import { TeamMember, TeamMemberSchema } from './schemas/team-member.schema';
-import { TeamInvitation, TeamInvitationSchema } from './schemas/team-invitation.schema';
-import { GitConnection, GitConnectionSchema } from './schemas/git-connection.schema';
-import { TeamActivity, TeamActivitySchema } from './schemas/team-activity.schema';
+import {
+  TeamInvitation,
+  TeamInvitationSchema,
+} from './schemas/team-invitation.schema';
+import {
+  GitConnection,
+  GitConnectionSchema,
+} from './schemas/git-connection.schema';
+import {
+  TeamActivity,
+  TeamActivitySchema,
+} from './schemas/team-activity.schema';
 import { SecurityModule } from '../security/security.module';
+import { createRepositoryProvider } from '../../providers/repository-providers.factory';
+import {
+  TEAM_REPOSITORY,
+  TEAM_ACTIVITY_REPOSITORY,
+  TEAM_MEMBER_REPOSITORY,
+  TEAM_INVITATION_REPOSITORY,
+  GIT_CONNECTION_REPOSITORY,
+} from '../../providers/repository-tokens';
 
 @Module({
   imports: [
@@ -33,6 +50,11 @@ import { SecurityModule } from '../security/security.module';
     GitConnectionsService,
     GitLabProvider,
     BitbucketProvider,
+    createRepositoryProvider(TEAM_REPOSITORY, Team.name),
+    createRepositoryProvider(TEAM_ACTIVITY_REPOSITORY, TeamActivity.name),
+    createRepositoryProvider(TEAM_MEMBER_REPOSITORY, TeamMember.name),
+    createRepositoryProvider(TEAM_INVITATION_REPOSITORY, TeamInvitation.name),
+    createRepositoryProvider(GIT_CONNECTION_REPOSITORY, GitConnection.name),
   ],
   exports: [
     TeamsService,
