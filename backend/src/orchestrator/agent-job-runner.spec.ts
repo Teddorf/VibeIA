@@ -29,6 +29,7 @@ describe('AgentJobRunner', () => {
   };
 
   const mockJobData = {
+    nodeId: 'n1',
     taskId: 't1',
     pipelineId: 'pipe-1',
     projectId: 'proj-1',
@@ -205,7 +206,7 @@ describe('AgentJobRunner', () => {
 
       expect(mockOrchestratorService.handleAgentComplete).toHaveBeenCalledWith(
         'pipe-1',
-        't1',
+        'n1',
         successOutput,
       );
       expect(mockExecutionRepo.update).toHaveBeenCalledWith(
@@ -226,7 +227,7 @@ describe('AgentJobRunner', () => {
 
       expect(mockOrchestratorService.handleAgentFail).toHaveBeenCalledWith(
         'pipe-1',
-        't1',
+        'n1',
         'LLM timeout',
       );
       expect(mockExecutionRepo.update).toHaveBeenCalledWith(

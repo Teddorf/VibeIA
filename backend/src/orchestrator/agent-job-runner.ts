@@ -51,6 +51,7 @@ export class AgentJobRunner implements OnModuleInit {
 
   private async processJob(job: IJob<AgentJobData>): Promise<void> {
     const {
+      nodeId,
       agentId,
       taskDefinition,
       pipelineId,
@@ -129,10 +130,10 @@ export class AgentJobRunner implements OnModuleInit {
         `[${traceId}] Agent ${agentId} completed task ${taskDefinition.id} (${durationMs}ms)`,
       );
 
-      // 8. Close the loop — triggers next DAG nodes
+      // 8. Close the loop — triggers next DAG nodes (use nodeId, not taskId)
       await this.orchestratorService.handleAgentComplete(
         pipelineId,
-        taskDefinition.id,
+        nodeId,
         output,
       );
     } catch (error) {
@@ -160,7 +161,7 @@ export class AgentJobRunner implements OnModuleInit {
 
       await this.orchestratorService.handleAgentFail(
         pipelineId,
-        taskDefinition.id,
+        nodeId,
         errorMessage,
       );
     }

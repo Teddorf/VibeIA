@@ -162,6 +162,7 @@ export interface ContextUpdate {
 }
 
 export interface AgentJobData {
+  nodeId: string;
   taskId: string;
   pipelineId: string;
   projectId: string;

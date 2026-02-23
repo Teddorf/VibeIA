@@ -45,6 +45,7 @@ export class Scheduler {
       if (!node) continue;
 
       const jobData: AgentJobData = {
+        nodeId: node.nodeId,
         taskId: node.taskDefinition.id,
         pipelineId: planId,
         projectId: plan.projectId,
@@ -56,12 +57,12 @@ export class Scheduler {
         traceId,
       };
 
+      node.status = 'queued';
+
       const queue = this.queueProvider.getQueue<AgentJobData>(
         `agent:${readyNode.agentId}`,
       );
       await queue.add(jobData);
-
-      node.status = 'queued';
       this.logger.log(
         `Queued node ${node.nodeId} → agent:${readyNode.agentId}`,
       );
