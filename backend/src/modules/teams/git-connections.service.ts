@@ -1,19 +1,20 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { GitConnection, GitConnectionDocument } from './schemas/git-connection.schema';
+import { Injectable, Inject } from '@nestjs/common';
 import {
-  GitProvider,
-  ConnectGitProviderDto,
-} from './dto/teams.dto';
+  GitConnection,
+  GitConnectionDocument,
+} from './schemas/git-connection.schema';
+import { GitProvider, ConnectGitProviderDto } from './dto/teams.dto';
 import { GitLabProvider } from './git-providers/gitlab.provider';
 import { BitbucketProvider } from './git-providers/bitbucket.provider';
 import { TokenEncryptionService } from '../security/token-encryption.service';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import { GIT_CONNECTION_REPOSITORY } from '../../providers/repository-tokens';
 
 @Injectable()
 export class GitConnectionsService {
   constructor(
-    @InjectModel(GitConnection.name) private connectionModel: Model<GitConnectionDocument>,
+    @Inject(GIT_CONNECTION_REPOSITORY)
+    private readonly connectionRepo: IRepository<GitConnectionDocument>,
     private readonly gitlabProvider: GitLabProvider,
     private readonly bitbucketProvider: BitbucketProvider,
     private readonly tokenEncryption: TokenEncryptionService,
@@ -53,7 +54,8 @@ export class GitConnectionsService {
             tokenData.access_token,
           );
           const workspace = workspaces.find(
-            (w) => w.uuid === dto.organizationId || w.slug === dto.organizationId,
+            (w) =>
+              w.uuid === dto.organizationId || w.slug === dto.organizationId,
           );
           organizationName = workspace?.name;
         }
@@ -70,12 +72,14 @@ export class GitConnectionsService {
     }
 
     // Encrypt tokens before storing
-    const encryptedAccessToken = this.tokenEncryption.encrypt(tokenData.access_token);
+    const encryptedAccessToken = this.tokenEncryption.encrypt(
+      tokenData.access_token,
+    );
     const encryptedRefreshToken = tokenData.refresh_token
       ? this.tokenEncryption.encrypt(tokenData.refresh_token)
       : undefined;
 
-    const connection = new this.connectionModel({
+    const saved = await this.connectionRepo.create({
       teamId,
       provider: dto.provider,
       name: organizationName || `${dto.provider} Connection`,
@@ -87,31 +91,34 @@ export class GitConnectionsService {
       organizationId: dto.organizationId,
       organizationName,
       isDefault: dto.isDefault ?? false,
-    });
+    } as any);
 
-    const saved = await connection.save();
     return this.sanitizeConnection(saved);
   }
 
-  async getConnection(connectionId: string): Promise<GitConnectionDocument | null> {
+  async getConnection(
+    connectionId: string,
+  ): Promise<GitConnectionDocument | null> {
     try {
-      const connection = await this.connectionModel.findById(connectionId).exec();
+      const connection = await this.connectionRepo.findById(connectionId);
       return connection ? this.sanitizeConnection(connection) : null;
     } catch {
       return null;
     }
   }
 
-  async getConnectionWithToken(connectionId: string): Promise<GitConnectionDocument | null> {
+  async getConnectionWithToken(
+    connectionId: string,
+  ): Promise<GitConnectionDocument | null> {
     try {
-      return await this.connectionModel.findById(connectionId).exec();
+      return await this.connectionRepo.findById(connectionId);
     } catch {
       return null;
     }
   }
 
   async getTeamConnections(teamId: string): Promise<GitConnectionDocument[]> {
-    const connections = await this.connectionModel.find({ teamId }).exec();
+    const connections = await this.connectionRepo.find({ teamId });
     return connections.map((c) => this.sanitizeConnection(c));
   }
 
@@ -119,9 +126,7 @@ export class GitConnectionsService {
     teamId: string,
     provider: GitProvider,
   ): Promise<GitConnectionDocument[]> {
-    const connections = await this.connectionModel
-      .find({ teamId, provider })
-      .exec();
+    const connections = await this.connectionRepo.find({ teamId, provider });
     return connections.map((c) => this.sanitizeConnection(c));
   }
 
@@ -134,30 +139,31 @@ export class GitConnectionsService {
       query.provider = provider;
     }
 
-    const connection = await this.connectionModel.findOne(query).exec();
+    const connection = await this.connectionRepo.findOne(query);
     return connection ? this.sanitizeConnection(connection) : null;
   }
 
   async setDefault(teamId: string, connectionId: string): Promise<boolean> {
-    const connection = await this.connectionModel.findById(connectionId).exec();
+    const connection = await this.connectionRepo.findById(connectionId);
     if (!connection) return false;
 
     // Verify connection belongs to team
     if (connection.teamId !== teamId) return false;
 
     // Unset other defaults for same provider
-    await this.unsetDefaultForProvider(teamId, connection.provider as GitProvider);
+    await this.unsetDefaultForProvider(
+      teamId,
+      connection.provider as GitProvider,
+    );
 
     // Set this as default
-    await this.connectionModel
-      .findByIdAndUpdate(connectionId, { isDefault: true })
-      .exec();
+    await this.connectionRepo.update(connectionId, { isDefault: true });
 
     return true;
   }
 
   async refreshConnectionToken(connectionId: string): Promise<boolean> {
-    const connection = await this.connectionModel.findById(connectionId).exec();
+    const connection = await this.connectionRepo.findById(connectionId);
     if (!connection || !connection.refreshToken) return false;
 
     try {
@@ -169,11 +175,15 @@ export class GitConnectionsService {
 
       switch (connection.provider) {
         case GitProvider.GITLAB:
-          tokenData = await this.gitlabProvider.refreshToken(decryptedRefreshToken);
+          tokenData = await this.gitlabProvider.refreshToken(
+            decryptedRefreshToken,
+          );
           break;
 
         case GitProvider.BITBUCKET:
-          tokenData = await this.bitbucketProvider.refreshToken(decryptedRefreshToken);
+          tokenData = await this.bitbucketProvider.refreshToken(
+            decryptedRefreshToken,
+          );
           break;
 
         default:
@@ -181,20 +191,20 @@ export class GitConnectionsService {
       }
 
       // Encrypt new tokens before storing
-      const encryptedAccessToken = this.tokenEncryption.encrypt(tokenData.access_token);
+      const encryptedAccessToken = this.tokenEncryption.encrypt(
+        tokenData.access_token,
+      );
       const encryptedRefreshToken = tokenData.refresh_token
         ? this.tokenEncryption.encrypt(tokenData.refresh_token)
         : undefined;
 
-      await this.connectionModel
-        .findByIdAndUpdate(connectionId, {
-          accessToken: encryptedAccessToken,
-          refreshToken: encryptedRefreshToken,
-          expiresAt: tokenData.expires_in
-            ? new Date(Date.now() + tokenData.expires_in * 1000)
-            : undefined,
-        })
-        .exec();
+      await this.connectionRepo.update(connectionId, {
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
+        expiresAt: tokenData.expires_in
+          ? new Date(Date.now() + tokenData.expires_in * 1000)
+          : undefined,
+      });
 
       return true;
     } catch {
@@ -203,7 +213,7 @@ export class GitConnectionsService {
   }
 
   async validateConnection(connectionId: string): Promise<boolean> {
-    const connection = await this.connectionModel.findById(connectionId).exec();
+    const connection = await this.connectionRepo.findById(connectionId);
     if (!connection || !connection.accessToken) return false;
 
     // Check if token is expired
@@ -212,7 +222,8 @@ export class GitConnectionsService {
       const refreshed = await this.refreshConnectionToken(connectionId);
       if (!refreshed) return false;
       // Reload connection with new token
-      const refreshedConnection = await this.connectionModel.findById(connectionId).exec();
+      const refreshedConnection =
+        await this.connectionRepo.findById(connectionId);
       if (!refreshedConnection) return false;
       connection.accessToken = refreshedConnection.accessToken;
     }
@@ -227,7 +238,9 @@ export class GitConnectionsService {
           return await this.gitlabProvider.validateToken(decryptedAccessToken);
 
         case GitProvider.BITBUCKET:
-          return await this.bitbucketProvider.validateToken(decryptedAccessToken);
+          return await this.bitbucketProvider.validateToken(
+            decryptedAccessToken,
+          );
 
         default:
           return false;
@@ -238,31 +251,33 @@ export class GitConnectionsService {
   }
 
   async updateLastUsed(connectionId: string): Promise<void> {
-    await this.connectionModel
-      .findByIdAndUpdate(connectionId, { lastUsedAt: new Date() })
-      .exec();
+    await this.connectionRepo.update(connectionId, { lastUsedAt: new Date() });
   }
 
   async disconnectProvider(
     teamId: string,
     connectionId: string,
   ): Promise<boolean> {
-    const connection = await this.connectionModel.findById(connectionId).exec();
+    const connection = await this.connectionRepo.findById(connectionId);
     if (!connection) return false;
 
     // Verify connection belongs to team
     if (connection.teamId !== teamId) return false;
 
-    await this.connectionModel.findByIdAndDelete(connectionId).exec();
+    await this.connectionRepo.delete(connectionId);
 
     return true;
   }
 
   async clearTeamConnections(teamId: string): Promise<void> {
-    await this.connectionModel.deleteMany({ teamId }).exec();
+    await this.connectionRepo.deleteMany({ teamId });
   }
 
-  getOAuthUrl(provider: GitProvider, redirectUri: string, state: string): string {
+  getOAuthUrl(
+    provider: GitProvider,
+    redirectUri: string,
+    state: string,
+  ): string {
     switch (provider) {
       case GitProvider.GITLAB:
         return this.gitlabProvider.getOAuthUrl(redirectUri, state);
@@ -288,16 +303,18 @@ export class GitConnectionsService {
     teamId: string,
     provider: GitProvider,
   ): Promise<void> {
-    await this.connectionModel
-      .updateMany(
-        { teamId, provider, isDefault: true },
-        { isDefault: false },
-      )
-      .exec();
+    await this.connectionRepo.updateMany(
+      { teamId, provider, isDefault: true },
+      { isDefault: false },
+    );
   }
 
-  private sanitizeConnection(connection: GitConnectionDocument): GitConnectionDocument {
-    const sanitized = connection.toObject();
+  private sanitizeConnection(
+    connection: GitConnectionDocument,
+  ): GitConnectionDocument {
+    const sanitized = (connection as any).toObject?.()
+      ? (connection as any).toObject()
+      : { ...connection };
     sanitized.accessToken = undefined;
     sanitized.refreshToken = undefined;
     sanitized.webhookSecret = undefined;
@@ -329,7 +346,7 @@ export class GitConnectionsService {
    * Used by external services that need to make API calls
    */
   async getDecryptedAccessToken(connectionId: string): Promise<string | null> {
-    const connection = await this.connectionModel.findById(connectionId).exec();
+    const connection = await this.connectionRepo.findById(connectionId);
     if (!connection || !connection.accessToken) return null;
 
     return this.decryptToken(connection.accessToken);

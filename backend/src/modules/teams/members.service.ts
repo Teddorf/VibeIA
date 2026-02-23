@@ -1,17 +1,18 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { TeamMember, TeamMemberDocument, TeamRole as SchemaTeamRole } from './schemas/team-member.schema';
+import { Injectable, Inject } from '@nestjs/common';
 import {
-  TeamRole,
-  Permission,
-  ROLE_PERMISSIONS,
-} from './dto/teams.dto';
+  TeamMember,
+  TeamMemberDocument,
+  TeamRole as SchemaTeamRole,
+} from './schemas/team-member.schema';
+import { TeamRole, Permission, ROLE_PERMISSIONS } from './dto/teams.dto';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import { TEAM_MEMBER_REPOSITORY } from '../../providers/repository-tokens';
 
 @Injectable()
 export class MembersService {
   constructor(
-    @InjectModel(TeamMember.name) private memberModel: Model<TeamMemberDocument>,
+    @Inject(TEAM_MEMBER_REPOSITORY)
+    private readonly memberRepo: IRepository<TeamMemberDocument>,
   ) {}
 
   async addMember(
@@ -26,15 +27,13 @@ export class MembersService {
       return existing;
     }
 
-    const member = new this.memberModel({
+    return this.memberRepo.create({
       teamId,
       userId,
       role,
       invitedBy,
       joinedAt: new Date(),
-    });
-
-    return member.save();
+    } as any);
   }
 
   async removeMember(teamId: string, userId: string): Promise<boolean> {
@@ -46,13 +45,13 @@ export class MembersService {
       return false;
     }
 
-    await this.memberModel.findByIdAndDelete(member._id).exec();
+    await this.memberRepo.delete((member as any)._id.toString());
     return true;
   }
 
   async getMember(memberId: string): Promise<TeamMemberDocument | null> {
     try {
-      return await this.memberModel.findById(memberId).exec();
+      return await this.memberRepo.findById(memberId);
     } catch {
       return null;
     }
@@ -62,7 +61,7 @@ export class MembersService {
     teamId: string,
     userId: string,
   ): Promise<TeamMemberDocument | null> {
-    return this.memberModel.findOne({ teamId, userId }).exec();
+    return this.memberRepo.findOne({ teamId, userId });
   }
 
   async getTeamMembers(teamId: string): Promise<TeamMemberDocument[]> {
@@ -73,7 +72,7 @@ export class MembersService {
       [TeamRole.VIEWER]: 3,
     };
 
-    const members = await this.memberModel.find({ teamId }).exec();
+    const members = await this.memberRepo.find({ teamId });
 
     // Sort by role
     return members.sort((a, b) => {
@@ -84,7 +83,7 @@ export class MembersService {
   }
 
   async getUserTeams(userId: string): Promise<TeamMemberDocument[]> {
-    return this.memberModel.find({ userId }).exec();
+    return this.memberRepo.find({ userId });
   }
 
   async updateRole(
@@ -105,9 +104,9 @@ export class MembersService {
       return null;
     }
 
-    return this.memberModel
-      .findByIdAndUpdate(member._id, { role: newRole }, { new: true })
-      .exec();
+    return this.memberRepo.update((member as any)._id.toString(), {
+      role: newRole,
+    });
   }
 
   async isMember(teamId: string, userId: string): Promise<boolean> {
@@ -157,7 +156,7 @@ export class MembersService {
   }
 
   async countMembers(teamId: string): Promise<number> {
-    return this.memberModel.countDocuments({ teamId }).exec();
+    return this.memberRepo.count({ teamId });
   }
 
   async countMembersByRole(teamId: string): Promise<Record<TeamRole, number>> {
@@ -181,13 +180,14 @@ export class MembersService {
   }
 
   async getTeamOwner(teamId: string): Promise<TeamMemberDocument | null> {
-    return this.memberModel.findOne({ teamId, role: TeamRole.OWNER }).exec();
+    return this.memberRepo.findOne({ teamId, role: TeamRole.OWNER });
   }
 
   async getTeamAdmins(teamId: string): Promise<TeamMemberDocument[]> {
-    return this.memberModel
-      .find({ teamId, role: { $in: [TeamRole.OWNER, TeamRole.ADMIN] } })
-      .exec();
+    return this.memberRepo.find({
+      teamId,
+      role: { $in: [TeamRole.OWNER, TeamRole.ADMIN] },
+    });
   }
 
   async transferOwnership(
@@ -195,21 +195,24 @@ export class MembersService {
     currentOwnerId: string,
     newOwnerId: string,
   ): Promise<boolean> {
-    const currentOwner = await this.getMemberByUserAndTeam(teamId, currentOwnerId);
+    const currentOwner = await this.getMemberByUserAndTeam(
+      teamId,
+      currentOwnerId,
+    );
     const newOwner = await this.getMemberByUserAndTeam(teamId, newOwnerId);
 
     if (!currentOwner || !newOwner) return false;
     if (currentOwner.role !== TeamRole.OWNER) return false;
 
     // Demote current owner to admin
-    await this.memberModel
-      .findByIdAndUpdate(currentOwner._id, { role: TeamRole.ADMIN })
-      .exec();
+    await this.memberRepo.update((currentOwner as any)._id.toString(), {
+      role: TeamRole.ADMIN,
+    });
 
     // Promote new owner
-    await this.memberModel
-      .findByIdAndUpdate(newOwner._id, { role: TeamRole.OWNER })
-      .exec();
+    await this.memberRepo.update((newOwner as any)._id.toString(), {
+      role: TeamRole.OWNER,
+    });
 
     return true;
   }
@@ -247,7 +250,9 @@ export class MembersService {
   async searchMembers(
     teamId: string,
     query: string,
-    userResolver?: (userId: string) => Promise<{ name: string; email: string } | null>,
+    userResolver?: (
+      userId: string,
+    ) => Promise<{ name: string; email: string } | null>,
   ): Promise<any[]> {
     if (!userResolver) return [];
 
@@ -263,7 +268,7 @@ export class MembersService {
           user.email.toLowerCase().includes(lowerQuery)
         ) {
           results.push({
-            ...member.toObject(),
+            ...((member as any).toObject?.() || member),
             user: {
               id: member.userId,
               name: user.name,
@@ -278,6 +283,6 @@ export class MembersService {
   }
 
   async clearTeamMembers(teamId: string): Promise<void> {
-    await this.memberModel.deleteMany({ teamId }).exec();
+    await this.memberRepo.deleteMany({ teamId });
   }
 }

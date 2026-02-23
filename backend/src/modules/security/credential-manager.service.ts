@@ -1,6 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { ENCRYPTION_DEFAULTS } from '../../config/defaults';
@@ -16,6 +14,8 @@ import {
   DEFAULT_GITIGNORE_SECRETS,
   GitIgnoreEntry,
 } from './dto/security.dto';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import { CREDENTIAL_REPOSITORY } from '../../providers/repository-tokens';
 
 @Injectable()
 export class CredentialManagerService {
@@ -24,8 +24,8 @@ export class CredentialManagerService {
   private readonly algorithm = ENCRYPTION_DEFAULTS.algorithm;
 
   constructor(
-    @InjectModel(Credential.name)
-    private credentialModel: Model<CredentialDocument>,
+    @Inject(CREDENTIAL_REPOSITORY)
+    private readonly credentialRepo: IRepository<CredentialDocument>,
     private readonly configService: ConfigService,
   ) {
     const key =
@@ -47,67 +47,61 @@ export class CredentialManagerService {
   ): Promise<{ id: string; provider: CredentialProvider }> {
     const encryptedToken = this.encrypt(dto.token);
 
-    const credential = new this.credentialModel({
+    const saved = await this.credentialRepo.create({
       userId,
       provider: dto.provider,
       name: dto.name || `${dto.provider} API Key`,
       encryptedToken,
       status: CredentialStatus.ACTIVE,
       scopes: dto.scope || [],
-    });
-
-    const saved = await credential.save();
+    } as any);
 
     this.logger.log(
-      `Stored credential ${saved._id} for provider ${dto.provider}`,
+      `Stored credential ${(saved as any)._id} for provider ${dto.provider}`,
     );
 
-    return { id: saved._id.toString(), provider: dto.provider };
+    return { id: (saved as any)._id.toString(), provider: dto.provider };
   }
 
   async getCredential(
     userId: string,
     provider: CredentialProvider,
   ): Promise<string | null> {
-    const credential = await this.credentialModel
-      .findOne({
-        userId,
-        provider,
-        status: CredentialStatus.ACTIVE,
-      })
-      .exec();
+    const credential = await this.credentialRepo.findOne({
+      userId,
+      provider,
+      status: CredentialStatus.ACTIVE,
+    });
 
     if (!credential) return null;
 
     if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
       this.logger.warn(`Credential for ${provider} has expired`);
-      await this.credentialModel
-        .findByIdAndUpdate(credential._id, { status: CredentialStatus.EXPIRED })
-        .exec();
+      await this.credentialRepo.update((credential as any)._id.toString(), {
+        status: CredentialStatus.EXPIRED,
+      });
       return null;
     }
 
-    await this.credentialModel
-      .findByIdAndUpdate(credential._id, { lastUsedAt: new Date() })
-      .exec();
+    await this.credentialRepo.update((credential as any)._id.toString(), {
+      lastUsedAt: new Date(),
+    });
 
     return this.decrypt(credential.encryptedToken);
   }
 
   async getCredentialById(credentialId: string): Promise<string | null> {
     try {
-      const credential = await this.credentialModel
-        .findById(credentialId)
-        .exec();
+      const credential = await this.credentialRepo.findById(credentialId);
       if (!credential) return null;
 
       if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
         return null;
       }
 
-      await this.credentialModel
-        .findByIdAndUpdate(credentialId, { lastUsedAt: new Date() })
-        .exec();
+      await this.credentialRepo.update(credentialId, {
+        lastUsedAt: new Date(),
+      });
 
       return this.decrypt(credential.encryptedToken);
     } catch {
@@ -125,13 +119,13 @@ export class CredentialManagerService {
       expiresAt?: Date;
     }>
   > {
-    const credentials = await this.credentialModel
-      .find({ userId })
-      .select('-encryptedToken -encryptedRefreshToken')
-      .exec();
+    const credentials = await this.credentialRepo.find(
+      { userId },
+      { select: '-encryptedToken -encryptedRefreshToken' },
+    );
 
     return credentials.map((cred) => ({
-      id: cred._id.toString(),
+      id: (cred as any)._id.toString(),
       provider: cred.provider as unknown as CredentialProvider,
       tokenType: 'api_key',
       createdAt: cred.createdAt || new Date(),
@@ -145,9 +139,10 @@ export class CredentialManagerService {
     credentialId: string,
   ): Promise<boolean> {
     try {
-      const result = await this.credentialModel
-        .findOneAndDelete({ _id: credentialId, userId })
-        .exec();
+      const result = await this.credentialRepo.findOneAndDelete({
+        _id: credentialId,
+        userId,
+      });
 
       if (result) {
         this.logger.log(`Deleted credential ${credentialId}`);
@@ -165,15 +160,13 @@ export class CredentialManagerService {
     newToken: string,
   ): Promise<boolean> {
     try {
-      const result = await this.credentialModel
-        .findOneAndUpdate(
-          { _id: credentialId, userId },
-          {
-            encryptedToken: this.encrypt(newToken),
-            updatedAt: new Date(),
-          },
-        )
-        .exec();
+      const result = await this.credentialRepo.findOneAndUpdate(
+        { _id: credentialId, userId },
+        {
+          encryptedToken: this.encrypt(newToken),
+          updatedAt: new Date(),
+        },
+      );
 
       if (result) {
         this.logger.log(`Rotated credential ${credentialId}`);
@@ -187,9 +180,7 @@ export class CredentialManagerService {
 
   async shouldRotate(credentialId: string): Promise<boolean> {
     try {
-      const credential = await this.credentialModel
-        .findById(credentialId)
-        .exec();
+      const credential = await this.credentialRepo.findById(credentialId);
       if (!credential) return false;
 
       const rotationInterval =

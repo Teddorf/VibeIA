@@ -1,11 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { NeonSetupService } from './neon-setup.service';
 import { VercelSetupService } from './vercel-setup.service';
 import { RailwaySetupService } from './railway-setup.service';
-import { SetupState, SetupStateDocument, SetupStatus, TaskStatus } from './schemas/setup-state.schema';
-import { RollbackAction, RollbackActionDocument, RollbackStatus } from './schemas/rollback-action.schema';
+import {
+  SetupState,
+  SetupStateDocument,
+  SetupStatus,
+  TaskStatus,
+} from './schemas/setup-state.schema';
+import {
+  RollbackAction,
+  RollbackActionDocument,
+  RollbackStatus,
+} from './schemas/rollback-action.schema';
 import { ISetupExecutor } from './executors/ISetupExecutor';
 import { NeonExecutor } from './executors/NeonExecutor';
 import { VercelExecutor } from './executors/VercelExecutor';
@@ -22,14 +29,21 @@ import {
   VercelEnvironmentVariable,
   SetupState as SetupStateDto,
 } from './dto/setup.dto';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import {
+  SETUP_STATE_REPOSITORY,
+  ROLLBACK_ACTION_REPOSITORY,
+} from '../../providers/repository-tokens';
 
 @Injectable()
 export class SetupOrchestratorService {
   private readonly logger = new Logger(SetupOrchestratorService.name);
 
   constructor(
-    @InjectModel(SetupState.name) private setupStateModel: Model<SetupStateDocument>,
-    @InjectModel(RollbackAction.name) private rollbackActionModel: Model<RollbackActionDocument>,
+    @Inject(SETUP_STATE_REPOSITORY)
+    private readonly setupStateRepo: IRepository<SetupStateDocument>,
+    @Inject(ROLLBACK_ACTION_REPOSITORY)
+    private readonly rollbackActionRepo: IRepository<RollbackActionDocument>,
     private readonly neonSetupService: NeonSetupService,
     private readonly vercelSetupService: VercelSetupService,
     private readonly railwaySetupService: RailwaySetupService,
@@ -37,7 +51,11 @@ export class SetupOrchestratorService {
     private readonly vercelExecutor: VercelExecutor,
     private readonly railwayExecutor: RailwayExecutor,
   ) {
-    this.executors = [this.neonExecutor, this.vercelExecutor, this.railwayExecutor];
+    this.executors = [
+      this.neonExecutor,
+      this.vercelExecutor,
+      this.railwayExecutor,
+    ];
   }
 
   private readonly executors: ISetupExecutor[];
@@ -96,7 +114,9 @@ export class SetupOrchestratorService {
       (t) => t.status === SetupTaskStatus.IN_PROGRESS,
     ).length;
 
-    return Math.floor(((completedTasks + inProgressTasks * 0.5) / totalTasks) * 100);
+    return Math.floor(
+      ((completedTasks + inProgressTasks * 0.5) / totalTasks) * 100,
+    );
   }
 
   private generateEnvFile(state: SetupStateDocument): string {
@@ -137,11 +157,15 @@ export class SetupOrchestratorService {
     }
 
     if (state.urls?.dashboards?.vercel) {
-      steps.push(`Review your Vercel deployment at: ${state.urls.dashboards.vercel}`);
+      steps.push(
+        `Review your Vercel deployment at: ${state.urls.dashboards.vercel}`,
+      );
     }
 
     if (state.urls?.dashboards?.railway) {
-      steps.push(`Review your Railway services at: ${state.urls.dashboards.railway}`);
+      steps.push(
+        `Review your Railway services at: ${state.urls.dashboards.railway}`,
+      );
     }
 
     steps.push('Copy the generated .env file to your local project');
@@ -159,7 +183,7 @@ export class SetupOrchestratorService {
     taskId: string,
     order: number,
   ): Promise<void> {
-    const rollbackAction = new this.rollbackActionModel({
+    await this.rollbackActionRepo.create({
       setupId,
       provider,
       action,
@@ -167,8 +191,7 @@ export class SetupOrchestratorService {
       taskId,
       order,
       status: RollbackStatus.PENDING,
-    });
-    await rollbackAction.save();
+    } as any);
   }
 
   async execute(
@@ -184,7 +207,7 @@ export class SetupOrchestratorService {
     let rollbackOrder = 0;
 
     // Create initial state in MongoDB
-    const setupState = new this.setupStateModel({
+    await this.setupStateRepo.create({
       setupId,
       userId: config.userId,
       projectId: config.projectId,
@@ -197,15 +220,16 @@ export class SetupOrchestratorService {
       progress: 0,
       startedAt: new Date(),
       config,
-    });
-    await setupState.save();
+    } as any);
 
     this.logger.log(`Starting setup: ${setupId}`);
 
     try {
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
-        const executor = this.executors.find((e) => e.canExecute(task.provider));
+        const executor = this.executors.find((e) =>
+          e.canExecute(task.provider),
+        );
 
         if (!executor) {
           this.logger.warn(`No executor found for provider ${task.provider}`);
@@ -216,27 +240,34 @@ export class SetupOrchestratorService {
         task.status = SetupTaskStatus.IN_PROGRESS;
         task.startedAt = new Date();
 
-        await this.setupStateModel.findOneAndUpdate(
+        await this.setupStateRepo.findOneAndUpdate(
           { setupId },
           {
             currentTaskIndex: i,
             tasks,
             progress: this.calculateProgress(tasks),
           },
-        ).exec();
+        );
 
         // Reload state to get updated credentials for the executor
-        const currentState = await this.setupStateModel.findOne({ setupId }).exec();
+        const currentState = await this.setupStateRepo.findOne({ setupId });
         if (!currentState) throw new Error('Setup state not found');
 
         try {
           // Determine token
           let token: string | undefined;
           if (task.provider === SetupProvider.NEON) token = tokens?.neon;
-          else if (task.provider === SetupProvider.VERCEL) token = tokens?.vercel;
-          else if (task.provider === SetupProvider.RAILWAY) token = tokens?.railway;
+          else if (task.provider === SetupProvider.VERCEL)
+            token = tokens?.vercel;
+          else if (task.provider === SetupProvider.RAILWAY)
+            token = tokens?.railway;
 
-          const result = await executor.execute(config, currentState, task, token);
+          const result = await executor.execute(
+            config,
+            currentState,
+            task,
+            token,
+          );
 
           // Update task with result
           task.steps = result.steps;
@@ -262,11 +293,14 @@ export class SetupOrchestratorService {
           } else if (task.provider === SetupProvider.RAILWAY) {
             const res = result as RailwaySetupResult;
             updates['urls.dashboards.railway'] = res.dashboardUrl;
-            if (res.services.api) updates['urls.backend'] = res.services.api.url;
-            if (res.services.redis) updates['credentials.redisUrl'] = res.services.redis.connectionString;
+            if (res.services.api)
+              updates['urls.backend'] = res.services.api.url;
+            if (res.services.redis)
+              updates['credentials.redisUrl'] =
+                res.services.redis.connectionString;
           }
 
-          await this.setupStateModel.findOneAndUpdate({ setupId }, updates).exec();
+          await this.setupStateRepo.findOneAndUpdate({ setupId }, updates);
 
           await this.addRollbackAction(
             setupId,
@@ -279,13 +313,13 @@ export class SetupOrchestratorService {
         } catch (error) {
           task.status = SetupTaskStatus.FAILED;
           task.error = error instanceof Error ? error.message : 'Unknown error';
-          await this.setupStateModel.findOneAndUpdate({ setupId }, { tasks }).exec();
+          await this.setupStateRepo.findOneAndUpdate({ setupId }, { tasks });
           throw error;
         }
       }
 
       // All tasks completed
-      const finalState = await this.setupStateModel.findOneAndUpdate(
+      const finalState = await this.setupStateRepo.findOneAndUpdate(
         { setupId },
         {
           status: SetupStatus.COMPLETED,
@@ -294,7 +328,7 @@ export class SetupOrchestratorService {
           tasks,
         },
         { new: true },
-      ).exec();
+      );
 
       if (!finalState) {
         throw new Error('Failed to retrieve final state');
@@ -303,10 +337,10 @@ export class SetupOrchestratorService {
       const generatedEnvFile = this.generateEnvFile(finalState);
       const nextSteps = this.generateNextSteps(finalState);
 
-      await this.setupStateModel.findOneAndUpdate(
+      await this.setupStateRepo.findOneAndUpdate(
         { setupId },
         { generatedEnvFile, nextSteps },
-      ).exec();
+      );
 
       const result: SetupResult = {
         success: true,
@@ -323,34 +357,39 @@ export class SetupOrchestratorService {
     } catch (error) {
       this.logger.error(`Setup failed: ${setupId}`, error);
 
-      await this.setupStateModel.findOneAndUpdate(
+      await this.setupStateRepo.findOneAndUpdate(
         { setupId },
         {
           status: SetupStatus.FAILED,
           progress: this.calculateProgress(tasks),
           tasks,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          errorMessage:
+            error instanceof Error ? error.message : 'Unknown error',
         },
-      ).exec();
+      );
 
       // Auto-rollback on failure
       await this.rollback(setupId, tokens);
 
-      const failedState = await this.setupStateModel.findOne({ setupId }).exec();
+      const failedState = await this.setupStateRepo.findOne({ setupId });
 
       return {
         setupId,
         result: {
           success: false,
-          state: failedState ? this.convertToDto(failedState) : {
-            status: SetupTaskStatus.FAILED,
-            tasks,
-            urls: { dashboards: {} },
-            credentials: {},
-            currentTaskIndex: 0,
-            progress: 0,
+          state: failedState
+            ? this.convertToDto(failedState)
+            : {
+                status: SetupTaskStatus.FAILED,
+                tasks,
+                urls: { dashboards: {} },
+                credentials: {},
+                currentTaskIndex: 0,
+                progress: 0,
+              },
+          urls: (failedState?.urls as SetupStateDto['urls']) || {
+            dashboards: {},
           },
-          urls: failedState?.urls as SetupStateDto['urls'] || { dashboards: {} },
           credentials: failedState?.credentials || {},
           nextSteps: ['Fix the error and try again'],
         },
@@ -366,10 +405,10 @@ export class SetupOrchestratorService {
       railway?: string;
     },
   ): Promise<void> {
-    const rollbackActions = await this.rollbackActionModel
-      .find({ setupId, status: RollbackStatus.PENDING })
-      .sort({ order: -1 })
-      .exec();
+    const rollbackActions = await this.rollbackActionRepo.find(
+      { setupId, status: RollbackStatus.PENDING },
+      { sort: { order: -1 } },
+    );
 
     if (rollbackActions.length === 0) {
       this.logger.log(`No resources to rollback for setup: ${setupId}`);
@@ -380,47 +419,53 @@ export class SetupOrchestratorService {
 
     for (const action of rollbackActions) {
       try {
-        const executor = this.executors.find((e) => e.canExecute(action.provider as SetupProvider));
+        const executor = this.executors.find((e) =>
+          e.canExecute(action.provider as SetupProvider),
+        );
 
         if (executor) {
           let token: string | undefined;
           if (action.provider === SetupProvider.NEON) token = tokens?.neon;
-          else if (action.provider === SetupProvider.VERCEL) token = tokens?.vercel;
-          else if (action.provider === SetupProvider.RAILWAY) token = tokens?.railway;
+          else if (action.provider === SetupProvider.VERCEL)
+            token = tokens?.vercel;
+          else if (action.provider === SetupProvider.RAILWAY)
+            token = tokens?.railway;
 
           await executor.rollback(action.resourceId, token);
         } else {
-          this.logger.warn(`No executor found for rollback of ${action.provider}`);
+          this.logger.warn(
+            `No executor found for rollback of ${action.provider}`,
+          );
         }
 
-        await this.rollbackActionModel.findByIdAndUpdate(action._id, {
+        await this.rollbackActionRepo.update((action as any)._id.toString(), {
           status: RollbackStatus.COMPLETED,
           executedAt: new Date(),
-        }).exec();
+        });
 
         // Update task status to rolled back
-        await this.setupStateModel.findOneAndUpdate(
+        await this.setupStateRepo.findOneAndUpdate(
           { setupId, 'tasks.id': action.taskId },
           { $set: { 'tasks.$.status': TaskStatus.ROLLED_BACK } },
-        ).exec();
+        );
       } catch (error) {
         this.logger.error(
           `Failed to rollback ${action.provider} resource: ${action.resourceId}`,
           error,
         );
 
-        await this.rollbackActionModel.findByIdAndUpdate(action._id, {
+        await this.rollbackActionRepo.update((action as any)._id.toString(), {
           status: RollbackStatus.FAILED,
           error: error instanceof Error ? error.message : 'Unknown error',
           executedAt: new Date(),
-        }).exec();
+        });
       }
     }
 
-    await this.setupStateModel.findOneAndUpdate(
+    await this.setupStateRepo.findOneAndUpdate(
       { setupId },
       { status: SetupStatus.ROLLED_BACK },
-    ).exec();
+    );
 
     this.logger.log(`Rollback completed for setup: ${setupId}`);
   }
@@ -432,7 +477,7 @@ export class SetupOrchestratorService {
   }
 
   async getStatusAsync(setupId: string): Promise<SetupStateDto | null> {
-    const state = await this.setupStateModel.findOne({ setupId }).exec();
+    const state = await this.setupStateRepo.findOne({ setupId });
     if (!state) return null;
     return this.convertToDto(state);
   }
@@ -457,11 +502,15 @@ export class SetupOrchestratorService {
     }
 
     if (tokens.vercel) {
-      results.vercel = await this.vercelSetupService.validateToken(tokens.vercel);
+      results.vercel = await this.vercelSetupService.validateToken(
+        tokens.vercel,
+      );
     }
 
     if (tokens.railway) {
-      results.railway = await this.railwaySetupService.validateToken(tokens.railway);
+      results.railway = await this.railwaySetupService.validateToken(
+        tokens.railway,
+      );
     }
 
     return results;
@@ -478,13 +527,21 @@ export class SetupOrchestratorService {
         estimatedDuration: t.estimatedDuration,
         steps: (t.steps || []).map((step, index) =>
           typeof step === 'string'
-            ? { id: `step-${index}`, name: step, status: SetupTaskStatus.COMPLETED }
-            : step
+            ? {
+                id: `step-${index}`,
+                name: step,
+                status: SetupTaskStatus.COMPLETED,
+              }
+            : step,
         ),
         error: t.error,
         startedAt: t.startedAt,
         completedAt: t.completedAt,
-        result: t.result as NeonSetupResult | VercelSetupResult | RailwaySetupResult | undefined,
+        result: t.result as
+          | NeonSetupResult
+          | VercelSetupResult
+          | RailwaySetupResult
+          | undefined,
       })),
       urls: state.urls as SetupStateDto['urls'],
       credentials: state.credentials,

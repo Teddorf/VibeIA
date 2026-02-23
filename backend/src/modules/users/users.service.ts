@@ -1,10 +1,27 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  Inject,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { User, UserDocument, LLMProviderConfig, LLMPreferences } from './user.schema';
+import {
+  User,
+  UserDocument,
+  LLMProviderConfig,
+  LLMPreferences,
+} from './user.schema';
 import { EncryptionService } from './encryption.service';
-import { BCRYPT_SALT_ROUNDS, ENCRYPTED_TOKEN_PARTS } from '../auth/auth.constants';
+import {
+  BCRYPT_SALT_ROUNDS,
+  ENCRYPTED_TOKEN_PARTS,
+} from '../auth/auth.constants';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import { USER_REPOSITORY } from '../../providers/repository-tokens';
+
+type UserDoc = UserDocument;
 
 export interface CreateUserDto {
   email: string;
@@ -75,102 +92,103 @@ export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
   constructor(
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @Inject(USER_REPOSITORY) private readonly userRepo: IRepository<UserDoc>,
     private encryptionService: EncryptionService,
-  ) { }
+  ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<UserDocument> {
+  async create(createUserDto: CreateUserDto): Promise<UserDoc> {
     // Check if user already exists
-    const existingUser = await this.userModel.findOne({ email: createUserDto.email });
+    const existingUser = await this.userRepo.findOne({
+      email: createUserDto.email,
+    });
     if (existingUser) {
       throw new ConflictException('User with this email already exists');
     }
 
     // Hash password
     const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(createUserDto.password, saltRounds);
+    const hashedPassword = await bcrypt.hash(
+      createUserDto.password,
+      saltRounds,
+    );
 
-    const user = new this.userModel({
+    return this.userRepo.create({
       ...createUserDto,
       password: hashedPassword,
     });
-
-    return user.save();
   }
 
-  async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email });
+  async findByEmail(email: string): Promise<UserDoc | null> {
+    return this.userRepo.findOne({ email });
   }
 
-  async findById(id: string): Promise<UserDocument | null> {
-    return this.userModel.findById(id);
+  async findById(id: string): Promise<UserDoc | null> {
+    return this.userRepo.findById(id);
   }
 
-  async findAll(): Promise<UserDocument[]> {
-    return this.userModel.find().select('-password -refreshToken');
+  async findAll(): Promise<UserDoc[]> {
+    return this.userRepo.find({}, { select: '-password -refreshToken' });
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<UserDocument> {
-    const user = await this.userModel.findByIdAndUpdate(
-      id,
-      updateUserDto,
-      { new: true },
-    ).select('-password -refreshToken');
-
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<UserDoc> {
+    const user = await this.userRepo.update(id, updateUserDto);
     if (!user) {
       throw new NotFoundException('User not found');
     }
-
     return user;
   }
 
-  async updateRefreshToken(id: string, refreshToken: string | null): Promise<void> {
+  async updateRefreshToken(
+    id: string,
+    refreshToken: string | null,
+  ): Promise<void> {
     const hashedRefreshToken = refreshToken
       ? await bcrypt.hash(refreshToken, BCRYPT_SALT_ROUNDS)
       : null;
 
-    await this.userModel.findByIdAndUpdate(id, {
+    await this.userRepo.update(id, {
       refreshToken: hashedRefreshToken,
     });
   }
 
   async updateLastLogin(id: string): Promise<void> {
-    await this.userModel.findByIdAndUpdate(id, {
+    await this.userRepo.update(id, {
       lastLoginAt: new Date(),
     });
   }
 
-  async validatePassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
+  async validatePassword(
+    plainPassword: string,
+    hashedPassword: string,
+  ): Promise<boolean> {
     return bcrypt.compare(plainPassword, hashedPassword);
   }
 
-  async validateRefreshToken(id: string, refreshToken: string): Promise<boolean> {
-    const user = await this.userModel.findById(id);
+  async validateRefreshToken(
+    id: string,
+    refreshToken: string,
+  ): Promise<boolean> {
+    const user = await this.userRepo.findById(id);
     if (!user || !user.refreshToken) {
       return false;
     }
     return bcrypt.compare(refreshToken, user.refreshToken);
   }
 
-  /**
-   * Find the owner of a refresh token by comparing against all stored hashes.
-   * Used for IDOR prevention - ensures the token belongs to the claimed user.
-   * @param refreshToken The plain refresh token to find owner for
-   * @returns The user ID if found, null otherwise
-   */
   async findRefreshTokenOwner(refreshToken: string): Promise<string | null> {
-    // Find all users with refresh tokens
-    const users = await this.userModel.find(
+    const users = await this.userRepo.find(
       { refreshToken: { $exists: true, $ne: null } },
-      { _id: 1, refreshToken: 1 }
-    ).lean();
+      { select: '_id refreshToken' },
+    );
 
-    // Check each user's hashed token
     for (const user of users) {
-      if (user.refreshToken) {
-        const isMatch = await bcrypt.compare(refreshToken, user.refreshToken);
+      if ((user as any).refreshToken) {
+        const isMatch = await bcrypt.compare(
+          refreshToken,
+          (user as any).refreshToken,
+        );
         if (isMatch) {
-          return user._id.toString();
+          return ((user as any)._id || (user as any).id).toString();
         }
       }
     }
@@ -179,7 +197,7 @@ export class UsersService {
   }
 
   async delete(id: string): Promise<void> {
-    const result = await this.userModel.findByIdAndDelete(id);
+    const result = await this.userRepo.delete(id);
     if (!result) {
       throw new NotFoundException('User not found');
     }
@@ -187,21 +205,22 @@ export class UsersService {
 
   // ==================== Password Reset ====================
 
-  async setPasswordResetToken(email: string): Promise<{ token: string; user: UserDocument } | null> {
-    const user = await this.userModel.findOne({ email });
+  async setPasswordResetToken(
+    email: string,
+  ): Promise<{ token: string; user: UserDoc } | null> {
+    const user = await this.userRepo.findOne({ email });
     if (!user) {
       return null;
     }
 
-    // Generate a random token
     const crypto = require('crypto');
     const token = crypto.randomBytes(32).toString('hex');
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    // Set token and expiry (1 hour)
-    await this.userModel.findByIdAndUpdate(user._id, {
+    const userId = (user as any)._id || (user as any).id;
+    await this.userRepo.update(userId.toString(), {
       passwordResetToken: hashedToken,
-      passwordResetExpires: new Date(Date.now() + 3600000), // 1 hour
+      passwordResetExpires: new Date(Date.now() + 3600000),
     });
 
     return { token, user };
@@ -211,7 +230,7 @@ export class UsersService {
     const crypto = require('crypto');
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    const user = await this.userModel.findOne({
+    const user = await this.userRepo.findOne({
       passwordResetToken: hashedToken,
       passwordResetExpires: { $gt: new Date() },
     });
@@ -220,11 +239,10 @@ export class UsersService {
       return false;
     }
 
-    // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+    const userId = (user as any)._id || (user as any).id;
 
-    // Update password and clear reset token
-    await this.userModel.findByIdAndUpdate(user._id, {
+    await this.userRepo.update(userId.toString(), {
       password: hashedPassword,
       passwordResetToken: undefined,
       passwordResetExpires: undefined,
@@ -237,7 +255,7 @@ export class UsersService {
     const crypto = require('crypto');
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    const user = await this.userModel.findOne({
+    const user = await this.userRepo.findOne({
       passwordResetToken: hashedToken,
       passwordResetExpires: { $gt: new Date() },
     });
@@ -247,26 +265,28 @@ export class UsersService {
 
   // ==================== LLM API Keys Management ====================
 
-  async setLLMApiKey(userId: string, dto: SetLLMApiKeyDto): Promise<LLMProviderStatus> {
-    const user = await this.userModel.findById(userId);
+  async setLLMApiKey(
+    userId: string,
+    dto: SetLLMApiKeyDto,
+  ): Promise<LLMProviderStatus> {
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
     const validProviders = ['anthropic', 'openai', 'gemini'];
     if (!validProviders.includes(dto.provider)) {
-      throw new BadRequestException(`Invalid provider. Must be one of: ${validProviders.join(', ')}`);
+      throw new BadRequestException(
+        `Invalid provider. Must be one of: ${validProviders.join(', ')}`,
+      );
     }
 
-    // Basic validation of API key format
     if (!dto.apiKey || dto.apiKey.trim().length < 10) {
       throw new BadRequestException('API key is too short');
     }
 
-    // Encrypt the API key
     const encryptedKey = this.encryptionService.encrypt(dto.apiKey.trim());
 
-    // Update the user's LLM API keys
     const llmApiKeys = user.llmApiKeys || {};
     llmApiKeys[dto.provider] = {
       apiKey: encryptedKey,
@@ -274,7 +294,6 @@ export class UsersService {
       addedAt: new Date(),
     };
 
-    // If this is the first key, set it as primary
     let llmPreferences = user.llmPreferences || {
       primaryProvider: null,
       fallbackEnabled: true,
@@ -285,7 +304,7 @@ export class UsersService {
       llmPreferences.primaryProvider = dto.provider;
     }
 
-    await this.userModel.findByIdAndUpdate(userId, {
+    await this.userRepo.update(userId, {
       llmApiKeys,
       llmPreferences,
     });
@@ -300,7 +319,7 @@ export class UsersService {
   }
 
   async removeLLMApiKey(userId: string, provider: string): Promise<void> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -312,7 +331,6 @@ export class UsersService {
 
     delete llmApiKeys[provider];
 
-    // If we removed the primary provider, set a new one
     let llmPreferences = user.llmPreferences;
     if (llmPreferences?.primaryProvider === provider) {
       const remainingProviders = Object.keys(llmApiKeys).filter(
@@ -321,14 +339,14 @@ export class UsersService {
       llmPreferences.primaryProvider = remainingProviders[0] || undefined;
     }
 
-    await this.userModel.findByIdAndUpdate(userId, {
+    await this.userRepo.update(userId, {
       llmApiKeys,
       llmPreferences,
     });
   }
 
   async getLLMApiKeysStatus(userId: string): Promise<LLMProviderStatus[]> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -339,7 +357,6 @@ export class UsersService {
     return allProviders.map((provider) => {
       const config = llmApiKeys[provider];
       if (config) {
-        // Decrypt to get masked version
         try {
           const decryptedKey = this.encryptionService.decrypt(config.apiKey);
           return {
@@ -366,7 +383,7 @@ export class UsersService {
   }
 
   async getLLMPreferences(userId: string): Promise<LLMPreferences> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -384,7 +401,7 @@ export class UsersService {
     userId: string,
     dto: UpdateLLMPreferencesDto,
   ): Promise<LLMPreferences> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -395,7 +412,6 @@ export class UsersService {
       fallbackOrder: ['anthropic', 'gemini', 'openai'],
     };
 
-    // Validate primary provider if provided
     if (dto.primaryProvider) {
       const llmApiKeys = user.llmApiKeys || {};
       if (!llmApiKeys[dto.primaryProvider]?.isActive) {
@@ -411,15 +427,19 @@ export class UsersService {
       fallbackOrder: dto.fallbackOrder ?? currentPrefs.fallbackOrder,
     };
 
-    await this.userModel.findByIdAndUpdate(userId, {
+    await this.userRepo.update(userId, {
       llmPreferences: updatedPrefs,
     });
 
     return updatedPrefs;
   }
 
-  async toggleLLMApiKey(userId: string, provider: string, isActive: boolean): Promise<void> {
-    const user = await this.userModel.findById(userId);
+  async toggleLLMApiKey(
+    userId: string,
+    provider: string,
+    isActive: boolean,
+  ): Promise<void> {
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -431,12 +451,14 @@ export class UsersService {
 
     llmApiKeys[provider].isActive = isActive;
 
-    await this.userModel.findByIdAndUpdate(userId, { llmApiKeys });
+    await this.userRepo.update(userId, { llmApiKeys });
   }
 
-  // Get decrypted API key for a specific provider (used by LLM service)
-  async getDecryptedLLMApiKey(userId: string, provider: string): Promise<string | null> {
-    const user = await this.userModel.findById(userId);
+  async getDecryptedLLMApiKey(
+    userId: string,
+    provider: string,
+  ): Promise<string | null> {
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       return null;
     }
@@ -453,9 +475,8 @@ export class UsersService {
     }
   }
 
-  // Get all active API keys for a user (used by LLM service)
   async getActiveLLMApiKeys(userId: string): Promise<Record<string, string>> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       return {};
     }
@@ -476,9 +497,8 @@ export class UsersService {
     return result;
   }
 
-  // Check if user has any LLM provider configured
   async hasLLMConfigured(userId: string): Promise<boolean> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       return false;
     }
@@ -487,7 +507,6 @@ export class UsersService {
     return Object.values(llmApiKeys).some((config) => config?.isActive);
   }
 
-  // Get providers info for frontend
   getProvidersInfo() {
     return LLM_PROVIDERS_INFO;
   }
@@ -500,15 +519,14 @@ export class UsersService {
     accessToken: string,
     username: string,
   ): Promise<void> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Encrypt the access token
     const encryptedToken = this.encryptionService.encrypt(accessToken);
 
-    await this.userModel.findByIdAndUpdate(userId, {
+    await this.userRepo.update(userId, {
       githubId,
       githubAccessToken: encryptedToken,
       githubUsername: username,
@@ -517,12 +535,12 @@ export class UsersService {
   }
 
   async disconnectGitHub(userId: string): Promise<void> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    await this.userModel.findByIdAndUpdate(userId, {
+    await this.userRepo.update(userId, {
       $unset: {
         githubId: '',
         githubAccessToken: '',
@@ -537,7 +555,7 @@ export class UsersService {
     username?: string;
     connectedAt?: Date;
   }> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -553,15 +571,6 @@ export class UsersService {
     return { connected: false };
   }
 
-  /**
-   * Private helper to decrypt OAuth tokens with legacy format fallback.
-   * Handles both encrypted (iv:tag:content) and legacy unencrypted tokens.
-   *
-   * @param encryptedToken - The token to decrypt
-   * @param provider - Provider name for logging (github, google, gitlab)
-   * @param userId - User ID for logging
-   * @returns Decrypted token, legacy token, or null if decryption fails
-   */
   private getDecryptedOAuthToken(
     encryptedToken: string | undefined,
     provider: string,
@@ -572,25 +581,28 @@ export class UsersService {
     try {
       return this.encryptionService.decrypt(encryptedToken);
     } catch (error) {
-      // Check if token looks like encrypted format (iv:tag:content)
       const parts = encryptedToken.split(':');
       if (parts.length === ENCRYPTED_TOKEN_PARTS) {
-        // Token WAS encrypted but decryption failed (wrong key/salt?)
-        this.logger.warn(`Failed to decrypt ${provider} token for user ${userId}, forcing re-authentication`);
-        return null; // Force re-authentication
+        this.logger.warn(
+          `Failed to decrypt ${provider} token for user ${userId}, forcing re-authentication`,
+        );
+        return null;
       }
-      // Legacy unencrypted token - return as is
       return encryptedToken;
     }
   }
 
   async getGitHubAccessToken(userId: string): Promise<string | null> {
-    const user = await this.userModel.findById(userId);
-    return this.getDecryptedOAuthToken(user?.githubAccessToken, 'GitHub', userId);
+    const user = await this.userRepo.findById(userId);
+    return this.getDecryptedOAuthToken(
+      user?.githubAccessToken,
+      'GitHub',
+      userId,
+    );
   }
 
-  async findByGitHubId(githubId: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ githubId });
+  async findByGitHubId(githubId: string): Promise<UserDoc | null> {
+    return this.userRepo.findOne({ githubId });
   }
 
   // ==================== Google Integration ====================
@@ -602,15 +614,14 @@ export class UsersService {
     email: string,
     name: string,
   ): Promise<void> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Encrypt the access token
     const encryptedToken = this.encryptionService.encrypt(accessToken);
 
-    await this.userModel.findByIdAndUpdate(userId, {
+    await this.userRepo.update(userId, {
       googleId,
       googleAccessToken: encryptedToken,
       googleEmail: email,
@@ -620,12 +631,12 @@ export class UsersService {
   }
 
   async disconnectGoogle(userId: string): Promise<void> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    await this.userModel.findByIdAndUpdate(userId, {
+    await this.userRepo.update(userId, {
       $unset: {
         googleId: '',
         googleAccessToken: '',
@@ -642,7 +653,7 @@ export class UsersService {
     name?: string;
     connectedAt?: Date;
   }> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -660,12 +671,16 @@ export class UsersService {
   }
 
   async getGoogleAccessToken(userId: string): Promise<string | null> {
-    const user = await this.userModel.findById(userId);
-    return this.getDecryptedOAuthToken(user?.googleAccessToken, 'Google', userId);
+    const user = await this.userRepo.findById(userId);
+    return this.getDecryptedOAuthToken(
+      user?.googleAccessToken,
+      'Google',
+      userId,
+    );
   }
 
-  async findByGoogleId(googleId: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ googleId });
+  async findByGoogleId(googleId: string): Promise<UserDoc | null> {
+    return this.userRepo.findOne({ googleId });
   }
 
   // ==================== GitLab Integration ====================
@@ -677,15 +692,14 @@ export class UsersService {
     username: string,
     email: string,
   ): Promise<void> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Encrypt the access token
     const encryptedToken = this.encryptionService.encrypt(accessToken);
 
-    await this.userModel.findByIdAndUpdate(userId, {
+    await this.userRepo.update(userId, {
       gitlabId,
       gitlabAccessToken: encryptedToken,
       gitlabUsername: username,
@@ -695,12 +709,12 @@ export class UsersService {
   }
 
   async disconnectGitLab(userId: string): Promise<void> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    await this.userModel.findByIdAndUpdate(userId, {
+    await this.userRepo.update(userId, {
       $unset: {
         gitlabId: '',
         gitlabAccessToken: '',
@@ -717,7 +731,7 @@ export class UsersService {
     email?: string;
     connectedAt?: Date;
   }> {
-    const user = await this.userModel.findById(userId);
+    const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -735,11 +749,15 @@ export class UsersService {
   }
 
   async getGitLabAccessToken(userId: string): Promise<string | null> {
-    const user = await this.userModel.findById(userId);
-    return this.getDecryptedOAuthToken(user?.gitlabAccessToken, 'GitLab', userId);
+    const user = await this.userRepo.findById(userId);
+    return this.getDecryptedOAuthToken(
+      user?.gitlabAccessToken,
+      'GitLab',
+      userId,
+    );
   }
 
-  async findByGitLabId(gitlabId: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ gitlabId });
+  async findByGitLabId(gitlabId: string): Promise<UserDoc | null> {
+    return this.userRepo.findOne({ gitlabId });
   }
 }

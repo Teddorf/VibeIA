@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Injectable, Inject } from '@nestjs/common';
 import { Team, TeamDocument } from './schemas/team.schema';
-import { TeamActivity, TeamActivityDocument } from './schemas/team-activity.schema';
+import {
+  TeamActivity,
+  TeamActivityDocument,
+} from './schemas/team-activity.schema';
 import {
   TeamSettings,
   TeamActivityAction,
@@ -10,18 +11,25 @@ import {
   UpdateTeamDto,
   DEFAULT_TEAM_SETTINGS,
 } from './dto/teams.dto';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import {
+  TEAM_REPOSITORY,
+  TEAM_ACTIVITY_REPOSITORY,
+} from '../../providers/repository-tokens';
 
 @Injectable()
 export class TeamsService {
   constructor(
-    @InjectModel(Team.name) private teamModel: Model<TeamDocument>,
-    @InjectModel(TeamActivity.name) private activityModel: Model<TeamActivityDocument>,
+    @Inject(TEAM_REPOSITORY)
+    private readonly teamRepo: IRepository<TeamDocument>,
+    @Inject(TEAM_ACTIVITY_REPOSITORY)
+    private readonly activityRepo: IRepository<TeamActivityDocument>,
   ) {}
 
   async createTeam(ownerId: string, dto: CreateTeamDto): Promise<TeamDocument> {
     const slug = await this.generateSlug(dto.name);
 
-    const team = new this.teamModel({
+    const savedTeam = await this.teamRepo.create({
       name: dto.name,
       slug,
       description: dto.description,
@@ -33,33 +41,40 @@ export class TeamsService {
       gitConnections: [],
       memberCount: 1, // Owner
       projectCount: 0,
-    });
+    } as any);
 
-    const savedTeam = await team.save();
-
-    await this.logActivity(savedTeam._id.toString(), ownerId, 'team.created', 'team', savedTeam._id.toString());
+    await this.logActivity(
+      (savedTeam as any)._id.toString(),
+      ownerId,
+      'team.created',
+      'team',
+      (savedTeam as any)._id.toString(),
+    );
 
     return savedTeam;
   }
 
   async getTeam(teamId: string): Promise<TeamDocument | null> {
     try {
-      return await this.teamModel.findById(teamId).exec();
+      return await this.teamRepo.findById(teamId);
     } catch {
       return null;
     }
   }
 
   async getTeamBySlug(slug: string): Promise<TeamDocument | null> {
-    return this.teamModel.findOne({ slug }).exec();
+    return this.teamRepo.findOne({ slug });
   }
 
   async getTeamsByOwner(ownerId: string): Promise<TeamDocument[]> {
-    return this.teamModel.find({ ownerId }).exec();
+    return this.teamRepo.find({ ownerId });
   }
 
-  async updateTeam(teamId: string, dto: UpdateTeamDto): Promise<TeamDocument | null> {
-    const team = await this.teamModel.findById(teamId).exec();
+  async updateTeam(
+    teamId: string,
+    dto: UpdateTeamDto,
+  ): Promise<TeamDocument | null> {
+    const team = await this.teamRepo.findById(teamId);
     if (!team) return null;
 
     const updateData: Partial<Team> = {};
@@ -74,25 +89,29 @@ export class TeamsService {
       updateData.settings = { ...team.settings, ...dto.settings } as any;
     }
 
-    const updatedTeam = await this.teamModel
-      .findByIdAndUpdate(teamId, updateData, { new: true })
-      .exec();
+    const updatedTeam = await this.teamRepo.update(teamId, updateData);
 
     if (updatedTeam) {
-      await this.logActivity(teamId, team.ownerId, 'team.updated', 'team', teamId);
+      await this.logActivity(
+        teamId,
+        team.ownerId,
+        'team.updated',
+        'team',
+        teamId,
+      );
     }
 
     return updatedTeam;
   }
 
   async deleteTeam(teamId: string, userId: string): Promise<boolean> {
-    const team = await this.teamModel.findById(teamId).exec();
+    const team = await this.teamRepo.findById(teamId);
     if (!team) return false;
 
     await this.logActivity(teamId, userId, 'team.deleted', 'team', teamId);
 
-    await this.teamModel.findByIdAndDelete(teamId).exec();
-    await this.activityModel.deleteMany({ teamId }).exec();
+    await this.teamRepo.delete(teamId);
+    await this.activityRepo.deleteMany({ teamId });
 
     return true;
   }
@@ -101,13 +120,11 @@ export class TeamsService {
     teamId: string,
     settings: Partial<TeamSettings>,
   ): Promise<TeamSettings | null> {
-    const team = await this.teamModel.findById(teamId).exec();
+    const team = await this.teamRepo.findById(teamId);
     if (!team) return null;
 
     const updatedSettings = { ...team.settings, ...settings };
-    await this.teamModel
-      .findByIdAndUpdate(teamId, { settings: updatedSettings })
-      .exec();
+    await this.teamRepo.update(teamId, { settings: updatedSettings });
 
     return updatedSettings as TeamSettings;
   }
@@ -117,12 +134,10 @@ export class TeamsService {
     currentOwnerId: string,
     newOwnerId: string,
   ): Promise<boolean> {
-    const team = await this.teamModel.findById(teamId).exec();
+    const team = await this.teamRepo.findById(teamId);
     if (!team || team.ownerId !== currentOwnerId) return false;
 
-    await this.teamModel
-      .findByIdAndUpdate(teamId, { ownerId: newOwnerId })
-      .exec();
+    await this.teamRepo.update(teamId, { ownerId: newOwnerId });
 
     await this.logActivity(
       teamId,
@@ -137,27 +152,19 @@ export class TeamsService {
   }
 
   async incrementMemberCount(teamId: string): Promise<void> {
-    await this.teamModel
-      .findByIdAndUpdate(teamId, { $inc: { memberCount: 1 } })
-      .exec();
+    await this.teamRepo.update(teamId, { $inc: { memberCount: 1 } });
   }
 
   async decrementMemberCount(teamId: string): Promise<void> {
-    await this.teamModel
-      .findByIdAndUpdate(teamId, { $inc: { memberCount: -1 } })
-      .exec();
+    await this.teamRepo.update(teamId, { $inc: { memberCount: -1 } });
   }
 
   async incrementProjectCount(teamId: string): Promise<void> {
-    await this.teamModel
-      .findByIdAndUpdate(teamId, { $inc: { projectCount: 1 } })
-      .exec();
+    await this.teamRepo.update(teamId, { $inc: { projectCount: 1 } });
   }
 
   async decrementProjectCount(teamId: string): Promise<void> {
-    await this.teamModel
-      .findByIdAndUpdate(teamId, { $inc: { projectCount: -1 } })
-      .exec();
+    await this.teamRepo.update(teamId, { $inc: { projectCount: -1 } });
   }
 
   async getTeamStats(teamId: string): Promise<{
@@ -166,10 +173,10 @@ export class TeamsService {
     activityCount: number;
     gitConnections: number;
   } | null> {
-    const team = await this.teamModel.findById(teamId).exec();
+    const team = await this.teamRepo.findById(teamId);
     if (!team) return null;
 
-    const activityCount = await this.activityModel.countDocuments({ teamId }).exec();
+    const activityCount = await this.activityRepo.count({ teamId });
 
     return {
       memberCount: team.memberCount,
@@ -187,16 +194,14 @@ export class TeamsService {
     targetId: string,
     metadata?: Record<string, any>,
   ): Promise<TeamActivityDocument> {
-    const activity = new this.activityModel({
+    return this.activityRepo.create({
       teamId,
       userId,
       action,
       targetType,
       targetId,
       metadata,
-    });
-
-    return activity.save();
+    } as any);
   }
 
   async getActivityLog(
@@ -204,12 +209,10 @@ export class TeamsService {
     limit: number = 50,
     offset: number = 0,
   ): Promise<TeamActivityDocument[]> {
-    return this.activityModel
-      .find({ teamId })
-      .sort({ createdAt: -1 })
-      .skip(offset)
-      .limit(limit)
-      .exec();
+    return this.activityRepo.find(
+      { teamId },
+      { sort: { createdAt: -1 }, skip: offset, limit },
+    );
   }
 
   async getActivityByUser(
@@ -217,11 +220,10 @@ export class TeamsService {
     userId: string,
     limit: number = 50,
   ): Promise<TeamActivityDocument[]> {
-    return this.activityModel
-      .find({ teamId, userId })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .exec();
+    return this.activityRepo.find(
+      { teamId, userId },
+      { sort: { createdAt: -1 }, limit },
+    );
   }
 
   async getRecentActivity(
@@ -230,34 +232,37 @@ export class TeamsService {
   ): Promise<TeamActivityDocument[]> {
     const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-    return this.activityModel
-      .find({
+    return this.activityRepo.find(
+      {
         teamId,
         createdAt: { $gte: cutoff },
-      })
-      .sort({ createdAt: -1 })
-      .exec();
+      },
+      { sort: { createdAt: -1 } },
+    );
   }
 
-  async searchTeams(query: string, limit: number = 10): Promise<TeamDocument[]> {
-    return this.teamModel
-      .find({
+  async searchTeams(
+    query: string,
+    limit: number = 10,
+  ): Promise<TeamDocument[]> {
+    return this.teamRepo.find(
+      {
         $or: [
           { name: { $regex: query, $options: 'i' } },
           { slug: { $regex: query, $options: 'i' } },
           { description: { $regex: query, $options: 'i' } },
         ],
-      })
-      .limit(limit)
-      .exec();
+      },
+      { limit },
+    );
   }
 
   async getAllTeams(): Promise<TeamDocument[]> {
-    return this.teamModel.find().exec();
+    return this.teamRepo.find({});
   }
 
   async checkSlugAvailability(slug: string): Promise<boolean> {
-    const existing = await this.teamModel.findOne({ slug }).exec();
+    const existing = await this.teamRepo.findOne({ slug });
     return !existing;
   }
 

@@ -1,28 +1,48 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
-import { AnthropicProvider } from './providers/anthropic.provider';
-import { OpenAIProvider } from './providers/openai.provider';
-import { GeminiProvider } from './providers/gemini.provider';
-import { LLMProvider, LLMResponse, UserLLMConfig } from './interfaces/llm-provider.interface';
+import {
+  Injectable,
+  BadRequestException,
+  Logger,
+  Inject,
+} from '@nestjs/common';
+import { LLM_PROVIDER } from '../../providers/tokens';
+import {
+  ILLMProvider,
+  ILLMProviderOptions,
+} from '../../providers/interfaces/llm-provider.interface';
+import {
+  LLMResponse,
+  UserLLMConfig,
+} from './interfaces/llm-provider.interface';
+import {
+  buildPlanPrompt,
+  buildImportedProjectPlanPrompt,
+} from './prompt-builders/plan-prompt.builder';
+import { buildCodePrompt } from './prompt-builders/code-prompt.builder';
+import { ImportedProjectWizardData } from './interfaces/llm-provider.interface';
+import { InputSanitizer } from './sanitization/input-sanitizer';
 
 @Injectable()
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
-  private providers: Map<string, LLMProvider>;
 
-  constructor() {
-    this.providers = new Map();
-    this.providers.set('anthropic', new AnthropicProvider());
-    this.providers.set('openai', new OpenAIProvider());
-    this.providers.set('gemini', new GeminiProvider());
+  private adapterMap: Map<string, ILLMProvider>;
+
+  constructor(
+    @Inject(LLM_PROVIDER) private readonly llmAdapters: ILLMProvider[],
+    private readonly inputSanitizer: InputSanitizer,
+  ) {
+    this.adapterMap = new Map();
+    for (const adapter of llmAdapters) {
+      this.adapterMap.set(adapter.name, adapter);
+    }
   }
 
-  /**
-   * Generate a plan using the user's configured LLM providers
-   */
-  async generatePlan(wizardData: any, userConfig: UserLLMConfig): Promise<LLMResponse> {
+  async generatePlan(
+    wizardData: any,
+    userConfig: UserLLMConfig,
+  ): Promise<LLMResponse> {
     const { apiKeys, preferences } = userConfig;
 
-    // Validate user has at least one provider configured
     const configuredProviders = Object.keys(apiKeys).filter((p) => apiKeys[p]);
     if (configuredProviders.length === 0) {
       throw new BadRequestException(
@@ -30,21 +50,43 @@ export class LlmService {
       );
     }
 
-    // Determine provider order based on user preferences
-    const providerOrder = this.getProviderOrder(preferences, configuredProviders);
+    const providerOrder = this.getProviderOrder(
+      preferences,
+      configuredProviders,
+    );
 
-    // Try each provider in order
+    // Sanitize user input before building prompts
+    const sanitizedWizardData = this.inputSanitizer.sanitizeObject(wizardData);
+
+    // Build the prompt using extracted prompt builders
+    const isImportedProject = !!(
+      sanitizedWizardData as ImportedProjectWizardData
+    ).existingCodebase;
+    const prompt = isImportedProject
+      ? buildImportedProjectPlanPrompt(
+          sanitizedWizardData as ImportedProjectWizardData,
+        )
+      : buildPlanPrompt(sanitizedWizardData);
+
     let lastError: Error | null = null;
     for (const providerName of providerOrder) {
       const apiKey = apiKeys[providerName];
       if (!apiKey) continue;
 
-      const provider = this.providers.get(providerName);
-      if (!provider) continue;
+      const adapter = this.adapterMap.get(providerName);
+      if (!adapter) continue;
 
       try {
         this.logger.log(`Generating plan with ${providerName}...`);
-        return await provider.generatePlan(wizardData, { apiKey });
+        const options: ILLMProviderOptions = { apiKey };
+        const result = await adapter.generateJSON(prompt, options);
+
+        return {
+          plan: result.data,
+          provider: providerName,
+          tokensUsed: result.tokensUsed,
+          cost: result.cost,
+        };
       } catch (error: any) {
         this.logger.warn(`Provider ${providerName} failed: ${error.message}`);
         lastError = error;
@@ -54,19 +96,14 @@ export class LlmService {
             `El proveedor ${providerName} falló: ${error.message}. Fallback está deshabilitado.`,
           );
         }
-        // Continue to next provider
       }
     }
 
-    // All providers failed
     throw new BadRequestException(
       `Todos los proveedores de IA fallaron. Último error: ${lastError?.message || 'Unknown error'}`,
     );
   }
 
-  /**
-   * Generate code using the user's configured LLM providers
-   */
   async generateCode(
     task: any,
     context: any,
@@ -81,21 +118,35 @@ export class LlmService {
       );
     }
 
-    const providerOrder = this.getProviderOrder(preferences, configuredProviders);
+    const providerOrder = this.getProviderOrder(
+      preferences,
+      configuredProviders,
+    );
+
+    // Sanitize user input before building prompts
+    const sanitizedTask = this.inputSanitizer.sanitizeObject(task);
+    const sanitizedContext = this.inputSanitizer.sanitizeObject(context);
+    const prompt = buildCodePrompt(sanitizedTask, sanitizedContext);
 
     let lastError: Error | null = null;
     for (const providerName of providerOrder) {
       const apiKey = apiKeys[providerName];
       if (!apiKey) continue;
 
-      const provider = this.providers.get(providerName);
-      if (!provider) continue;
+      const adapter = this.adapterMap.get(providerName);
+      if (!adapter) continue;
 
       try {
         this.logger.log(`Generating code with ${providerName}...`);
-        return await provider.generateCode(task, context, { apiKey });
+        const options: ILLMProviderOptions = { apiKey };
+        const result = await adapter.generateJSON<{
+          files: { path: string; content: string }[];
+        }>(prompt, options);
+        return result.data;
       } catch (error: any) {
-        this.logger.warn(`Provider ${providerName} failed code gen: ${error.message}`);
+        this.logger.warn(
+          `Provider ${providerName} failed code gen: ${error.message}`,
+        );
         lastError = error;
 
         if (!preferences.fallbackEnabled) {
@@ -111,30 +162,30 @@ export class LlmService {
     );
   }
 
-  /**
-   * Determine provider order based on user preferences
-   */
   private getProviderOrder(
     preferences: UserLLMConfig['preferences'],
     configuredProviders: string[],
   ): string[] {
     const order: string[] = [];
 
-    // Add primary provider first if configured
-    if (preferences.primaryProvider && configuredProviders.includes(preferences.primaryProvider)) {
+    if (
+      preferences.primaryProvider &&
+      configuredProviders.includes(preferences.primaryProvider)
+    ) {
       order.push(preferences.primaryProvider);
     }
 
-    // Add remaining providers in fallback order
     if (preferences.fallbackEnabled) {
       for (const provider of preferences.fallbackOrder) {
-        if (configuredProviders.includes(provider) && !order.includes(provider)) {
+        if (
+          configuredProviders.includes(provider) &&
+          !order.includes(provider)
+        ) {
           order.push(provider);
         }
       }
     }
 
-    // Add any remaining configured providers not in fallback order
     for (const provider of configuredProviders) {
       if (!order.includes(provider)) {
         order.push(provider);
@@ -144,37 +195,26 @@ export class LlmService {
     return order;
   }
 
-  /**
-   * Estimate cost for a given wizard data (uses first configured provider)
-   */
   estimateCost(wizardData: any, userConfig?: UserLLMConfig): number {
     let providerName = 'anthropic';
     if (userConfig?.preferences?.primaryProvider) {
       providerName = userConfig.preferences.primaryProvider;
     }
 
-    const provider = this.providers.get(providerName);
-    if (!provider) return 0;
+    const adapter = this.adapterMap.get(providerName);
+    if (!adapter) return 0;
 
     const prompt = JSON.stringify(wizardData);
-    return provider.estimateCost(prompt);
+    return adapter.estimateCost(prompt);
   }
 
-  /**
-   * Get available providers list
-   */
   getAvailableProviders(): string[] {
-    return Array.from(this.providers.keys());
+    return this.llmAdapters.map((a) => a.name);
   }
 
-  /**
-   * Validate an API key for a specific provider
-   */
   async validateApiKey(provider: string, apiKey: string): Promise<boolean> {
-    const providerInstance = this.providers.get(provider);
-    if (!providerInstance) {
-      return false;
-    }
-    return providerInstance.validateApiKey(apiKey);
+    const adapter = this.adapterMap.get(provider);
+    if (!adapter) return false;
+    return adapter.validateApiKey(apiKey);
   }
 }
