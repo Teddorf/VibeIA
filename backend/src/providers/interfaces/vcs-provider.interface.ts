@@ -8,4 +8,5 @@ export interface IVCSProvider {
   ): Promise<{ modified: string[]; untracked: string[] }>;
   createBranch(repoPath: string, branchName: string): Promise<void>;
   checkout(repoPath: string, branchName: string): Promise<void>;
+  mergeBranch(repoPath: string, source: string, target: string): Promise<void>;
 }

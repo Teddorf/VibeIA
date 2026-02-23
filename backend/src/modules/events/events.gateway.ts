@@ -240,8 +240,24 @@ export class EventsGateway
     return { event: 'subscribed', data: { pipelineId: data.pipelineId } };
   }
 
-  emitWorkerStatusUpdate(agentId: string, status: Record<string, any>) {
-    this.server.emit('worker_status_update', {
+  @SubscribeMessage('unsubscribe_pipeline')
+  handleUnsubscribePipeline(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { pipelineId: string },
+  ) {
+    client.leave(`pipeline:${data.pipelineId}`);
+    this.logger.log(
+      `Client ${client.id} unsubscribed from pipeline: ${data.pipelineId}`,
+    );
+    return { event: 'unsubscribed', data: { pipelineId: data.pipelineId } };
+  }
+
+  emitWorkerStatusUpdate(
+    pipelineId: string,
+    agentId: string,
+    status: Record<string, any>,
+  ) {
+    this.server.to(`pipeline:${pipelineId}`).emit('worker_status_update', {
       type: 'worker_status_update',
       timestamp: new Date(),
       data: { agentId, ...status },

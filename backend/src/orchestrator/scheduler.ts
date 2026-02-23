@@ -1,7 +1,8 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { QUEUE_PROVIDER } from '../providers/tokens';
+import { QUEUE_PROVIDER, VCS_PROVIDER } from '../providers/tokens';
 import { EXECUTION_PLAN_REPOSITORY } from '../providers/repository-tokens';
 import { IQueueProvider } from '../providers/interfaces/queue-provider.interface';
+import { IVCSProvider } from '../providers/interfaces/vcs-provider.interface';
 import { IRepository } from '../providers/interfaces/database-provider.interface';
 import { ExecutionPlan } from '../entities/execution-plan.schema';
 import { AgentJobData, AgentOutput, NodeStatus } from '../agents/protocol';
@@ -14,9 +15,22 @@ export class Scheduler {
     @Inject(QUEUE_PROVIDER) private readonly queueProvider: IQueueProvider,
     @Inject(EXECUTION_PLAN_REPOSITORY)
     private readonly planRepo: IRepository<ExecutionPlan>,
+    @Inject(VCS_PROVIDER) private readonly vcs: IVCSProvider,
   ) {}
 
   async dispatch(planId: string, traceId: string): Promise<number> {
+    // Try to create and checkout a branch for this pipeline
+    try {
+      const branchName = `vibe/pipeline-${planId}`;
+      await this.vcs.createBranch('.', branchName);
+      await this.vcs.checkout('.', branchName);
+      this.logger.log(`Created and checked out branch: ${branchName}`);
+    } catch (err) {
+      this.logger.debug(
+        `VCS branch creation skipped: ${(err as Error).message}`,
+      );
+    }
+
     const plan = await this.planRepo.findById(planId);
     if (!plan) {
       throw new Error(`Plan '${planId}' not found`);
@@ -79,7 +93,9 @@ export class Scheduler {
         status: 'completed',
         completedAt: new Date(),
       });
-      this.logger.log(`Plan ${planId} completed`);
+      this.logger.log(
+        `Plan ${planId} completed. Branch vibe/pipeline-${planId} is ready for merge.`,
+      );
       return { newlyDispatched: 0, planComplete: true };
     }
 

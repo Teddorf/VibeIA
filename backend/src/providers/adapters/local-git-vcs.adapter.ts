@@ -87,4 +87,14 @@ export class LocalGitVCSAdapter implements IVCSProvider {
     const git = this.getGit(repoPath);
     await git.checkout(branchName);
   }
+
+  async mergeBranch(
+    repoPath: string,
+    source: string,
+    target: string,
+  ): Promise<void> {
+    const git = this.getGit(repoPath);
+    await git.checkout(target);
+    await git.merge([source]);
+  }
 }

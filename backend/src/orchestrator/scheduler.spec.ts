@@ -7,6 +7,7 @@ describe('Scheduler', () => {
   let mockPlanRepo: Record<string, jest.Mock>;
   let mockQueueProvider: { getQueue: jest.Mock };
   let mockQueue: { add: jest.Mock };
+  let mockVcs: Record<string, jest.Mock>;
 
   const makePlan = (dag: any[]) => ({
     _id: 'plan-1',
@@ -27,7 +28,22 @@ describe('Scheduler', () => {
       update: jest.fn().mockResolvedValue(null),
     };
 
-    scheduler = new Scheduler(mockQueueProvider as any, mockPlanRepo as any);
+    mockVcs = {
+      createBranch: jest.fn().mockResolvedValue(undefined),
+      checkout: jest.fn().mockResolvedValue(undefined),
+      clone: jest.fn().mockResolvedValue(undefined),
+      commit: jest.fn().mockResolvedValue('abc123'),
+      push: jest.fn().mockResolvedValue(undefined),
+      pull: jest.fn().mockResolvedValue(undefined),
+      getStatus: jest.fn().mockResolvedValue({ modified: [], untracked: [] }),
+      mergeBranch: jest.fn().mockResolvedValue(undefined),
+    };
+
+    scheduler = new Scheduler(
+      mockQueueProvider as any,
+      mockPlanRepo as any,
+      mockVcs as any,
+    );
   });
 
   describe('dispatch', () => {
@@ -54,6 +70,46 @@ describe('Scheduler', () => {
       expect(count).toBe(1);
       expect(mockQueue.add).toHaveBeenCalledTimes(1);
       expect(plan.dag[0].status).toBe('queued');
+    });
+
+    it('should attempt VCS branch creation', async () => {
+      const plan = makePlan([
+        {
+          nodeId: 'n1',
+          agentId: 'coder',
+          taskDefinition: { id: 't1', tags: ['code'] },
+          dependencies: [],
+          status: 'pending',
+        },
+      ]);
+      mockPlanRepo.findById.mockResolvedValue(plan);
+
+      await scheduler.dispatch('plan-1', 'trace-1');
+      expect(mockVcs.createBranch).toHaveBeenCalledWith(
+        '.',
+        'vibe/pipeline-plan-1',
+      );
+      expect(mockVcs.checkout).toHaveBeenCalledWith(
+        '.',
+        'vibe/pipeline-plan-1',
+      );
+    });
+
+    it('should gracefully handle VCS errors', async () => {
+      mockVcs.createBranch.mockRejectedValue(new Error('No repo'));
+      const plan = makePlan([
+        {
+          nodeId: 'n1',
+          agentId: 'coder',
+          taskDefinition: { id: 't1', tags: ['code'] },
+          dependencies: [],
+          status: 'pending',
+        },
+      ]);
+      mockPlanRepo.findById.mockResolvedValue(plan);
+
+      const count = await scheduler.dispatch('plan-1', 'trace-1');
+      expect(count).toBe(1); // should still dispatch successfully
     });
 
     it('should throw when plan not found', async () => {
