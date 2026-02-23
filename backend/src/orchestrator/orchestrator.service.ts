@@ -137,6 +137,7 @@ export class OrchestratorService {
         pipelineId: planId,
         taskId: output.taskId,
         agentId: output.agentId,
+        traceId: output.traceId,
         metrics: output.metrics as any,
       } as any);
     }

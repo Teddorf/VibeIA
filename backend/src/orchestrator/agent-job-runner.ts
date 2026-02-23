@@ -15,6 +15,7 @@ import { IAgentExecutionRepository } from '../providers/interfaces/agent-executi
 import { AgentRegistry } from '../agents/registry/agent-registry';
 import { ContextCompiler } from '../agents/context/context-compiler';
 import { AgentJobData, AgentInput, AgentOutput } from '../agents/protocol';
+import { generateTraceId } from '../observability/trace';
 import { OrchestratorService } from './orchestrator.service';
 import { WorkerPoolManager } from './worker-pool-manager';
 
@@ -56,9 +57,11 @@ export class AgentJobRunner implements OnModuleInit {
       taskDefinition,
       pipelineId,
       projectId,
-      traceId,
+      traceId: rawTraceId,
       configOverrides,
     } = job.data;
+
+    const traceId = rawTraceId || generateTraceId();
 
     this.logger.log(
       `[${traceId}] Processing job for agent:${agentId}, task:${taskDefinition.id}, pipeline:${pipelineId}`,
