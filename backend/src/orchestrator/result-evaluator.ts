@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
+import { VIBE_CONFIG } from '../providers/tokens';
 import { QualityGatesService } from '../modules/quality-gates/quality-gates.service';
+import { VibeConfig } from '../config/vibe-config';
 import { AgentOutput, TaskDefinition } from '../agents/protocol';
 
 export interface EvaluationResult {
@@ -12,7 +14,10 @@ export interface EvaluationResult {
 export class ResultEvaluator {
   private readonly logger = new Logger(ResultEvaluator.name);
 
-  constructor(private readonly qualityGates: QualityGatesService) {}
+  constructor(
+    private readonly qualityGates: QualityGatesService,
+    @Inject(VIBE_CONFIG) private readonly config: VibeConfig,
+  ) {}
 
   async evaluate(
     output: AgentOutput,
@@ -61,7 +66,7 @@ export class ResultEvaluator {
 
     // Check if the output meets task expectations
     const requiresReview =
-      task.type === 'code-generation' || task.type === 'refactor';
+      this.config.taskDefaults.reviewRequiredForTypes.includes(task.type);
 
     const passed = issues.length === 0;
     return { passed, issues, requiresReview };

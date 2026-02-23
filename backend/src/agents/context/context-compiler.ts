@@ -1,14 +1,12 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { AGENT_CONTEXT_REPOSITORY } from '../../providers/repository-tokens';
-import { CACHE_PROVIDER } from '../../providers/tokens';
+import { CACHE_PROVIDER, VIBE_CONFIG } from '../../providers/tokens';
 import { IRepository } from '../../providers/interfaces/database-provider.interface';
 import { ICacheProvider } from '../../providers/interfaces/cache-provider.interface';
 import { ContextEntryEntity } from '../../entities/context-entry.schema';
 import { LLM_DEFAULTS } from '../../config/defaults';
+import { VibeConfig } from '../../config/vibe-config';
 import { CompiledContext, ContextEntry, TaskDefinition } from '../protocol';
-
-const CONTEXT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const DEFAULT_TOKEN_BUDGET = 4096;
 
 @Injectable()
 export class ContextCompiler {
@@ -17,6 +15,8 @@ export class ContextCompiler {
     private readonly contextRepo: IRepository<ContextEntryEntity>,
     @Inject(CACHE_PROVIDER)
     private readonly cache: ICacheProvider,
+    @Inject(VIBE_CONFIG)
+    private readonly config: VibeConfig,
   ) {}
 
   async compile(
@@ -25,7 +25,7 @@ export class ContextCompiler {
     pipelineId: string,
     maxTokens?: number,
   ): Promise<CompiledContext> {
-    const budget = maxTokens ?? DEFAULT_TOKEN_BUDGET;
+    const budget = maxTokens ?? this.config.taskDefaults.tokenBudget;
     const cacheKey = this.buildCacheKey(agentId, task.id, pipelineId);
 
     // Check cache first
@@ -67,7 +67,11 @@ export class ContextCompiler {
       scope: this.determineScope(entries),
     };
 
-    await this.cache.set(cacheKey, compiled, CONTEXT_CACHE_TTL_MS);
+    await this.cache.set(
+      cacheKey,
+      compiled,
+      this.config.taskDefaults.contextCacheTtlMs,
+    );
     return compiled;
   }
 

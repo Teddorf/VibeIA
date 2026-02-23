@@ -1,15 +1,17 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { QUEUE_PROVIDER, CACHE_PROVIDER } from '../providers/tokens';
+import {
+  QUEUE_PROVIDER,
+  CACHE_PROVIDER,
+  VIBE_CONFIG,
+} from '../providers/tokens';
 import {
   IQueueProvider,
   IQueue,
 } from '../providers/interfaces/queue-provider.interface';
 import { ICacheProvider } from '../providers/interfaces/cache-provider.interface';
 import { AgentRegistry } from '../agents/registry/agent-registry';
+import { VibeConfig } from '../config/vibe-config';
 import { AgentJobData } from '../agents/protocol';
-
-const DEFAULT_MAX_WORKERS_PER_AGENT = 2;
-const DEFAULT_TOTAL_MAX_WORKERS = 10;
 
 export interface PoolStatus {
   agentId: string;
@@ -36,11 +38,12 @@ export class WorkerPoolManager {
     @Inject(QUEUE_PROVIDER) private readonly queueProvider: IQueueProvider,
     @Inject(CACHE_PROVIDER) private readonly cache: ICacheProvider,
     private readonly agentRegistry: AgentRegistry,
+    @Inject(VIBE_CONFIG) private readonly config: VibeConfig,
   ) {}
 
   async setupAgentQueue(
     agentId: string,
-    maxWorkers: number = DEFAULT_MAX_WORKERS_PER_AGENT,
+    maxWorkers: number = this.config.workers.maxPerAgent,
   ): Promise<void> {
     const queue = this.queueProvider.getQueue<AgentJobData>(`agent:${agentId}`);
 
@@ -65,9 +68,9 @@ export class WorkerPoolManager {
     const totalActive = this.getTotalActiveWorkers();
     const delta = newCount - pool.maxWorkers;
 
-    if (totalActive + delta > DEFAULT_TOTAL_MAX_WORKERS) {
+    if (totalActive + delta > this.config.workers.totalMax) {
       throw new Error(
-        `Cannot increase workers: total would exceed ${DEFAULT_TOTAL_MAX_WORKERS}`,
+        `Cannot increase workers: total would exceed ${this.config.workers.totalMax}`,
       );
     }
 
@@ -82,7 +85,7 @@ export class WorkerPoolManager {
         agentId,
         depth: 0,
         activeCount: 0,
-        maxWorkers: DEFAULT_MAX_WORKERS_PER_AGENT,
+        maxWorkers: this.config.workers.maxPerAgent,
         paused: false,
       };
     }

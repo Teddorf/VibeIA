@@ -1,5 +1,6 @@
 import { DecisionCache } from './decision-cache';
 import { AgentOutput } from '../agents/protocol';
+import { loadVibeConfig } from '../config/vibe-config';
 
 describe('DecisionCache', () => {
   let cache: DecisionCache;
@@ -28,7 +29,7 @@ describe('DecisionCache', () => {
       set: jest.fn().mockResolvedValue(undefined),
       del: jest.fn().mockResolvedValue(undefined),
     };
-    cache = new DecisionCache(mockCacheProvider as any);
+    cache = new DecisionCache(mockCacheProvider as any, loadVibeConfig());
   });
 
   describe('buildKey', () => {

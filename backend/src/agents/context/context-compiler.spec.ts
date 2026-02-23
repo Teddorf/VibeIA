@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ContextCompiler } from './context-compiler';
 import { AGENT_CONTEXT_REPOSITORY } from '../../providers/repository-tokens';
-import { CACHE_PROVIDER } from '../../providers/tokens';
+import { CACHE_PROVIDER, VIBE_CONFIG } from '../../providers/tokens';
+import { loadVibeConfig } from '../../config/vibe-config';
 import { TaskDefinition } from '../protocol';
 
 describe('ContextCompiler', () => {
@@ -36,6 +37,7 @@ describe('ContextCompiler', () => {
         ContextCompiler,
         { provide: AGENT_CONTEXT_REPOSITORY, useValue: mockRepo },
         { provide: CACHE_PROVIDER, useValue: mockCache },
+        { provide: VIBE_CONFIG, useValue: loadVibeConfig() },
       ],
     }).compile();
 

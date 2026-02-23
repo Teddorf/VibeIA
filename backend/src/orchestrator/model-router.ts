@@ -1,48 +1,26 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Inject } from '@nestjs/common';
 import { LLM_DEFAULTS } from '../config/defaults';
-import { VIBE_CONFIG_KEY } from '../config/vibe-config';
+import { VIBE_CONFIG } from '../providers/tokens';
+import { VibeConfig } from '../config/vibe-config';
 import { ModelTier, ModelPricing } from '../agents/protocol';
 
 @Injectable()
 export class ModelRouter {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(@Inject(VIBE_CONFIG) private readonly config: VibeConfig) {}
 
   resolve(tier: ModelTier): string {
-    const llmConfig = this.configService.get(`${VIBE_CONFIG_KEY}.llm`);
-
-    switch (tier) {
-      case 'fast':
-        return llmConfig?.gemini?.planModel ?? LLM_DEFAULTS.gemini.planModel;
-      case 'powerful':
-        return (
-          llmConfig?.anthropic?.planModel ?? LLM_DEFAULTS.anthropic.planModel
-        );
-      case 'balanced':
-      default:
-        return llmConfig?.openai?.planModel ?? LLM_DEFAULTS.openai.planModel;
-    }
+    return this.config.providers.llm.modelMapping[tier];
   }
 
   getMaxTokens(tier: ModelTier): number {
-    const llmConfig = this.configService.get(`${VIBE_CONFIG_KEY}.llm`);
-
     switch (tier) {
       case 'fast':
-        return (
-          llmConfig?.gemini?.maxOutputTokens ??
-          LLM_DEFAULTS.gemini.maxOutputTokens
-        );
+        return this.config.llm.gemini.maxOutputTokens;
       case 'powerful':
-        return (
-          llmConfig?.anthropic?.maxTokensPlan ??
-          LLM_DEFAULTS.anthropic.maxTokensPlan
-        );
+        return this.config.llm.anthropic.maxTokensPlan;
       case 'balanced':
       default:
-        return (
-          llmConfig?.openai?.maxTokensPlan ?? LLM_DEFAULTS.openai.maxTokensPlan
-        );
+        return this.config.llm.openai.maxTokensPlan;
     }
   }
 

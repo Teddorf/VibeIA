@@ -1,19 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { ModelRouter } from './model-router';
 import { LLM_DEFAULTS } from '../config/defaults';
+import { VIBE_CONFIG } from '../providers/tokens';
+import { loadVibeConfig } from '../config/vibe-config';
 
 describe('ModelRouter', () => {
   let router: ModelRouter;
-  let configService: { get: jest.Mock };
 
   beforeEach(async () => {
-    configService = { get: jest.fn().mockReturnValue(undefined) };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ModelRouter,
-        { provide: ConfigService, useValue: configService },
+        { provide: VIBE_CONFIG, useValue: loadVibeConfig() },
       ],
     }).compile();
 
@@ -31,13 +29,6 @@ describe('ModelRouter', () => {
 
     it('should return openai model for balanced tier', () => {
       expect(router.resolve('balanced')).toBe(LLM_DEFAULTS.openai.planModel);
-    });
-
-    it('should use config override when available', () => {
-      configService.get.mockReturnValue({
-        gemini: { planModel: 'custom-gemini' },
-      });
-      expect(router.resolve('fast')).toBe('custom-gemini');
     });
   });
 

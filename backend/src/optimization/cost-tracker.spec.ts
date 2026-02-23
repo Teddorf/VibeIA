@@ -1,4 +1,5 @@
 import { CostTracker } from './cost-tracker';
+import { loadVibeConfig } from '../config/vibe-config';
 
 describe('CostTracker', () => {
   let tracker: CostTracker;
@@ -9,7 +10,7 @@ describe('CostTracker', () => {
       create: jest.fn().mockResolvedValue(undefined),
       find: jest.fn().mockResolvedValue([]),
     };
-    tracker = new CostTracker(mockRepo as any);
+    tracker = new CostTracker(mockRepo as any, loadVibeConfig());
   });
 
   describe('trackCost', () => {
@@ -89,7 +90,7 @@ describe('CostTracker', () => {
       expect(result.remaining).toBe(0.5);
     });
 
-    it('should use default budget limit', async () => {
+    it('should use default budget limit from config', async () => {
       mockRepo.find.mockResolvedValue([]);
       const result = await tracker.checkBudget('p1', 0.1);
       expect(result.budgetLimit).toBe(10);

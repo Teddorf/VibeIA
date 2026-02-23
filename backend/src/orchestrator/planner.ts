@@ -1,11 +1,12 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { LLM_PROVIDER } from '../providers/tokens';
+import { LLM_PROVIDER, VIBE_CONFIG } from '../providers/tokens';
 import { EXECUTION_PLAN_REPOSITORY } from '../providers/repository-tokens';
 import { ILLMProvider } from '../providers/interfaces/llm-provider.interface';
 import { IRepository } from '../providers/interfaces/database-provider.interface';
 import { ExecutionPlan } from '../entities/execution-plan.schema';
 import { AgentRegistry } from '../agents/registry/agent-registry';
 import { ModelRouter } from './model-router';
+import { VibeConfig } from '../config/vibe-config';
 import {
   TaskDefinition,
   DAGNode,
@@ -30,6 +31,7 @@ export class Planner {
     private readonly agentRegistry: AgentRegistry,
     @Inject(EXECUTION_PLAN_REPOSITORY)
     private readonly planRepo: IRepository<ExecutionPlan>,
+    @Inject(VIBE_CONFIG) private readonly config: VibeConfig,
   ) {}
 
   async createPlan(
@@ -84,7 +86,7 @@ export class Planner {
         status: 'pending',
       })),
       estimatedCost,
-      estimatedDuration: dag.length * 30000,
+      estimatedDuration: dag.length * this.config.taskDefaults.timeoutMs,
       status: 'pending_approval' as PlanStatus,
     });
 
@@ -201,6 +203,7 @@ Return: { "tasks": [{ "id": string, "type": TaskType, "description": string, "ta
   private deterministicDecompose(parsedIntent: ParsedIntent): TaskDefinition[] {
     const tasks: TaskDefinition[] = [];
     let priority = 1;
+    const timeout = this.config.taskDefaults.timeoutMs;
 
     if (parsedIntent.requiredAgents.includes('analyst')) {
       tasks.push({
@@ -210,7 +213,7 @@ Return: { "tasks": [{ "id": string, "type": TaskType, "description": string, "ta
         tags: ['analysis', 'requirements'],
         dependencies: [],
         priority: priority++,
-        timeoutMs: 30000,
+        timeoutMs: timeout,
       });
     }
 
@@ -222,7 +225,7 @@ Return: { "tasks": [{ "id": string, "type": TaskType, "description": string, "ta
         tags: ['architecture', 'design'],
         dependencies: tasks.length > 0 ? ['task-analysis'] : [],
         priority: priority++,
-        timeoutMs: 60000,
+        timeoutMs: timeout,
       });
     }
 
@@ -235,7 +238,7 @@ Return: { "tasks": [{ "id": string, "type": TaskType, "description": string, "ta
         tags: ['code-generation', 'implementation'],
         dependencies: codeDep,
         priority: priority++,
-        timeoutMs: 120000,
+        timeoutMs: timeout,
       });
     }
 
@@ -247,7 +250,7 @@ Return: { "tasks": [{ "id": string, "type": TaskType, "description": string, "ta
         tags: ['code-review', 'quality'],
         dependencies: ['task-code'],
         priority: priority++,
-        timeoutMs: 60000,
+        timeoutMs: timeout,
       });
     }
 
@@ -259,7 +262,7 @@ Return: { "tasks": [{ "id": string, "type": TaskType, "description": string, "ta
         tags: ['testing', 'test-generation'],
         dependencies: ['task-code'],
         priority: priority++,
-        timeoutMs: 90000,
+        timeoutMs: timeout,
       });
     }
 
@@ -271,7 +274,7 @@ Return: { "tasks": [{ "id": string, "type": TaskType, "description": string, "ta
         tags: ['documentation'],
         dependencies: ['task-code'],
         priority: priority++,
-        timeoutMs: 60000,
+        timeoutMs: timeout,
       });
     }
 
@@ -283,7 +286,7 @@ Return: { "tasks": [{ "id": string, "type": TaskType, "description": string, "ta
         tags: ['deployment', 'infrastructure', 'vcs'],
         dependencies: ['task-review'],
         priority: priority++,
-        timeoutMs: 90000,
+        timeoutMs: timeout,
       });
     }
 

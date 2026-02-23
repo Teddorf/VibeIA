@@ -1,16 +1,18 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { CACHE_PROVIDER } from '../providers/tokens';
+import { CACHE_PROVIDER, VIBE_CONFIG } from '../providers/tokens';
 import { ICacheProvider } from '../providers/interfaces/cache-provider.interface';
+import { VibeConfig } from '../config/vibe-config';
 import { AgentOutput } from '../agents/protocol';
 import { createHash } from 'crypto';
-
-const DEFAULT_DECISION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 @Injectable()
 export class DecisionCache {
   private readonly logger = new Logger(DecisionCache.name);
 
-  constructor(@Inject(CACHE_PROVIDER) private readonly cache: ICacheProvider) {}
+  constructor(
+    @Inject(CACHE_PROVIDER) private readonly cache: ICacheProvider,
+    @Inject(VIBE_CONFIG) private readonly config: VibeConfig,
+  ) {}
 
   buildKey(agentId: string, taskType: string, contextHash: string): string {
     const raw = `${agentId}:${taskType}:${contextHash}`;
@@ -33,7 +35,7 @@ export class DecisionCache {
   async cacheDecision(
     key: string,
     output: AgentOutput,
-    ttlMs: number = DEFAULT_DECISION_TTL_MS,
+    ttlMs: number = this.config.taskDefaults.decisionCacheTtlMs,
   ): Promise<void> {
     await this.cache.set(key, output, ttlMs);
     this.logger.debug(`Decision cached: ${key} (TTL: ${ttlMs}ms)`);

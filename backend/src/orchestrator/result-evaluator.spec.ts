@@ -1,5 +1,6 @@
 import { ResultEvaluator } from './result-evaluator';
 import { AgentOutput, TaskDefinition } from '../agents/protocol';
+import { loadVibeConfig } from '../config/vibe-config';
 
 describe('ResultEvaluator', () => {
   let evaluator: ResultEvaluator;
@@ -14,7 +15,7 @@ describe('ResultEvaluator', () => {
         blockers: [],
       }),
     };
-    evaluator = new ResultEvaluator(mockQualityGates as any);
+    evaluator = new ResultEvaluator(mockQualityGates as any, loadVibeConfig());
   });
 
   const makeOutput = (overrides: Partial<AgentOutput> = {}): AgentOutput => ({

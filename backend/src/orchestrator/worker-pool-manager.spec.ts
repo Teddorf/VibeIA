@@ -1,4 +1,5 @@
 import { WorkerPoolManager } from './worker-pool-manager';
+import { loadVibeConfig } from '../config/vibe-config';
 
 describe('WorkerPoolManager', () => {
   let manager: WorkerPoolManager;
@@ -23,7 +24,12 @@ describe('WorkerPoolManager', () => {
     };
     mockRegistry = { getAll: jest.fn().mockReturnValue([]) };
 
-    manager = new WorkerPoolManager(mockQueueProvider, mockCache, mockRegistry);
+    manager = new WorkerPoolManager(
+      mockQueueProvider,
+      mockCache,
+      mockRegistry,
+      loadVibeConfig(),
+    );
   });
 
   describe('setupAgentQueue', () => {

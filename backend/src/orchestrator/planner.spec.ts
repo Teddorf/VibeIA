@@ -2,8 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Planner } from './planner';
 import { ModelRouter } from './model-router';
 import { AgentRegistry } from '../agents/registry/agent-registry';
-import { LLM_PROVIDER } from '../providers/tokens';
+import { LLM_PROVIDER, VIBE_CONFIG } from '../providers/tokens';
 import { EXECUTION_PLAN_REPOSITORY } from '../providers/repository-tokens';
+import { loadVibeConfig } from '../config/vibe-config';
 
 describe('Planner', () => {
   let planner: Planner;
@@ -39,6 +40,7 @@ describe('Planner', () => {
         { provide: AgentRegistry, useValue: mockRegistry },
         { provide: LLM_PROVIDER, useValue: mockLlmAdapters },
         { provide: EXECUTION_PLAN_REPOSITORY, useValue: mockPlanRepo },
+        { provide: VIBE_CONFIG, useValue: loadVibeConfig() },
       ],
     }).compile();
 
