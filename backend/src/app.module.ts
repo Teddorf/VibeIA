@@ -26,6 +26,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { TeamsModule } from './modules/teams/teams.module';
 import { CodebaseAnalysisModule } from './modules/codebase-analysis/codebase-analysis.module';
 import { AgentsModule } from './agents/agents.module';
+import { OrchestratorModule } from './orchestrator/orchestrator.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AgentsModule } from './agents/agents.module';
     TeamsModule,
     CodebaseAnalysisModule,
     AgentsModule,
+    OrchestratorModule,
     ProvidersModule.forRoot(),
     ThrottlerModule.forRoot([
       {
