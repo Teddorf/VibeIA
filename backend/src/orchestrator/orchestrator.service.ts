@@ -36,27 +36,28 @@ export class OrchestratorService {
     options: CreatePlanOptions,
   ): Promise<ExecutionPlan> {
     const traceId = generateTraceId();
-    this.traceContext.setTraceId(traceId);
-    this.logger.log(`[${traceId}] Executing intent: "${intent}"`);
+    return this.traceContext.runWithTraceId(traceId, async () => {
+      this.logger.log(`[${traceId}] Executing intent: "${intent}"`);
 
-    // Check budget before planning
-    const budgetCheck = await this.costTracker.checkBudget(projectId, 0);
-    if (!budgetCheck.allowed) {
-      throw new Error(
-        `Budget exceeded for project ${projectId}: ` +
-          `$${budgetCheck.currentSpend.toFixed(2)} / $${budgetCheck.budgetLimit}`,
-      );
-    }
+      // Check budget before planning
+      const budgetCheck = await this.costTracker.checkBudget(projectId, 0);
+      if (!budgetCheck.allowed) {
+        throw new Error(
+          `Budget exceeded for project ${projectId}: ` +
+            `$${budgetCheck.currentSpend.toFixed(2)} / $${budgetCheck.budgetLimit}`,
+        );
+      }
 
-    const plan = await this.planner.createPlan(intent, projectId, options);
-    const planId = (plan as any)._id?.toString() ?? (plan as any).id;
+      const plan = await this.planner.createPlan(intent, projectId, options);
+      const planId = (plan as any)._id?.toString() ?? (plan as any).id;
 
-    this.emitPipelineEvent(planId, 'plan_created', {
-      nodeCount: plan.dag.length,
-      estimatedCost: plan.estimatedCost,
+      this.emitPipelineEvent(planId, 'plan_created', {
+        nodeCount: plan.dag.length,
+        estimatedCost: plan.estimatedCost,
+      });
+
+      return plan;
     });
-
-    return plan;
   }
 
   async approvePlan(planId: string): Promise<ExecutionPlan> {
