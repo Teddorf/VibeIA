@@ -1,4 +1,5 @@
 import { DynamicModule, Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   QUEUE_PROVIDER,
   CACHE_PROVIDER,
@@ -7,7 +8,9 @@ import {
   FILESYSTEM_PROVIDER,
   LLM_PROVIDER,
   VCS_PROVIDER,
+  VIBE_CONFIG,
 } from './tokens';
+import { VIBE_CONFIG_KEY, loadVibeConfig } from '../config/vibe-config';
 import { InMemoryQueueAdapter } from './adapters/in-memory-queue.adapter';
 import { InMemoryCacheAdapter } from './adapters/in-memory-cache.adapter';
 import { LocalProcessSandboxAdapter } from './adapters/local-process-sandbox.adapter';
@@ -40,6 +43,14 @@ export class ProvidersModule {
         ) => [anthropic, openai, gemini],
         inject: [AnthropicLLMAdapter, OpenAILLMAdapter, GeminiLLMAdapter],
       },
+      {
+        provide: VIBE_CONFIG,
+        useFactory: (config: ConfigService) => {
+          const raw = config.get(VIBE_CONFIG_KEY);
+          return raw ?? loadVibeConfig();
+        },
+        inject: [ConfigService],
+      },
     ];
 
     return {
@@ -57,6 +68,7 @@ export class ProvidersModule {
         AnthropicLLMAdapter,
         OpenAILLMAdapter,
         GeminiLLMAdapter,
+        VIBE_CONFIG,
       ],
     };
   }

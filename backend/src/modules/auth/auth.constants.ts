@@ -14,5 +14,9 @@ export const REFRESH_TOKEN_EXPIRY = AUTH_DEFAULTS.refreshTokenExpiry;
 // Encrypted token format (iv:tag:encrypted)
 export const ENCRYPTED_TOKEN_PARTS = AUTH_DEFAULTS.encryptedTokenParts;
 
-// Default JWT secrets (should be overridden by environment variables)
-export const DEFAULT_JWT_SECRET = AUTH_DEFAULTS.defaultJwtSecret;
+// JWT secret — must be provided via environment variable
+export const DEFAULT_JWT_SECRET =
+  process.env.JWT_SECRET ??
+  (() => {
+    throw new Error('JWT_SECRET env var required');
+  })();

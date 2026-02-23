@@ -51,7 +51,6 @@ export const AUTH_DEFAULTS = {
   accessTokenExpiry: '15m',
   refreshTokenExpiry: '7d',
   encryptedTokenParts: 3,
-  defaultJwtSecret: 'your-super-secret-jwt-key-change-in-production',
 } as const;
 
 // ─── Quality Gate Defaults ───────────────────────────────────────────────────

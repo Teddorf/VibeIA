@@ -11,3 +11,5 @@ export const DEPLOY_PROVIDER = Symbol('DEPLOY_PROVIDER');
 export const SANDBOX_PROVIDER = Symbol('SANDBOX_PROVIDER');
 export const FILESYSTEM_PROVIDER = Symbol('FILESYSTEM_PROVIDER');
 export const GIT_HOST_PROVIDER = Symbol('GIT_HOST_PROVIDER');
+export const LLM_FALLBACK_CHAIN = Symbol('LLM_FALLBACK_CHAIN');
+export const VIBE_CONFIG = Symbol('VIBE_CONFIG');
