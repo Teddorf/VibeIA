@@ -40,8 +40,8 @@ export default function Home() {
             <span className="text-white">with AI Power</span>
           </h1>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-10">
-            VibeCoding AI transforms your ideas into production-ready code.
-            Define your vision, let AI handle the complexity.
+            VibeCoding AI transforms your ideas into production-ready code. Define your vision, let
+            AI handle the complexity.
           </p>
           <div className="flex items-center justify-center gap-4">
             <Link
@@ -62,9 +62,7 @@ export default function Home() {
 
       {/* Features Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <h2 className="text-3xl font-bold text-white text-center mb-12">
-          How It Works
-        </h2>
+        <h2 className="text-3xl font-bold text-white text-center mb-12">How It Works</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {[
             {
@@ -112,8 +110,18 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="bg-slate-800/30 rounded-2xl border border-slate-700/50 p-8">
             <div className="w-14 h-14 rounded-xl bg-green-500/20 flex items-center justify-center mb-4">
-              <svg className="w-7 h-7 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="w-7 h-7 text-green-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">Quality Guaranteed</h3>
@@ -123,8 +131,18 @@ export default function Home() {
           </div>
           <div className="bg-slate-800/30 rounded-2xl border border-slate-700/50 p-8">
             <div className="w-14 h-14 rounded-xl bg-blue-500/20 flex items-center justify-center mb-4">
-              <svg className="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <svg
+                className="w-7 h-7 text-blue-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">Multi-LLM Powered</h3>
@@ -134,8 +152,18 @@ export default function Home() {
           </div>
           <div className="bg-slate-800/30 rounded-2xl border border-slate-700/50 p-8">
             <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center mb-4">
-              <svg className="w-7 h-7 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              <svg
+                className="w-7 h-7 text-purple-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                />
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">Git Integrated</h3>
@@ -148,11 +176,9 @@ export default function Home() {
 
       {/* CTA Section */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">
-          Ready to Build Something Amazing?
-        </h2>
+        <h2 className="text-3xl font-bold text-white mb-4">Ready to Build Something Amazing?</h2>
         <p className="text-lg text-slate-400 mb-8">
-          Join developers who are shipping 84% faster with AI assistance.
+          Join developers who are shipping faster with AI assistance.
         </p>
         <Link
           href="/register"
@@ -160,7 +186,12 @@ export default function Home() {
         >
           Start Building Now
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 7l5 5m0 0l-5 5m5-5H6"
+            />
           </svg>
         </Link>
       </div>
@@ -168,7 +199,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-slate-800 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-slate-500 text-sm">
-          <p>&copy; 2024 VibeCoding AI. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} VibeCoding AI. All rights reserved.</p>
         </div>
       </footer>
     </div>
