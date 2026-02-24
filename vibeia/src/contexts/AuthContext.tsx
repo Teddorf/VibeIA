@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Verify token is still valid
             try {
               const response = await apiClient.get('/api/auth/me');
-              setState(prev => ({
+              setState((prev) => ({
                 ...prev,
                 user: response.data,
                 isLoading: false,
@@ -111,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             clearAuthState();
           }
         } else {
-          setState(prev => ({ ...prev, isLoading: false }));
+          setState((prev) => ({ ...prev, isLoading: false }));
         }
       } catch {
         clearAuthState();
@@ -125,6 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    document.cookie = 'has_session=; path=/; max-age=0; SameSite=Lax';
     setState({
       user: null,
       accessToken: null,
@@ -138,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    document.cookie = 'has_session=true; path=/; max-age=604800; SameSite=Lax';
     setState({
       user,
       accessToken,
@@ -190,7 +192,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshToken,
       });
 
-      const { accessToken: newAccessToken, refreshToken: newRefreshToken, user: newUser } = response.data;
+      const {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        user: newUser,
+      } = response.data;
       saveAuthState(newAccessToken, newRefreshToken, newUser);
       return true;
     } catch {
@@ -264,7 +270,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         return Promise.reject(error);
-      }
+      },
     );
 
     return () => {

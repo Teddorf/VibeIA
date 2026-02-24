@@ -4,7 +4,7 @@ import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/components/ui/toast';
 import { SkipLink } from '@/components/ui/skip-link';
-import { Header } from '@/components/layout/Header';
+import { AppShell } from '@/components/layout/AppShell';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 
 const geistSans = Geist({
@@ -34,10 +34,7 @@ export default function RootLayout({
           <AuthProvider>
             <ToastProvider>
               <SkipLink />
-              <Header />
-              <main id="main-content" tabIndex={-1}>
-                {children}
-              </main>
+              <AppShell>{children}</AppShell>
             </ToastProvider>
           </AuthProvider>
         </QueryProvider>

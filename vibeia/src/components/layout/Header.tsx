@@ -15,11 +15,14 @@ export function Header() {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard' },
-    { name: 'Nuevo Proyecto', href: '/new-project' },
+    { name: 'New Project', href: '/new-project' },
+    { name: 'Teams', href: '/teams' },
+    { name: 'Orchestrator', href: '/orchestrator' },
   ];
 
   // Check if we should hide header on auth pages
-  const isAuthPage = pathname?.startsWith('/login') ||
+  const isAuthPage =
+    pathname?.startsWith('/login') ||
     pathname?.startsWith('/register') ||
     pathname?.startsWith('/forgot-password') ||
     pathname?.startsWith('/reset-password') ||
@@ -70,7 +73,10 @@ export function Header() {
             className="flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-900 rounded-lg"
             aria-label="VibeCoding - Ir al dashboard"
           >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center" aria-hidden="true">
+            <div
+              className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center"
+              aria-hidden="true"
+            >
               <span className="text-white font-bold text-sm">V</span>
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
@@ -87,11 +93,27 @@ export function Header() {
               aria-controls="mobile-menu"
               aria-label="Abrir menu de navegacion"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 {isMobileMenuOpen ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
                 )}
               </svg>
             </button>
@@ -123,7 +145,10 @@ export function Header() {
           {/* User Menu */}
           <div className="flex items-center gap-4">
             {isLoading ? (
-              <div className="w-8 h-8 rounded-full bg-slate-700 animate-pulse" aria-label="Cargando..." />
+              <div
+                className="w-8 h-8 rounded-full bg-slate-700 animate-pulse"
+                aria-label="Cargando..."
+              />
             ) : isAuthenticated ? (
               <div className="flex items-center gap-3" ref={menuRef}>
                 <div className="hidden sm:block text-right">
