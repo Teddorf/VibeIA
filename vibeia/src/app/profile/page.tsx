@@ -96,36 +96,36 @@ export default function ProfilePage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Mi Perfil</h1>
-          <p className="mt-2 text-gray-600">Gestiona tu informacion personal y preferencias</p>
+          <h1 className="text-3xl font-bold text-white">Mi Perfil</h1>
+          <p className="mt-2 text-slate-400">Gestiona tu informacion personal y preferencias</p>
         </div>
 
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          <div className="mb-6 bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
         {/* Profile Card */}
-        <div className="bg-white shadow rounded-lg overflow-hidden mb-8">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Informacion Personal</h2>
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 overflow-hidden mb-8">
+          <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-white">Informacion Personal</h2>
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800"
+                className="px-4 py-2 text-sm font-medium text-blue-400 hover:text-blue-300"
               >
                 Editar
               </button>
@@ -146,19 +146,21 @@ export default function ProfilePage() {
                 {isEditing ? (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                      <label className="block text-sm font-medium text-slate-300 mb-1">
+                        Nombre
+                      </label>
                       <input
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-4 py-2 border border-slate-600 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-slate-400 bg-slate-700/50"
                       />
                     </div>
                     <div className="flex space-x-3">
                       <button
                         onClick={handleSave}
                         disabled={saving || !editName.trim()}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                        className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-500 disabled:opacity-50"
                       >
                         {saving ? 'Guardando...' : 'Guardar'}
                       </button>
@@ -167,7 +169,7 @@ export default function ProfilePage() {
                           setIsEditing(false);
                           setEditName(profile?.name || '');
                         }}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                        className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-700 border border-slate-600 rounded-md hover:bg-slate-700/30"
                       >
                         Cancelar
                       </button>
@@ -176,16 +178,16 @@ export default function ProfilePage() {
                 ) : (
                   <>
                     <div>
-                      <h3 className="text-2xl font-bold text-gray-900">{profile?.name}</h3>
-                      <p className="text-gray-500">{profile?.email}</p>
+                      <h3 className="text-2xl font-bold text-white">{profile?.name}</h3>
+                      <p className="text-slate-400">{profile?.email}</p>
                     </div>
 
                     <div className="flex items-center space-x-4">
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           profile?.role === 'admin'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-blue-100 text-blue-800'
+                            ? 'bg-purple-500/20 text-purple-300'
+                            : 'bg-blue-500/20 text-blue-800'
                         }`}
                       >
                         {profile?.role === 'admin' ? 'Administrador' : 'Usuario'}
@@ -193,8 +195,8 @@ export default function ProfilePage() {
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           profile?.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
+                            ? 'bg-green-500/20 text-green-300'
+                            : 'bg-red-500/20 text-red-300'
                         }`}
                       >
                         {profile?.isActive ? 'Activo' : 'Inactivo'}
@@ -209,11 +211,11 @@ export default function ProfilePage() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white shadow rounded-lg p-6">
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100">
+              <div className="p-3 rounded-full bg-blue-500/20">
                 <svg
-                  className="w-6 h-6 text-blue-600"
+                  className="w-6 h-6 text-blue-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -227,16 +229,16 @@ export default function ProfilePage() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Proyectos</p>
-                <p className="text-2xl font-semibold text-gray-900">{projectCount}</p>
+                <p className="text-sm font-medium text-slate-400">Proyectos</p>
+                <p className="text-2xl font-semibold text-white">{projectCount}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white shadow rounded-lg p-6">
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6">
             <div className="flex items-center">
               <div
-                className={`p-3 rounded-full ${profile?.hasLLMConfigured ? 'bg-green-100' : 'bg-amber-100'}`}
+                className={`p-3 rounded-full ${profile?.hasLLMConfigured ? 'bg-green-500/20' : 'bg-amber-500/20'}`}
               >
                 <svg
                   className={`w-6 h-6 ${profile?.hasLLMConfigured ? 'text-green-600' : 'text-amber-600'}`}
@@ -253,8 +255,8 @@ export default function ProfilePage() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">IA Configurada</p>
-                <p className="text-2xl font-semibold text-gray-900">
+                <p className="text-sm font-medium text-slate-400">IA Configurada</p>
+                <p className="text-2xl font-semibold text-white">
                   {profile?.hasLLMConfigured ? 'Si' : 'No'}
                 </p>
               </div>
@@ -262,16 +264,16 @@ export default function ProfilePage() {
             {!profile?.hasLLMConfigured && (
               <Link
                 href="/settings"
-                className="mt-3 block text-sm text-blue-600 hover:text-blue-800"
+                className="mt-3 block text-sm text-blue-400 hover:text-blue-300"
               >
                 Configurar ahora →
               </Link>
             )}
           </div>
 
-          <div className="bg-white shadow rounded-lg p-6">
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100">
+              <div className="p-3 rounded-full bg-purple-500/20">
                 <svg
                   className="w-6 h-6 text-purple-600"
                   fill="none"
@@ -287,8 +289,8 @@ export default function ProfilePage() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Ultimo acceso</p>
-                <p className="text-sm font-semibold text-gray-900">
+                <p className="text-sm font-medium text-slate-400">Ultimo acceso</p>
+                <p className="text-sm font-semibold text-white">
                   {profile?.lastLoginAt ? formatProfileDate(profile.lastLoginAt) : 'Primera sesion'}
                 </p>
               </div>
@@ -297,49 +299,45 @@ export default function ProfilePage() {
         </div>
 
         {/* Account Details */}
-        <div className="bg-white shadow rounded-lg overflow-hidden mb-8">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Detalles de la Cuenta</h2>
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 overflow-hidden mb-8">
+          <div className="px-6 py-4 border-b border-slate-700/50">
+            <h2 className="text-lg font-semibold text-white">Detalles de la Cuenta</h2>
           </div>
           <div className="px-6 py-4">
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <dt className="text-sm font-medium text-gray-500">ID de Usuario</dt>
-                <dd className="mt-1 text-sm text-gray-900 font-mono">{profile?.id}</dd>
+                <dt className="text-sm font-medium text-slate-400">ID de Usuario</dt>
+                <dd className="mt-1 text-sm text-white font-mono">{profile?.id}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Email</dt>
-                <dd className="mt-1 text-sm text-gray-900">{profile?.email}</dd>
+                <dt className="text-sm font-medium text-slate-400">Email</dt>
+                <dd className="mt-1 text-sm text-white">{profile?.email}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Cuenta creada</dt>
-                <dd className="mt-1 text-sm text-gray-900">
-                  {formatProfileDate(profile?.createdAt)}
-                </dd>
+                <dt className="text-sm font-medium text-slate-400">Cuenta creada</dt>
+                <dd className="mt-1 text-sm text-white">{formatProfileDate(profile?.createdAt)}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Ultima actualizacion</dt>
-                <dd className="mt-1 text-sm text-gray-900">
-                  {formatProfileDate(profile?.updatedAt)}
-                </dd>
+                <dt className="text-sm font-medium text-slate-400">Ultima actualizacion</dt>
+                <dd className="mt-1 text-sm text-white">{formatProfileDate(profile?.updatedAt)}</dd>
               </div>
             </dl>
           </div>
         </div>
 
         {/* Quick Links */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Accesos Rapidos</h2>
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-700/50">
+            <h2 className="text-lg font-semibold text-white">Accesos Rapidos</h2>
           </div>
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-slate-700/50">
             <Link
               href="/settings"
-              className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between px-6 py-4 hover:bg-slate-700/30 transition-colors"
             >
               <div className="flex items-center">
                 <svg
-                  className="w-5 h-5 text-gray-400 mr-3"
+                  className="w-5 h-5 text-slate-500 mr-3"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -357,10 +355,10 @@ export default function ProfilePage() {
                     d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                   />
                 </svg>
-                <span className="text-gray-700">Configuracion de IA</span>
+                <span className="text-slate-300">Configuracion de IA</span>
               </div>
               <svg
-                className="w-5 h-5 text-gray-400"
+                className="w-5 h-5 text-slate-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -375,11 +373,11 @@ export default function ProfilePage() {
             </Link>
             <Link
               href="/dashboard"
-              className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between px-6 py-4 hover:bg-slate-700/30 transition-colors"
             >
               <div className="flex items-center">
                 <svg
-                  className="w-5 h-5 text-gray-400 mr-3"
+                  className="w-5 h-5 text-slate-500 mr-3"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -391,10 +389,10 @@ export default function ProfilePage() {
                     d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
                   />
                 </svg>
-                <span className="text-gray-700">Dashboard</span>
+                <span className="text-slate-300">Dashboard</span>
               </div>
               <svg
-                className="w-5 h-5 text-gray-400"
+                className="w-5 h-5 text-slate-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -409,11 +407,11 @@ export default function ProfilePage() {
             </Link>
             <Link
               href="/new-project"
-              className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between px-6 py-4 hover:bg-slate-700/30 transition-colors"
             >
               <div className="flex items-center">
                 <svg
-                  className="w-5 h-5 text-gray-400 mr-3"
+                  className="w-5 h-5 text-slate-500 mr-3"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -425,10 +423,10 @@ export default function ProfilePage() {
                     d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                   />
                 </svg>
-                <span className="text-gray-700">Nuevo Proyecto</span>
+                <span className="text-slate-300">Nuevo Proyecto</span>
               </div>
               <svg
-                className="w-5 h-5 text-gray-400"
+                className="w-5 h-5 text-slate-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
