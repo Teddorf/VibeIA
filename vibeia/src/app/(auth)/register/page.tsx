@@ -55,8 +55,24 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (password.length < 12) {
+      setError('Password must be at least 12 characters');
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      setError('Password must contain at least one uppercase letter');
+      return;
+    }
+    if (!/[a-z]/.test(password)) {
+      setError('Password must contain at least one lowercase letter');
+      return;
+    }
+    if (!/\d/.test(password)) {
+      setError('Password must contain at least one number');
+      return;
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      setError('Password must contain at least one special character');
       return;
     }
 
@@ -79,9 +95,7 @@ export default function RegisterPage() {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
             Create Account
           </h1>
-          <p className="mt-2 text-slate-400">
-            Join VibeCoding AI and start building
-          </p>
+          <p className="mt-2 text-slate-400">Join VibeCoding AI and start building</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -131,14 +145,36 @@ export default function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={8}
+              minLength={12}
               className="w-full px-4 py-3 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              placeholder="Create a password (min 8 characters)"
+              placeholder="Create a password (min 12 characters)"
             />
           </div>
 
+          <div className="text-xs text-slate-500 space-y-1">
+            <p>Password requirements:</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li className={password.length >= 12 ? 'text-green-400' : ''}>
+                At least 12 characters
+              </li>
+              <li className={/[A-Z]/.test(password) ? 'text-green-400' : ''}>
+                One uppercase letter
+              </li>
+              <li className={/[a-z]/.test(password) ? 'text-green-400' : ''}>
+                One lowercase letter
+              </li>
+              <li className={/\d/.test(password) ? 'text-green-400' : ''}>One number</li>
+              <li className={/[!@#$%^&*(),.?":{}|<>]/.test(password) ? 'text-green-400' : ''}>
+                One special character
+              </li>
+            </ul>
+          </div>
+
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-1">
+            <label
+              htmlFor="confirmPassword"
+              className="block text-sm font-medium text-slate-300 mb-1"
+            >
               Confirm Password
             </label>
             <input
@@ -160,8 +196,20 @@ export default function RegisterPage() {
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
                 <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
                 </svg>
                 Creando cuenta...
               </span>
