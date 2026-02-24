@@ -16,17 +16,17 @@ export function CostTracker({ budgetLimit = 10 }: CostTrackerProps) {
 
   return (
     <div className="p-4">
-      <h3 className="text-lg font-semibold mb-3">Cost Tracker</h3>
+      <h3 className="text-lg font-semibold mb-3 text-white">Cost Tracker</h3>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="rounded-lg border p-3 bg-white">
-          <span className="text-xs text-gray-400 block">Total Spend</span>
-          <span className="text-2xl font-bold text-gray-800">${totalCost.toFixed(4)}</span>
+        <div className="rounded-lg border border-slate-600/50 p-3 bg-slate-700/30">
+          <span className="text-xs text-slate-400 block">Total Spend</span>
+          <span className="text-2xl font-bold text-white">${totalCost.toFixed(4)}</span>
         </div>
-        <div className="rounded-lg border p-3 bg-white">
-          <span className="text-xs text-gray-400 block">Budget Remaining</span>
+        <div className="rounded-lg border border-slate-600/50 p-3 bg-slate-700/30">
+          <span className="text-xs text-slate-400 block">Budget Remaining</span>
           <span
-            className={`text-2xl font-bold ${remaining < 1 ? 'text-red-600' : 'text-green-600'}`}
+            className={`text-2xl font-bold ${remaining < 1 ? 'text-red-400' : 'text-green-400'}`}
           >
             ${remaining.toFixed(2)}
           </span>
@@ -34,11 +34,11 @@ export function CostTracker({ budgetLimit = 10 }: CostTrackerProps) {
       </div>
 
       <div className="mb-4">
-        <div className="flex justify-between text-xs text-gray-500 mb-1">
+        <div className="flex justify-between text-xs text-slate-400 mb-1">
           <span>Budget Usage</span>
           <span>{budgetUsedPct}%</span>
         </div>
-        <div className="w-full bg-gray-100 rounded-full h-2">
+        <div className="w-full bg-slate-700/50 rounded-full h-2">
           <div
             className={`h-2 rounded-full transition-all ${
               budgetUsedPct > 80
@@ -54,12 +54,12 @@ export function CostTracker({ budgetLimit = 10 }: CostTrackerProps) {
 
       {costInfo && Object.keys(costInfo.byAgent).length > 0 && (
         <div>
-          <h4 className="text-sm font-medium mb-2">Cost by Agent</h4>
+          <h4 className="text-sm font-medium text-white mb-2">Cost by Agent</h4>
           <div className="space-y-1">
             {Object.entries(costInfo.byAgent).map(([agentId, data]) => (
               <div key={agentId} className="flex justify-between text-xs">
-                <span className="text-gray-600 capitalize">{agentId}</span>
-                <span className="text-gray-800 font-medium">
+                <span className="text-slate-400 capitalize">{agentId}</span>
+                <span className="text-slate-300 font-medium">
                   ${data.costUSD.toFixed(4)} ({data.count} calls)
                 </span>
               </div>
@@ -69,7 +69,7 @@ export function CostTracker({ budgetLimit = 10 }: CostTrackerProps) {
       )}
 
       {costInfo && (
-        <div className="mt-3 flex gap-4 text-xs text-gray-400">
+        <div className="mt-3 flex gap-4 text-xs text-slate-500">
           <span>Tokens: {costInfo.totalTokensUsed.toLocaleString()}</span>
           <span>Executions: {costInfo.executionCount}</span>
         </div>

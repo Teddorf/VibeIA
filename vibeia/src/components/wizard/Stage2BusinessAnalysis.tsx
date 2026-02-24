@@ -76,7 +76,7 @@ export function Stage2BusinessAnalysis({
 
   // All-questions mode state
   const [expandedSections, setExpandedSections] = useState<boolean[]>(
-    businessQuestions.map((_, i) => i === 0) // First question expanded by default
+    businessQuestions.map((_, i) => i === 0), // First question expanded by default
   );
   const [skippedQuestions, setSkippedQuestions] = useState<Set<number>>(new Set());
 
@@ -96,7 +96,9 @@ export function Stage2BusinessAnalysis({
   useEffect(() => {
     if (viewMode !== 'all') return;
 
-    const currentExpandedIndex = expandedSections.findIndex((expanded, i) => expanded && !skippedQuestions.has(i));
+    const currentExpandedIndex = expandedSections.findIndex(
+      (expanded, i) => expanded && !skippedQuestions.has(i),
+    );
     if (currentExpandedIndex === -1) return;
 
     const currentQuestion = businessQuestions[currentExpandedIndex];
@@ -109,7 +111,7 @@ export function Stage2BusinessAnalysis({
         nextIndex++;
       }
       if (nextIndex < businessQuestions.length) {
-        setExpandedSections(prev => {
+        setExpandedSections((prev) => {
           const next = [...prev];
           next[nextIndex] = true;
           return next;
@@ -156,14 +158,14 @@ export function Stage2BusinessAnalysis({
   const toggleSection = (index: number) => {
     // If skipped, unskip it
     if (skippedQuestions.has(index)) {
-      setSkippedQuestions(prev => {
+      setSkippedQuestions((prev) => {
         const next = new Set(prev);
         next.delete(index);
         return next;
       });
     }
 
-    setExpandedSections(prev => {
+    setExpandedSections((prev) => {
       const next = [...prev];
       next[index] = !next[index];
       return next;
@@ -171,12 +173,12 @@ export function Stage2BusinessAnalysis({
   };
 
   const handleSkip = (index: number) => {
-    setSkippedQuestions(prev => {
+    setSkippedQuestions((prev) => {
       const next = new Set(prev);
       next.add(index);
       return next;
     });
-    setExpandedSections(prev => {
+    setExpandedSections((prev) => {
       const next = [...prev];
       next[index] = false;
       return next;
@@ -238,9 +240,7 @@ export function Stage2BusinessAnalysis({
       <Card className="w-full max-w-3xl mx-auto">
         <CardHeader>
           <CardTitle className="text-3xl">Stage 2: Business Analysis</CardTitle>
-          <CardDescription>
-            Responde al menos 3 preguntas para continuar
-          </CardDescription>
+          <CardDescription>Responde al menos 3 preguntas para continuar</CardDescription>
 
           {/* Progress Bar */}
           <div className="mt-4">
@@ -278,7 +278,7 @@ export function Stage2BusinessAnalysis({
                 data-expanded={isExpanded ? 'true' : 'false'}
                 className={`
                   border rounded-lg overflow-hidden transition-all
-                  ${isSkipped ? 'skipped opacity-50 border-slate-300' : 'border-slate-200 dark:border-slate-700'}
+                  ${isSkipped ? 'skipped opacity-50 border-slate-600/50' : 'border-slate-200 dark:border-slate-700'}
                   ${isExpanded ? 'ring-2 ring-purple-500/30' : ''}
                 `}
               >
@@ -299,8 +299,19 @@ export function Stage2BusinessAnalysis({
                       `}
                     >
                       {isAnswered ? (
-                        <svg data-testid={`checkmark-${index}`} className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        <svg
+                          data-testid={`checkmark-${index}`}
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
                         </svg>
                       ) : (
                         index + 1
@@ -324,7 +335,12 @@ export function Stage2BusinessAnalysis({
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
                   </svg>
                 </button>
 
@@ -338,7 +354,7 @@ export function Stage2BusinessAnalysis({
                       <button
                         data-testid={`skip-question-${index}`}
                         onClick={() => handleSkip(index)}
-                        className="mt-2 text-sm text-slate-500 hover:text-slate-700 underline"
+                        className="mt-2 text-sm text-slate-400 hover:text-slate-200 underline"
                       >
                         Omitir esta pregunta
                       </button>
@@ -354,10 +370,7 @@ export function Stage2BusinessAnalysis({
             <Button onClick={onBack} variant="outline">
               Atrás
             </Button>
-            <Button
-              onClick={handleNext}
-              disabled={!canProceed}
-            >
+            <Button onClick={handleNext} disabled={!canProceed}>
               Siguiente: Análisis Técnico
             </Button>
           </div>
@@ -377,9 +390,7 @@ export function Stage2BusinessAnalysis({
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
-          <label className="text-lg font-medium">
-            {currentQuestion.question}
-          </label>
+          <label className="text-lg font-medium">{currentQuestion.question}</label>
 
           {currentQuestion.type === 'textarea' && (
             <Textarea
@@ -401,7 +412,7 @@ export function Stage2BusinessAnalysis({
 
           {currentQuestion.type === 'select' && (
             <select
-              className="w-full p-3 border rounded-md"
+              className="w-full p-3 border rounded-md bg-slate-800 border-slate-700 text-white"
               value={answers[currentQuestion.id] || ''}
               onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
             >
@@ -417,12 +428,9 @@ export function Stage2BusinessAnalysis({
 
         <div className="flex justify-between">
           <Button onClick={handleBack} variant="outline">
-             Back
+            Back
           </Button>
-          <Button
-            onClick={handleNext}
-            disabled={!answers[currentQuestion.id]}
-          >
+          <Button onClick={handleNext} disabled={!answers[currentQuestion.id]}>
             {isLastQuestion ? 'Next: Technical Analysis ' : 'Next Question '}
           </Button>
         </div>

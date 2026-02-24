@@ -35,15 +35,15 @@ export function WorkerPanel() {
   if (agentStatuses.length === 0) {
     return (
       <div className="p-4">
-        <h3 className="text-lg font-semibold mb-3">Worker Pools</h3>
-        <p className="text-gray-500 text-sm">No active worker pools</p>
+        <h3 className="text-lg font-semibold mb-3 text-white">Worker Pools</h3>
+        <p className="text-slate-400 text-sm">No active worker pools</p>
       </div>
     );
   }
 
   return (
     <div className="p-4">
-      <h3 className="text-lg font-semibold mb-3">Worker Pools</h3>
+      <h3 className="text-lg font-semibold mb-3 text-white">Worker Pools</h3>
       <div className="space-y-3">
         {agentStatuses.map((agent) => (
           <WorkerCard
@@ -71,48 +71,50 @@ function WorkerCard({
     agent.maxWorkers > 0 ? Math.round((agent.activeCount / agent.maxWorkers) * 100) : 0;
 
   return (
-    <div className="rounded-lg border p-3 bg-white">
+    <div className="rounded-lg border border-slate-600/50 p-3 bg-slate-700/30">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span
             className={`w-2 h-2 rounded-full ${agent.paused ? 'bg-orange-400' : 'bg-green-400'}`}
           />
-          <span className="font-medium text-sm capitalize">{agent.agentId}</span>
+          <span className="font-medium text-sm capitalize text-white">{agent.agentId}</span>
         </div>
         <button
           onClick={() => onTogglePause(agent.agentId, agent.paused)}
           className={`text-xs px-2 py-1 rounded ${
             agent.paused
-              ? 'bg-green-50 text-green-600 hover:bg-green-100'
-              : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+              ? 'bg-green-900/30 text-green-400 hover:bg-green-900/50'
+              : 'bg-orange-900/30 text-orange-400 hover:bg-orange-900/50'
           }`}
         >
           {agent.paused ? 'Resume' : 'Pause'}
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-xs text-gray-600 mb-2">
+      <div className="grid grid-cols-3 gap-2 text-xs text-slate-300 mb-2">
         <div>
-          <span className="block text-gray-400">Active</span>
+          <span className="block text-slate-400">Active</span>
           <span className="font-medium">{agent.activeCount}</span>
         </div>
         <div>
-          <span className="block text-gray-400">Queue</span>
+          <span className="block text-slate-400">Queue</span>
           <span className="font-medium">{agent.queueDepth}</span>
         </div>
         <div>
-          <span className="block text-gray-400">Max</span>
+          <span className="block text-slate-400">Max</span>
           <div className="flex items-center gap-1">
             <button
               onClick={() => onUpdateWorkers(agent.agentId, Math.max(1, agent.maxWorkers - 1))}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-slate-400 hover:text-white"
+              aria-label="Decrease max workers"
             >
               −
             </button>
             <span className="font-medium">{agent.maxWorkers}</span>
             <button
               onClick={() => onUpdateWorkers(agent.agentId, agent.maxWorkers + 1)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-slate-400 hover:text-white"
+              aria-label="Increase max workers"
             >
               +
             </button>
@@ -120,13 +122,13 @@ function WorkerCard({
         </div>
       </div>
 
-      <div className="w-full bg-gray-100 rounded-full h-1.5">
+      <div className="w-full bg-slate-700/50 rounded-full h-1.5">
         <div
-          className="bg-blue-500 h-1.5 rounded-full transition-all"
+          className="bg-purple-500 h-1.5 rounded-full transition-all"
           style={{ width: `${utilization}%` }}
         />
       </div>
-      <span className="text-[10px] text-gray-400">{utilization}% utilized</span>
+      <span className="text-[10px] text-slate-500">{utilization}% utilized</span>
     </div>
   );
 }

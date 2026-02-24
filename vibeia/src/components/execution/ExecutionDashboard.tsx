@@ -519,9 +519,9 @@ export function ExecutionDashboard({
           <CardTitle className="text-lg">Execution Log</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-lg h-48 overflow-y-auto">
+          <div className="bg-slate-900 text-green-400 font-mono text-sm p-4 rounded-lg h-48 overflow-y-auto">
             {logs.length === 0 ? (
-              <p className="text-gray-500">Waiting for execution to start...</p>
+              <p className="text-slate-400">Waiting for execution to start...</p>
             ) : (
               logs.map((log, idx) => (
                 <div key={idx} className="py-0.5">

@@ -49,17 +49,17 @@ export default function OrchestratorPage() {
   }, [currentPlan, cancelPipeline]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Orchestrator Control Room</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-3xl font-bold text-white">Orchestrator Control Room</h1>
+        <p className="text-slate-400 mt-1">
           Submit intents, monitor agent execution, and manage worker pools
         </p>
       </header>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6 flex justify-between items-center">
-          <span className="text-red-700 text-sm">{error}</span>
+        <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-6 flex justify-between items-center">
+          <span className="text-red-400 text-sm">{error}</span>
           <button
             onClick={() => setError(null)}
             className="text-red-400 hover:text-red-600 text-sm"
@@ -70,7 +70,7 @@ export default function OrchestratorPage() {
       )}
 
       {/* Intent Submission */}
-      <div className="bg-white rounded-lg border p-6 mb-6">
+      <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4">Submit Intent</h2>
         <form onSubmit={handleSubmit} className="flex gap-3">
           <input
@@ -78,14 +78,14 @@ export default function OrchestratorPage() {
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
             placeholder="Project ID"
-            className="border rounded-lg px-3 py-2 text-sm w-48"
+            className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm w-48 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
           <input
             type="text"
             value={intent}
             onChange={(e) => setIntent(e.target.value)}
             placeholder="Describe what you want to build..."
-            className="border rounded-lg px-3 py-2 text-sm flex-1"
+            className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm flex-1 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
           <button
             type="submit"
@@ -99,11 +99,11 @@ export default function OrchestratorPage() {
 
       {/* Plan Status + Actions */}
       {currentPlan && (
-        <div className="bg-white rounded-lg border p-4 mb-6">
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-4 mb-6">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h2 className="text-lg font-semibold">Plan: {currentPlan.intent}</h2>
-              <div className="flex gap-4 text-sm text-gray-500 mt-1">
+              <div className="flex gap-4 text-sm text-slate-400 mt-1">
                 <span>
                   Status: <strong className="capitalize">{currentPlan.status}</strong>
                 </span>
@@ -123,7 +123,7 @@ export default function OrchestratorPage() {
               {['pending_approval', 'executing', 'approved'].includes(currentPlan.status) && (
                 <button
                   onClick={handleCancel}
-                  className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm hover:bg-red-100"
+                  className="bg-red-900/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg text-sm hover:bg-red-900/40"
                 >
                   Cancel
                 </button>
@@ -136,7 +136,7 @@ export default function OrchestratorPage() {
       {/* Main Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* DAG View - spans 2 columns */}
-        <div className="lg:col-span-2 bg-white rounded-lg border">
+        <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50">
           <DAGView nodes={currentPlan?.dag ?? []} onNodeClick={setSelectedNode} />
         </div>
 
@@ -144,23 +144,23 @@ export default function OrchestratorPage() {
         <div className="space-y-6">
           {/* Selected Node Detail */}
           {selectedNode && (
-            <div className="bg-white rounded-lg border p-4">
+            <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-4">
               <h3 className="text-lg font-semibold mb-2">Node Detail</h3>
               <dl className="space-y-2 text-sm">
                 <div>
-                  <dt className="text-gray-400">Agent</dt>
+                  <dt className="text-slate-400">Agent</dt>
                   <dd className="font-medium capitalize">{selectedNode.agentId}</dd>
                 </div>
                 <div>
-                  <dt className="text-gray-400">Status</dt>
+                  <dt className="text-slate-400">Status</dt>
                   <dd className="font-medium capitalize">{selectedNode.status}</dd>
                 </div>
                 <div>
-                  <dt className="text-gray-400">Task</dt>
+                  <dt className="text-slate-400">Task</dt>
                   <dd>{selectedNode.taskDefinition.description}</dd>
                 </div>
                 <div>
-                  <dt className="text-gray-400">Dependencies</dt>
+                  <dt className="text-slate-400">Dependencies</dt>
                   <dd>
                     {selectedNode.dependencies.length > 0
                       ? selectedNode.dependencies.join(', ')
@@ -172,17 +172,17 @@ export default function OrchestratorPage() {
           )}
 
           {/* Cost Tracker */}
-          <div className="bg-white rounded-lg border">
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50">
             <CostTracker />
           </div>
 
           {/* Worker Panel */}
-          <div className="bg-white rounded-lg border">
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50">
             <WorkerPanel />
           </div>
 
           {/* Provider Health */}
-          <div className="bg-white rounded-lg border">
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50">
             <ProviderHealth />
           </div>
         </div>

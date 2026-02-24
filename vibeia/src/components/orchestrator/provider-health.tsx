@@ -15,7 +15,7 @@ const STATUS_STYLES: Record<string, string> = {
   healthy: 'bg-green-400',
   degraded: 'bg-yellow-400',
   down: 'bg-red-400',
-  unknown: 'bg-gray-400',
+  unknown: 'bg-slate-400',
 };
 
 export function ProviderHealth() {
@@ -32,7 +32,6 @@ export function ProviderHealth() {
     const checkHealth = async () => {
       try {
         const { data } = await apiClient.get('/api/recommendations/database/providers');
-        // Map API response to provider statuses
         setProviders((prev) =>
           prev.map((p) => ({
             ...p,
@@ -58,31 +57,31 @@ export function ProviderHealth() {
 
   return (
     <div className="p-4">
-      <h3 className="text-lg font-semibold mb-3">Provider Health</h3>
+      <h3 className="text-lg font-semibold mb-3 text-white">Provider Health</h3>
       <div className="space-y-2">
         {providers.map((provider) => (
           <div
             key={provider.name}
-            className="flex items-center justify-between rounded-lg border p-2 bg-white"
+            className="flex items-center justify-between rounded-lg border border-slate-600/50 p-2 bg-slate-700/30"
           >
             <div className="flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${STATUS_STYLES[provider.status]}`} />
-              <span className="text-sm font-medium">{provider.name}</span>
-              <span className="text-xs text-gray-400 capitalize">{provider.type}</span>
+              <span className="text-sm font-medium text-white">{provider.name}</span>
+              <span className="text-xs text-slate-400 capitalize">{provider.type}</span>
             </div>
             <div className="flex items-center gap-3">
               {provider.latencyMs !== undefined && (
-                <span className="text-xs text-gray-500">{provider.latencyMs}ms</span>
+                <span className="text-xs text-slate-400">{provider.latencyMs}ms</span>
               )}
               <span
                 className={`text-xs capitalize ${
                   provider.status === 'healthy'
-                    ? 'text-green-600'
+                    ? 'text-green-400'
                     : provider.status === 'degraded'
-                      ? 'text-yellow-600'
+                      ? 'text-yellow-400'
                       : provider.status === 'down'
-                        ? 'text-red-600'
-                        : 'text-gray-500'
+                        ? 'text-red-400'
+                        : 'text-slate-400'
                 }`}
               >
                 {provider.status}
