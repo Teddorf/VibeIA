@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ManualTaskGuide } from './ManualTaskGuide';
 import { executionApi, manualTasksApi, qualityGatesApi } from '@/lib/api-client';
+import { useExecutionSocket } from '@/hooks/useExecutionSocket';
 
 interface Task {
   id: string;
@@ -78,6 +79,36 @@ export function ExecutionDashboard({
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // WebSocket real-time updates
+  const { logs: socketLogs, isConnected, lastEvent } = useExecutionSocket(planId);
+
+  // Apply WebSocket events to local state
+  useEffect(() => {
+    if (!lastEvent || !plan) return;
+    const { type, data } = lastEvent;
+
+    if (type === 'task_started' && data.taskId) {
+      updateTaskStatus(String(data.taskId), 'in_progress');
+    } else if (type === 'task_completed' && data.taskId) {
+      updateTaskStatus(String(data.taskId), 'completed');
+    } else if (type === 'task_failed' && data.taskId) {
+      updateTaskStatus(String(data.taskId), 'failed');
+    } else if (type === 'execution_completed') {
+      setIsExecuting(false);
+      onComplete?.();
+    } else if (type === 'status_update' && data.status === 'paused') {
+      setIsPaused(true);
+    }
+  }, [lastEvent]);
+
+  // Merge socket logs into local logs
+  useEffect(() => {
+    if (socketLogs.length > 0) {
+      const latestLog = socketLogs[socketLogs.length - 1];
+      addLog(latestLog.message);
+    }
+  }, [socketLogs.length]);
+
   // Refs for cleanup and execution control
   const isMountedRef = useRef(true);
   const executionTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -95,7 +126,7 @@ export function ExecutionDashboard({
 
   const addLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
-    setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+    setLogs((prev) => [...prev, `[${timestamp}] ${message}`]);
   }, []);
 
   // Load plan on mount
@@ -117,8 +148,8 @@ export function ExecutionDashboard({
     if (!plan) return 0;
     const totalTasks = plan.phases.reduce((sum, p) => sum + p.tasks.length, 0);
     const completedTasks = plan.phases.reduce(
-      (sum, p) => sum + p.tasks.filter(t => t.status === 'completed').length,
-      0
+      (sum, p) => sum + p.tasks.filter((t) => t.status === 'completed').length,
+      0,
     );
     return (completedTasks / totalTasks) * 100;
   };
@@ -169,7 +200,7 @@ export function ExecutionDashboard({
     try {
       // Execute task via API (with fallback delay for demo mode)
       const executionDelay = process.env.NODE_ENV === 'development' ? 500 : 100;
-      await new Promise(resolve => setTimeout(resolve, executionDelay));
+      await new Promise((resolve) => setTimeout(resolve, executionDelay));
 
       // Run quality gates on generated files
       if (task.files && task.files.length > 0) {
@@ -191,7 +222,6 @@ export function ExecutionDashboard({
 
       // Move to next task
       moveToNextTask();
-
     } catch (err: any) {
       addLog(`Failed: ${task.name} - ${err.message}`);
       updateTaskStatus(task.id, 'failed');
@@ -203,15 +233,13 @@ export function ExecutionDashboard({
   const updateTaskStatus = (taskId: string, status: Task['status']) => {
     if (!plan) return;
 
-    setPlan(prev => {
+    setPlan((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
         phases: prev.phases.map((phase, pIdx) => ({
           ...phase,
-          tasks: phase.tasks.map(task =>
-            task.id === taskId ? { ...task, status } : task
-          ),
+          tasks: phase.tasks.map((task) => (task.id === taskId ? { ...task, status } : task)),
         })),
       };
     });
@@ -222,9 +250,9 @@ export function ExecutionDashboard({
 
     const phase = plan.phases[currentPhaseIndex];
     if (currentTaskIndex < phase.tasks.length - 1) {
-      setCurrentTaskIndex(prev => prev + 1);
+      setCurrentTaskIndex((prev) => prev + 1);
     } else if (currentPhaseIndex < plan.phases.length - 1) {
-      setCurrentPhaseIndex(prev => prev + 1);
+      setCurrentPhaseIndex((prev) => prev + 1);
       setCurrentTaskIndex(0);
       addLog(`Moving to phase: ${plan.phases[currentPhaseIndex + 1].name}`);
     } else {
@@ -327,11 +355,16 @@ export function ExecutionDashboard({
 
   const getStatusIcon = (status: Task['status']) => {
     switch (status) {
-      case 'completed': return '✅';
-      case 'in_progress': return '⏳';
-      case 'failed': return '❌';
-      case 'paused': return '⏸️';
-      default: return '⬜';
+      case 'completed':
+        return '✅';
+      case 'in_progress':
+        return '⏳';
+      case 'failed':
+        return '❌';
+      case 'paused':
+        return '⏸️';
+      default:
+        return '⬜';
     }
   };
 
@@ -356,7 +389,13 @@ export function ExecutionDashboard({
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-2xl">{projectName}</CardTitle>
-              <CardDescription>Execution Dashboard</CardDescription>
+              <CardDescription className="flex items-center gap-2">
+                Execution Dashboard
+                <span
+                  className={`inline-block w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-slate-500'}`}
+                />
+                <span className="text-xs">{isConnected ? 'Live' : 'Offline'}</span>
+              </CardDescription>
             </div>
             <div className="flex gap-2">
               {!isExecuting && (
@@ -391,9 +430,9 @@ export function ExecutionDashboard({
 
       {/* Error Display */}
       {error && (
-        <Card className="border-red-500 bg-red-50">
+        <Card className="border-red-500/50 bg-red-900/20">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-red-700">
+            <div className="flex items-center gap-2 text-red-400">
               <span className="text-xl">❌</span>
               <span className="font-medium">Error: {error}</span>
             </div>
@@ -421,25 +460,25 @@ export function ExecutionDashboard({
           </CardHeader>
           <CardContent className="space-y-2">
             {plan.phases.map((phase, idx) => {
-              const completedCount = phase.tasks.filter(t => t.status === 'completed').length;
-              const phaseProgress = phase.tasks.length > 0
-                ? (completedCount / phase.tasks.length) * 100
-                : 0;
+              const completedCount = phase.tasks.filter((t) => t.status === 'completed').length;
+              const phaseProgress =
+                phase.tasks.length > 0 ? (completedCount / phase.tasks.length) * 100 : 0;
               const isActive = idx === currentPhaseIndex;
 
               return (
                 <div
                   key={idx}
                   className={`p-3 rounded-lg border transition-colors ${
-                    isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    isActive ? 'border-purple-500/50 bg-purple-900/20' : 'border-slate-700/50'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className={`font-medium ${isActive ? 'text-blue-700' : ''}`}>
+                    <span className={`font-medium ${isActive ? 'text-purple-300' : ''}`}>
                       {idx + 1}. {phase.name}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {phase.tasks.filter(t => t.status === 'completed').length}/{phase.tasks.length}
+                      {phase.tasks.filter((t) => t.status === 'completed').length}/
+                      {phase.tasks.length}
                     </span>
                   </div>
                   <Progress value={phaseProgress} className="h-1" />
@@ -462,7 +501,7 @@ export function ExecutionDashboard({
                 <div
                   key={task.id}
                   className={`p-2 rounded border flex items-center gap-2 ${
-                    idx === currentTaskIndex ? 'bg-blue-50 border-blue-300' : ''
+                    idx === currentTaskIndex ? 'bg-purple-900/20 border-purple-500/50' : ''
                   }`}
                 >
                   <span>{getStatusIcon(task.status)}</span>
@@ -485,7 +524,9 @@ export function ExecutionDashboard({
               <p className="text-gray-500">Waiting for execution to start...</p>
             ) : (
               logs.map((log, idx) => (
-                <div key={idx} className="py-0.5">{log}</div>
+                <div key={idx} className="py-0.5">
+                  {log}
+                </div>
               ))
             )}
           </div>
