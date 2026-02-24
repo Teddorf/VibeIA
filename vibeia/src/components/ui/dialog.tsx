@@ -44,10 +44,7 @@ function DialogContent({ className, children, ...props }: DialogContentProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50"
-        onClick={() => onOpenChange(false)}
-      />
+      <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
       {/* Dialog */}
       <div
         role="dialog"
@@ -55,7 +52,7 @@ function DialogContent({ className, children, ...props }: DialogContentProps) {
         className={cn(
           'relative z-50 w-full max-w-lg bg-background p-6 shadow-lg rounded-lg',
           'animate-in fade-in-0 zoom-in-95',
-          className
+          className,
         )}
         {...props}
       >
@@ -83,10 +80,7 @@ function DialogHeader({ className, ...props }: DialogHeaderProps) {
 
 function DialogTitle({ className, ...props }: DialogTitleProps) {
   return (
-    <h2
-      className={cn('text-lg font-semibold leading-none tracking-tight', className)}
-      {...props}
-    />
+    <h2 className={cn('text-lg font-semibold leading-none tracking-tight', className)} {...props} />
   );
 }
 
@@ -99,4 +93,8 @@ function DialogFooter({ className, ...props }: DialogFooterProps) {
   );
 }
 
-export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter };
+function DialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn('text-sm text-slate-400', className)} {...props} />;
+}
+
+export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter };
