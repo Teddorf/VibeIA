@@ -5,6 +5,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/components/ui/toast';
 import { SkipLink } from '@/components/ui/skip-link';
 import { Header } from '@/components/layout/Header';
+import { QueryProvider } from '@/components/providers/QueryProvider';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,15 +30,17 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AuthProvider>
-          <ToastProvider>
-            <SkipLink />
-            <Header />
-            <main id="main-content" tabIndex={-1}>
-              {children}
-            </main>
-          </ToastProvider>
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <SkipLink />
+              <Header />
+              <main id="main-content" tabIndex={-1}>
+                {children}
+              </main>
+            </ToastProvider>
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );
