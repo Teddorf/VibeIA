@@ -1,22 +1,34 @@
-import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import {
+  Injectable,
+  BadRequestException,
+  Inject,
+  forwardRef,
+  Logger,
+} from '@nestjs/common';
 import { Plan, PlanDocument } from '../../schemas/plan.schema';
 import { LlmService } from '../llm/llm.service';
 import { UsersService } from '../users/users.service';
 import { ProjectsService } from '../projects/projects.service';
 import { CreatePlanDto, PlanType } from './dto/create-plan.dto';
-import { UserLLMConfig, ImportedProjectWizardData } from '../llm/interfaces/llm-provider.interface';
+import {
+  UserLLMConfig,
+  ImportedProjectWizardData,
+} from '../llm/interfaces/llm-provider.interface';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import { PLAN_REPOSITORY } from '../../providers/repository-tokens';
 
 @Injectable()
 export class PlansService {
+  private readonly logger = new Logger(PlansService.name);
+
   constructor(
-    @InjectModel(Plan.name) private planModel: Model<PlanDocument>,
+    @Inject(PLAN_REPOSITORY)
+    private readonly planRepo: IRepository<PlanDocument>,
     private llmService: LlmService,
     private usersService: UsersService,
     @Inject(forwardRef(() => ProjectsService))
     private projectsService: ProjectsService,
-  ) { }
+  ) {}
 
   /**
    * Get user's LLM configuration (API keys and preferences)
@@ -41,7 +53,7 @@ export class PlansService {
   }
 
   async generatePlan(createPlanDto: CreatePlanDto): Promise<Plan> {
-    console.log('Generating plan with LLM...');
+    this.logger.log('Generating plan with LLM...');
 
     // Get user's LLM configuration
     const userLLMConfig = await this.getUserLLMConfig(createPlanDto.userId);
@@ -55,10 +67,13 @@ export class PlansService {
     );
 
     // Generate plan using LLM with user's API keys
-    const llmResponse = await this.llmService.generatePlan(enrichedWizardData, userLLMConfig);
+    const llmResponse = await this.llmService.generatePlan(
+      enrichedWizardData,
+      userLLMConfig,
+    );
 
     // Create plan document
-    const plan = new this.planModel({
+    const plan = await this.planRepo.create({
       projectId: createPlanDto.projectId,
       userId: createPlanDto.userId,
       wizardData: createPlanDto.wizardData,
@@ -73,9 +88,9 @@ export class PlansService {
         planType: createPlanDto.planType || 'new',
         isImportedProject: !!enrichedWizardData.existingCodebase,
       },
-    });
+    } as any);
 
-    return plan.save();
+    return plan;
   }
 
   /**
@@ -101,7 +116,9 @@ export class PlansService {
     }
 
     // This is an imported project - enrich with codebase analysis
-    console.log(`Enriching wizard data for imported project: ${project.name}`);
+    this.logger.log(
+      `Enriching wizard data for imported project: ${project.name}`,
+    );
 
     return {
       stage1: wizardData.stage1,
@@ -118,27 +135,35 @@ export class PlansService {
     if (projectId) {
       query.projectId = projectId;
     }
-    return this.planModel.find(query).sort({ createdAt: -1 }).exec();
+    return this.planRepo.find(query, { sort: { createdAt: -1 } });
   }
 
   async findOne(id: string, userId?: string): Promise<Plan | null> {
-    const plan = await this.planModel.findById(id).exec();
+    const plan = await this.planRepo.findById(id);
     if (plan && userId && plan.userId !== userId) {
       throw new BadRequestException('You do not have access to this plan');
     }
     return plan;
   }
 
-  async updateStatus(id: string, status: string, userId?: string): Promise<Plan | null> {
+  async updateStatus(
+    id: string,
+    status: string,
+    userId?: string,
+  ): Promise<Plan | null> {
     const plan = await this.findOne(id, userId);
     if (!plan) return null;
 
-    return this.planModel
-      .findByIdAndUpdate(id, { status }, { new: true })
-      .exec();
+    return this.planRepo.update(id, { status });
   }
 
-  async updateTaskStatus(planId: string, phaseIndex: number, taskId: string, status: string, userId?: string): Promise<Plan | null> {
+  async updateTaskStatus(
+    planId: string,
+    phaseIndex: number,
+    taskId: string,
+    status: string,
+    userId?: string,
+  ): Promise<Plan | null> {
     // If userId provided, findOne will check ownership
     const plan = await this.findOne(planId, userId);
     if (!plan) return null;
@@ -154,13 +179,15 @@ export class PlansService {
     const allTasksComplete = phase.tasks.every((t) => t.status === 'completed');
     if (allTasksComplete) {
       phase.status = 'completed';
-    } else if (phase.tasks.some((t) => t.status === 'in_progress' || t.status === 'completed')) {
+    } else if (
+      phase.tasks.some(
+        (t) => t.status === 'in_progress' || t.status === 'completed',
+      )
+    ) {
       phase.status = 'in_progress';
     }
 
     // Update plan with modified phases
-    return this.planModel
-      .findByIdAndUpdate(planId, { phases: plan.phases }, { new: true })
-      .exec();
+    return this.planRepo.update(planId, { phases: plan.phases });
   }
 }

@@ -4,12 +4,72 @@ Registro cronologico de sesiones de desarrollo.
 
 ---
 
+## 2025-12-15 - Fix OAuth AuthContext Sync Issue
+
+**Duracion:** ~30min
+**Commits:** 0 (pendiente)
+
+### Cambios principales
+
+- Fix critico: OAuth popup mostraba exito pero no redirigía al dashboard
+- Agregada funcion `initFromStorage()` al AuthContext
+- Login y Register pages ahora sincronizan AuthContext antes de redirigir
+
+### Archivos modificados
+
+- `vibeia/src/contexts/AuthContext.tsx` - +27 lineas (`initFromStorage`)
+- `vibeia/src/app/(auth)/login/page.tsx` - Llama `initFromStorage()` en OAuth success
+- `vibeia/src/app/(auth)/register/page.tsx` - Agregado listener OAuth con `initFromStorage()`
+
+### Notas tecnicas
+
+- Root cause: useEffect de AuthProvider solo ejecutaba una vez al montar
+- Popup guardaba tokens en localStorage pero AuthContext no re-leia
+- Solucion: funcion que permite re-inicializar desde localStorage bajo demanda
+
+---
+
+## 2025-12-15 - OAuth Multi-Provider Implementation
+
+**Duracion:** ~4h
+**Commits:** 6
+
+### Cambios principales
+
+- Implementacion completa de OAuth para GitHub, Google y GitLab
+- Soporte dual: flujo "connect" (vincular cuenta) y "login" (autenticar/registrar)
+- Flujo OAuth con popup: mensaje de exito y comunicacion via postMessage
+- Metodo `loginWithOAuth` en AuthService para crear/encontrar usuarios
+- Variables de entorno OAuth configuradas en Render
+- Fix de redirect_uri y correccion de rutas 404
+
+### Archivos creados/modificados
+
+- `backend/src/modules/auth/google-auth.controller.ts` - +279 lineas (nuevo)
+- `backend/src/modules/auth/gitlab-auth.controller.ts` - +277 lineas (nuevo)
+- `backend/src/modules/auth/github-auth.controller.ts` - Refactorizado para dual flow
+- `backend/src/modules/auth/auth.service.ts` - +81 lineas (`loginWithOAuth`)
+- `backend/src/modules/users/users.service.ts` - +172 lineas (connect methods)
+- `backend/src/modules/users/user.schema.ts` - +32 lineas (OAuth fields)
+- `vibeia/src/app/(auth)/oauth/callback/[provider]/page.tsx` - Popup con postMessage
+- `vibeia/src/app/(auth)/login/page.tsx` - Listener para mensajes OAuth
+
+### Notas tecnicas
+
+- OAuth state codificado en base64 con tipo `connect` o `login`
+- Popup se auto-cierra en 2s despues de exito
+- Tokens almacenados en localStorage desde callback page
+- Build verificado en backend y frontend
+
+---
+
 ## 2025-12-11 - Frontend UX/UI & HTTP Error Handling Audit
 
 **Duracion:** ~3h
 **Commits:** 2
 
 ### Cambios principales
+
 - Auditoria completa de UX/UI y manejo de errores HTTP del frontend
 - Sistema centralizado de errores con clase ApiError y ErrorCodes
 - Sistema de notificaciones toast con ToastProvider
@@ -20,6 +80,7 @@ Registro cronologico de sesiones de desarrollo.
 - Logger enterprise-ready con buffer y envio a backend
 
 ### Archivos creados (~1,200 LOC)
+
 - `frontend/src/lib/api-error.ts` - Sistema de errores HTTP
 - `frontend/src/components/ui/toast.tsx` - Notificaciones toast
 - `frontend/src/hooks/useApiError.ts` - Hook para manejo de errores
@@ -32,12 +93,14 @@ Registro cronologico de sesiones de desarrollo.
 - `frontend/src/components/ui/empty-state.tsx` - Estados vacios
 
 ### Archivos modificados
+
 - `frontend/src/lib/api-client.ts` - +124 lineas (retry, timeout, logging)
 - `frontend/src/lib/logger.ts` - +244 lineas (buffer, backend sending)
 - `frontend/src/app/layout.tsx` - ToastProvider, SkipLink, lang="es"
 - `frontend/src/components/layout/Header.tsx` - Accesibilidad completa
 
 ### Notas tecnicas
+
 - Build verificado exitoso con `npm run build`
 - Mensajes de error user-friendly en espanol
 - Sistema de retry respeta header Retry-After para rate limiting
@@ -51,6 +114,7 @@ Registro cronologico de sesiones de desarrollo.
 **Commits:** 10
 
 ### Cambios principales
+
 - Implementacion de tests unitarios para Setup Module executors (Neon, Vercel, Railway)
 - Refactorizacion del SetupOrchestratorService con patron Strategy
 - Fix de errores de build y validaciones de autenticacion
@@ -60,6 +124,7 @@ Registro cronologico de sesiones de desarrollo.
 - Configuracion del sistema de documentacion automatica
 
 ### Archivos modificados
+
 - `backend/src/modules/setup/executors/*.ts` - Nuevos executors con interface ISetupExecutor
 - `backend/src/modules/setup/executors/*.spec.ts` - Tests unitarios (143+ lineas cada uno)
 - `backend/src/modules/setup/setup-orchestrator.service.ts` - Refactorizado (-130 lineas)
@@ -69,9 +134,9 @@ Registro cronologico de sesiones de desarrollo.
 - `.claude/update-docs-config.json` - Config del sistema de documentacion
 
 ### Notas tecnicas
+
 - Patron Strategy aplicado para reducir complejidad ciclomatica en SetupOrchestrator
 - Tests con 100% coverage en executors usando mocks de HttpService
 - Documentacion automatica configurada para mantener historial de sesiones
 
 ---
-

@@ -1,13 +1,17 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { QualityGatesService } from './quality-gates.service';
 
-@Controller('quality-gates')
+@Controller('api/quality-gates')
 export class QualityGatesController {
   constructor(private readonly qualityGatesService: QualityGatesService) {}
 
   @Post('check')
   async runChecks(
-    @Body() body: { files: { path: string; content: string }[]; skipTests?: boolean }
+    @Body()
+    body: {
+      files: { path: string; content: string }[];
+      skipTests?: boolean;
+    },
   ) {
     const result = await this.qualityGatesService.runAllChecks(body.files, {
       skipTests: body.skipTests,
@@ -25,7 +29,9 @@ export class QualityGatesController {
   }
 
   @Post('security')
-  async runSecurity(@Body() body: { files: { path: string; content: string }[] }) {
+  async runSecurity(
+    @Body() body: { files: { path: string; content: string }[] },
+  ) {
     return this.qualityGatesService.runSecurityCheck(body.files);
   }
 }

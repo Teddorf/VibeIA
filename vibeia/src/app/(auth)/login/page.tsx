@@ -8,7 +8,7 @@ import { OAuthButtons } from '@/components/auth/OAuthButtons';
 
 function LoginForm() {
   const router = useRouter();
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, initFromStorage } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,8 +26,9 @@ function LoginForm() {
 
       if (type === 'oauth_success') {
         // Tokens are already stored in localStorage by the callback page
-        // Redirect to dashboard
-        window.location.href = '/dashboard';
+        // Re-initialize AuthContext from localStorage before redirecting
+        initFromStorage();
+        router.push('/dashboard');
       }
 
       if (type === 'oauth_error') {
@@ -37,7 +38,7 @@ function LoginForm() {
 
     window.addEventListener('message', handleOAuthMessage);
     return () => window.removeEventListener('message', handleOAuthMessage);
-  }, []);
+  }, [initFromStorage, router]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -67,9 +68,7 @@ function LoginForm() {
         <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
           Welcome Back
         </h1>
-        <p className="mt-2 text-slate-400">
-          Sign in to continue to VibeCoding AI
-        </p>
+        <p className="mt-2 text-slate-400">Sign in to continue to VibeCoding AI</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -125,8 +124,20 @@ function LoginForm() {
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
               <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
               </svg>
               Iniciando sesion...
             </span>
@@ -161,14 +172,24 @@ function LoginFormFallback() {
         <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
           Welcome Back
         </h1>
-        <p className="mt-2 text-slate-400">
-          Sign in to continue to VibeCoding AI
-        </p>
+        <p className="mt-2 text-slate-400">Sign in to continue to VibeCoding AI</p>
       </div>
       <div className="flex justify-center py-8">
         <svg className="animate-spin h-8 w-8 text-purple-500" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+            fill="none"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
         </svg>
       </div>
     </div>

@@ -10,7 +10,16 @@ import { SecurityAuditService } from './security-audit.service';
 import { TokenEncryptionService } from './token-encryption.service';
 import { Credential, CredentialSchema } from './schemas/credential.schema';
 import { Workspace, WorkspaceSchema } from './schemas/workspace.schema';
-import { SecurityAudit, SecurityAuditSchema } from './schemas/security-audit.schema';
+import {
+  SecurityAudit,
+  SecurityAuditSchema,
+} from './schemas/security-audit.schema';
+import { createRepositoryProvider } from '../../providers/repository-providers.factory';
+import {
+  SECURITY_AUDIT_REPOSITORY,
+  CREDENTIAL_REPOSITORY,
+  WORKSPACE_REPOSITORY,
+} from '../../providers/repository-tokens';
 
 @Module({
   imports: [
@@ -29,6 +38,9 @@ import { SecurityAudit, SecurityAuditSchema } from './schemas/security-audit.sch
     RateLimiterService,
     SecurityAuditService,
     TokenEncryptionService,
+    createRepositoryProvider(SECURITY_AUDIT_REPOSITORY, SecurityAudit.name),
+    createRepositoryProvider(CREDENTIAL_REPOSITORY, Credential.name),
+    createRepositoryProvider(WORKSPACE_REPOSITORY, Workspace.name),
   ],
   exports: [
     SecurityScannerService,

@@ -1,11 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Workspace, WorkspaceDocument, WorkspaceStatus, WorkspaceSize } from './schemas/workspace.schema';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import {
-  CreateWorkspaceDto,
-  WorkspaceConfig,
-} from './dto/security.dto';
+  Workspace,
+  WorkspaceDocument,
+  WorkspaceStatus,
+  WorkspaceSize,
+} from './schemas/workspace.schema';
+import { CreateWorkspaceDto, WorkspaceConfig } from './dto/security.dto';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import { WORKSPACE_REPOSITORY } from '../../providers/repository-tokens';
 
 @Injectable()
 export class WorkspaceService {
@@ -25,7 +27,8 @@ export class WorkspaceService {
   };
 
   constructor(
-    @InjectModel(Workspace.name) private workspaceModel: Model<WorkspaceDocument>,
+    @Inject(WORKSPACE_REPOSITORY)
+    private readonly workspaceRepo: IRepository<WorkspaceDocument>,
   ) {}
 
   async createWorkspace(
@@ -34,7 +37,7 @@ export class WorkspaceService {
   ): Promise<WorkspaceDocument> {
     const config = { ...this.defaultConfig, ...dto.config };
 
-    const workspace = new this.workspaceModel({
+    const saved = await this.workspaceRepo.create({
       userId,
       name: dto.name || `Workspace ${Date.now()}`,
       projectId: dto.projectId,
@@ -48,32 +51,35 @@ export class WorkspaceService {
       expiresAt: this.calculateExpiration(config.lifetime),
       lastActivityAt: new Date(),
       metadata: { config },
-    });
-
-    const saved = await workspace.save();
+    } as any);
 
     try {
       const containerId = await this.spawnContainer(saved);
 
-      await this.workspaceModel
-        .findByIdAndUpdate(saved._id, {
-          containerId,
-          status: WorkspaceStatus.RUNNING,
-          startedAt: new Date(),
-        })
-        .exec();
+      await this.workspaceRepo.update((saved as any)._id.toString(), {
+        containerId,
+        status: WorkspaceStatus.RUNNING,
+        startedAt: new Date(),
+      });
 
-      this.logger.log(`Workspace ${saved._id} created for user ${userId}`);
+      this.logger.log(
+        `Workspace ${(saved as any)._id} created for user ${userId}`,
+      );
 
       if (config.autoDestroy) {
-        this.scheduleDestruction(saved._id.toString(), config.lifetime);
+        this.scheduleDestruction(
+          (saved as any)._id.toString(),
+          config.lifetime,
+        );
       }
 
-      return (await this.workspaceModel.findById(saved._id).exec())!;
+      return (await this.workspaceRepo.findById(
+        (saved as any)._id.toString(),
+      ))!;
     } catch (error) {
-      await this.workspaceModel
-        .findByIdAndUpdate(saved._id, { status: WorkspaceStatus.ERROR })
-        .exec();
+      await this.workspaceRepo.update((saved as any)._id.toString(), {
+        status: WorkspaceStatus.ERROR,
+      });
       this.logger.error(`Failed to create workspace: ${error}`);
       throw error;
     }
@@ -81,18 +87,18 @@ export class WorkspaceService {
 
   async getWorkspace(workspaceId: string): Promise<WorkspaceDocument | null> {
     try {
-      return await this.workspaceModel.findById(workspaceId).exec();
+      return await this.workspaceRepo.findById(workspaceId);
     } catch {
       return null;
     }
   }
 
   async getUserWorkspaces(userId: string): Promise<WorkspaceDocument[]> {
-    return this.workspaceModel.find({ userId }).exec();
+    return this.workspaceRepo.find({ userId });
   }
 
   async pauseWorkspace(workspaceId: string): Promise<WorkspaceDocument> {
-    const workspace = await this.workspaceModel.findById(workspaceId).exec();
+    const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
@@ -103,23 +109,17 @@ export class WorkspaceService {
 
     await this.pauseContainer(workspace.containerId!);
 
-    const updated = await this.workspaceModel
-      .findByIdAndUpdate(
-        workspaceId,
-        {
-          status: WorkspaceStatus.PAUSED,
-          lastActivityAt: new Date(),
-        },
-        { new: true },
-      )
-      .exec();
+    const updated = await this.workspaceRepo.update(workspaceId, {
+      status: WorkspaceStatus.PAUSED,
+      lastActivityAt: new Date(),
+    });
 
     this.logger.log(`Workspace ${workspaceId} paused`);
     return updated!;
   }
 
   async resumeWorkspace(workspaceId: string): Promise<WorkspaceDocument> {
-    const workspace = await this.workspaceModel.findById(workspaceId).exec();
+    const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
@@ -130,50 +130,47 @@ export class WorkspaceService {
 
     await this.resumeContainer(workspace.containerId!);
 
-    const updated = await this.workspaceModel
-      .findByIdAndUpdate(
-        workspaceId,
-        {
-          status: WorkspaceStatus.RUNNING,
-          lastActivityAt: new Date(),
-        },
-        { new: true },
-      )
-      .exec();
+    const updated = await this.workspaceRepo.update(workspaceId, {
+      status: WorkspaceStatus.RUNNING,
+      lastActivityAt: new Date(),
+    });
 
     this.logger.log(`Workspace ${workspaceId} resumed`);
     return updated!;
   }
 
   async destroyWorkspace(workspaceId: string): Promise<void> {
-    const workspace = await this.workspaceModel.findById(workspaceId).exec();
+    const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
       return;
     }
 
-    await this.workspaceModel
-      .findByIdAndUpdate(workspaceId, { status: WorkspaceStatus.STOPPED })
-      .exec();
+    await this.workspaceRepo.update(workspaceId, {
+      status: WorkspaceStatus.STOPPED,
+    });
 
     try {
       if (workspace.containerId) {
         await this.destroyContainer(workspace.containerId);
       }
 
-      await this.workspaceModel.findByIdAndDelete(workspaceId).exec();
+      await this.workspaceRepo.delete(workspaceId);
 
       this.logger.log(`Workspace ${workspaceId} destroyed`);
     } catch (error) {
-      await this.workspaceModel
-        .findByIdAndUpdate(workspaceId, { status: WorkspaceStatus.ERROR })
-        .exec();
+      await this.workspaceRepo.update(workspaceId, {
+        status: WorkspaceStatus.ERROR,
+      });
       this.logger.error(`Failed to destroy workspace: ${error}`);
       throw error;
     }
   }
 
-  async extendWorkspace(workspaceId: string, duration: string): Promise<WorkspaceDocument> {
-    const workspace = await this.workspaceModel.findById(workspaceId).exec();
+  async extendWorkspace(
+    workspaceId: string,
+    duration: string,
+  ): Promise<WorkspaceDocument> {
+    const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
@@ -181,16 +178,10 @@ export class WorkspaceService {
     const extension = this.parseDuration(duration);
     const newExpiration = new Date(workspace.expiresAt.getTime() + extension);
 
-    const updated = await this.workspaceModel
-      .findByIdAndUpdate(
-        workspaceId,
-        {
-          expiresAt: newExpiration,
-          lastActivityAt: new Date(),
-        },
-        { new: true },
-      )
-      .exec();
+    const updated = await this.workspaceRepo.update(workspaceId, {
+      expiresAt: newExpiration,
+      lastActivityAt: new Date(),
+    });
 
     this.logger.log(`Workspace ${workspaceId} extended by ${duration}`);
     return updated!;
@@ -200,7 +191,7 @@ export class WorkspaceService {
     workspaceId: string,
     command: string,
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    const workspace = await this.workspaceModel.findById(workspaceId).exec();
+    const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
@@ -209,9 +200,9 @@ export class WorkspaceService {
       throw new Error(`Workspace is not running`);
     }
 
-    await this.workspaceModel
-      .findByIdAndUpdate(workspaceId, { lastActivityAt: new Date() })
-      .exec();
+    await this.workspaceRepo.update(workspaceId, {
+      lastActivityAt: new Date(),
+    });
 
     return this.execInContainer(workspace.containerId!, command);
   }
@@ -222,7 +213,7 @@ export class WorkspaceService {
     paused: number;
     byUser: Record<string, number>;
   }> {
-    const workspaces = await this.workspaceModel.find().exec();
+    const workspaces = await this.workspaceRepo.find({});
 
     const stats = {
       total: 0,
@@ -236,7 +227,8 @@ export class WorkspaceService {
       if (workspace.status === WorkspaceStatus.RUNNING) stats.running++;
       if (workspace.status === WorkspaceStatus.PAUSED) stats.paused++;
 
-      stats.byUser[workspace.userId] = (stats.byUser[workspace.userId] || 0) + 1;
+      stats.byUser[workspace.userId] =
+        (stats.byUser[workspace.userId] || 0) + 1;
     });
 
     return stats;
@@ -244,18 +236,21 @@ export class WorkspaceService {
 
   async cleanupExpiredWorkspaces(): Promise<number> {
     const now = new Date();
-    const expiredWorkspaces = await this.workspaceModel
-      .find({ expiresAt: { $lt: now }, status: { $ne: WorkspaceStatus.STOPPED } })
-      .exec();
+    const expiredWorkspaces = await this.workspaceRepo.find({
+      expiresAt: { $lt: now },
+      status: { $ne: WorkspaceStatus.STOPPED },
+    });
 
     let cleaned = 0;
 
     for (const workspace of expiredWorkspaces) {
       try {
-        await this.destroyWorkspace(workspace._id.toString());
+        await this.destroyWorkspace((workspace as any)._id.toString());
         cleaned++;
       } catch (error) {
-        this.logger.error(`Failed to cleanup workspace ${workspace._id}: ${error}`);
+        this.logger.error(
+          `Failed to cleanup workspace ${(workspace as any)._id}: ${error}`,
+        );
       }
     }
 
@@ -315,7 +310,9 @@ export class WorkspaceService {
       const match = disk.match(/^(\d+)(GB|MB)$/i);
       if (match) {
         const value = parseInt(match[1], 10);
-        return match[2].toUpperCase() === 'GB' ? value : Math.floor(value / 1024);
+        return match[2].toUpperCase() === 'GB'
+          ? value
+          : Math.floor(value / 1024);
       }
     }
     return 10;
@@ -325,14 +322,18 @@ export class WorkspaceService {
     const ms = this.parseDuration(lifetime);
     setTimeout(() => {
       this.destroyWorkspace(workspaceId).catch((err) => {
-        this.logger.error(`Failed to auto-destroy workspace ${workspaceId}: ${err}`);
+        this.logger.error(
+          `Failed to auto-destroy workspace ${workspaceId}: ${err}`,
+        );
       });
     }, ms);
   }
 
   private async spawnContainer(workspace: WorkspaceDocument): Promise<string> {
-    this.logger.debug(`Spawning container for workspace ${workspace._id}`);
-    return `container-${workspace._id}`;
+    this.logger.debug(
+      `Spawning container for workspace ${(workspace as any)._id}`,
+    );
+    return `container-${(workspace as any)._id}`;
   }
 
   private async pauseContainer(containerId: string): Promise<void> {

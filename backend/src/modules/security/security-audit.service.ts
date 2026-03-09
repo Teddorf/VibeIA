@@ -1,12 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import {
   SecurityAudit,
   SecurityAuditDocument,
   SecurityEventType,
   SecurityEventSeverity,
 } from './schemas/security-audit.schema';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import { SECURITY_AUDIT_REPOSITORY } from '../../providers/repository-tokens';
 
 export interface AuditLogOptions {
   eventType: SecurityEventType;
@@ -29,7 +29,8 @@ export class SecurityAuditService {
   private readonly logger = new Logger(SecurityAuditService.name);
 
   constructor(
-    @InjectModel(SecurityAudit.name) private auditModel: Model<SecurityAuditDocument>,
+    @Inject(SECURITY_AUDIT_REPOSITORY)
+    private readonly auditRepo: IRepository<SecurityAuditDocument>,
   ) {}
 
   /**
@@ -37,9 +38,10 @@ export class SecurityAuditService {
    */
   async log(options: AuditLogOptions): Promise<void> {
     try {
-      const auditEntry = new this.auditModel({
+      await this.auditRepo.create({
         eventType: options.eventType,
-        severity: options.severity || this.getSeverityForEvent(options.eventType),
+        severity:
+          options.severity || this.getSeverityForEvent(options.eventType),
         userId: options.userId,
         userEmail: options.userEmail,
         ipAddress: options.ipAddress,
@@ -51,9 +53,7 @@ export class SecurityAuditService {
         success: options.success ?? true,
         errorMessage: options.errorMessage,
         sessionId: options.sessionId,
-      });
-
-      await auditEntry.save();
+      } as any);
 
       // Log critical events to console as well
       if (options.severity === SecurityEventSeverity.CRITICAL) {
@@ -144,7 +144,10 @@ export class SecurityAuditService {
   /**
    * Log password reset request
    */
-  async logPasswordResetRequest(email: string, ipAddress: string): Promise<void> {
+  async logPasswordResetRequest(
+    email: string,
+    ipAddress: string,
+  ): Promise<void> {
     await this.log({
       eventType: SecurityEventType.PASSWORD_RESET_REQUEST,
       userEmail: email,
@@ -246,13 +249,12 @@ export class SecurityAuditService {
     }
 
     const [logs, total] = await Promise.all([
-      this.auditModel
-        .find(query)
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .exec(),
-      this.auditModel.countDocuments(query).exec(),
+      this.auditRepo.find(query, {
+        sort: { createdAt: -1 },
+        skip: (page - 1) * limit,
+        limit,
+      }),
+      this.auditRepo.count(query),
     ]);
 
     return { logs, total };
@@ -279,25 +281,27 @@ export class SecurityAuditService {
       accessDenied,
       rateLimitExceeded,
     ] = await Promise.all([
-      this.auditModel.countDocuments({ createdAt: { $gte: since } }).exec(),
-      this.auditModel
-        .countDocuments({ createdAt: { $gte: since }, severity: SecurityEventSeverity.CRITICAL })
-        .exec(),
-      this.auditModel
-        .countDocuments({ createdAt: { $gte: since }, severity: SecurityEventSeverity.WARNING })
-        .exec(),
-      this.auditModel
-        .countDocuments({ createdAt: { $gte: since }, eventType: SecurityEventType.LOGIN_FAILURE })
-        .exec(),
-      this.auditModel
-        .countDocuments({ createdAt: { $gte: since }, eventType: SecurityEventType.ACCESS_DENIED })
-        .exec(),
-      this.auditModel
-        .countDocuments({
-          createdAt: { $gte: since },
-          eventType: SecurityEventType.RATE_LIMIT_EXCEEDED,
-        })
-        .exec(),
+      this.auditRepo.count({ createdAt: { $gte: since } }),
+      this.auditRepo.count({
+        createdAt: { $gte: since },
+        severity: SecurityEventSeverity.CRITICAL,
+      }),
+      this.auditRepo.count({
+        createdAt: { $gte: since },
+        severity: SecurityEventSeverity.WARNING,
+      }),
+      this.auditRepo.count({
+        createdAt: { $gte: since },
+        eventType: SecurityEventType.LOGIN_FAILURE,
+      }),
+      this.auditRepo.count({
+        createdAt: { $gte: since },
+        eventType: SecurityEventType.ACCESS_DENIED,
+      }),
+      this.auditRepo.count({
+        createdAt: { $gte: since },
+        eventType: SecurityEventType.RATE_LIMIT_EXCEEDED,
+      }),
     ]);
 
     return {
@@ -313,7 +317,9 @@ export class SecurityAuditService {
   /**
    * Get default severity for event type
    */
-  private getSeverityForEvent(eventType: SecurityEventType): SecurityEventSeverity {
+  private getSeverityForEvent(
+    eventType: SecurityEventType,
+  ): SecurityEventSeverity {
     switch (eventType) {
       case SecurityEventType.LOGIN_FAILURE:
       case SecurityEventType.ACCESS_DENIED:
@@ -333,14 +339,25 @@ export class SecurityAuditService {
   /**
    * Sanitize details to remove sensitive information
    */
-  private sanitizeDetails(details?: Record<string, any>): Record<string, any> | undefined {
+  private sanitizeDetails(
+    details?: Record<string, any>,
+  ): Record<string, any> | undefined {
     if (!details) return undefined;
 
     const sanitized = { ...details };
-    const sensitiveKeys = ['password', 'token', 'secret', 'apiKey', 'accessToken', 'refreshToken'];
+    const sensitiveKeys = [
+      'password',
+      'token',
+      'secret',
+      'apiKey',
+      'accessToken',
+      'refreshToken',
+    ];
 
     for (const key of Object.keys(sanitized)) {
-      if (sensitiveKeys.some((sk) => key.toLowerCase().includes(sk.toLowerCase()))) {
+      if (
+        sensitiveKeys.some((sk) => key.toLowerCase().includes(sk.toLowerCase()))
+      ) {
         sanitized[key] = '[REDACTED]';
       }
     }

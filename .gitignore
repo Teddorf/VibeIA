@@ -12,6 +12,9 @@ out/
 build/
 dist/
 
+# Turborepo
+.turbo/
+
 # Production
 *.log
 npm-debug.log*

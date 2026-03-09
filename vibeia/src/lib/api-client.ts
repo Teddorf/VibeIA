@@ -37,7 +37,7 @@ apiClient.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor con retry automático
@@ -50,7 +50,7 @@ apiClient.interceptors.response.use(
       config.method?.toUpperCase() || 'GET',
       config.url || '',
       response.status,
-      duration
+      duration,
     );
     return response;
   },
@@ -71,7 +71,7 @@ apiClient.interceptors.response.use(
       config.url || '',
       error.response?.status,
       duration,
-      error
+      error,
     );
 
     // Parse el error para determinar si es retryable
@@ -83,12 +83,11 @@ apiClient.interceptors.response.use(
     }
 
     // Retry automático para errores de red y algunos errores de servidor
-    const shouldRetry = (
+    const shouldRetry =
       apiError.isNetworkError ||
       apiError.code === ErrorCode.GATEWAY_TIMEOUT ||
       apiError.code === ErrorCode.BAD_GATEWAY ||
-      apiError.code === ErrorCode.SERVICE_UNAVAILABLE
-    );
+      apiError.code === ErrorCode.SERVICE_UNAVAILABLE;
 
     if (shouldRetry && retryCount < MAX_RETRIES) {
       config.__retryCount = retryCount + 1;
@@ -102,7 +101,7 @@ apiClient.interceptors.response.use(
         delay,
       });
 
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
 
       return apiClient.request(config);
     }
@@ -116,13 +115,13 @@ apiClient.interceptors.response.use(
         url: config.url,
       });
 
-      await new Promise(resolve => setTimeout(resolve, waitTime));
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
 
       return apiClient.request(config);
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 /**
@@ -480,11 +479,7 @@ export const recommendationsApi = {
   },
 
   // Full recommendation (combined)
-  getFullRecommendation: async (data: {
-    database: any;
-    deploy: any;
-    cost: any;
-  }) => {
+  getFullRecommendation: async (data: { database: any; deploy: any; cost: any }) => {
     const response = await apiClient.post('/api/recommendations/full', data);
     return response.data;
   },
@@ -622,7 +617,10 @@ export const setupApi = {
   },
 
   // Rollback setup
-  rollback: async (setupId: string, tokens?: { neon?: string; vercel?: string; railway?: string }) => {
+  rollback: async (
+    setupId: string,
+    tokens?: { neon?: string; vercel?: string; railway?: string },
+  ) => {
     const response = await apiClient.post(`/api/setup/rollback/${setupId}`, tokens);
     return response.data;
   },
@@ -658,10 +656,13 @@ export const setupApi = {
 
 export const securityApi = {
   // Security Scanning
-  scanFiles: async (files: { path: string; content: string }[], options?: {
-    checkSecrets?: boolean;
-    checkVulnerabilities?: boolean;
-  }) => {
+  scanFiles: async (
+    files: { path: string; content: string }[],
+    options?: {
+      checkSecrets?: boolean;
+      checkVulnerabilities?: boolean;
+    },
+  ) => {
     const response = await apiClient.post('/api/security/scan', { files, options });
     return response.data;
   },
@@ -718,7 +719,10 @@ export const securityApi = {
   },
 
   validateToken: async (provider: string, token: string) => {
-    const response = await apiClient.post('/api/security/credentials/validate', { provider, token });
+    const response = await apiClient.post('/api/security/credentials/validate', {
+      provider,
+      token,
+    });
     return response.data;
   },
 
@@ -825,7 +829,10 @@ export const securityApi = {
 
   // Gitignore
   generateGitignore: async (projectPath: string, additionalSecrets?: string[]) => {
-    const response = await apiClient.post('/api/security/gitignore', { projectPath, additionalSecrets });
+    const response = await apiClient.post('/api/security/gitignore', {
+      projectPath,
+      additionalSecrets,
+    });
     return response.data;
   },
 
@@ -855,11 +862,7 @@ export const errorHandlingApi = {
   },
 
   // Attempt recovery
-  attemptRecovery: async (dto: {
-    setupId: string;
-    errorId: string;
-    strategy?: string;
-  }) => {
+  attemptRecovery: async (dto: { setupId: string; errorId: string; strategy?: string }) => {
     const response = await apiClient.post('/api/error-handling/recover', dto);
     return response.data;
   },
@@ -910,17 +913,22 @@ export const billingApi = {
     return response.data;
   },
 
-  updateSubscription: async (id: string, dto: {
-    plan?: string;
-    billingCycle?: string;
-    cancelAtPeriodEnd?: boolean;
-  }) => {
+  updateSubscription: async (
+    id: string,
+    dto: {
+      plan?: string;
+      billingCycle?: string;
+      cancelAtPeriodEnd?: boolean;
+    },
+  ) => {
     const response = await apiClient.patch(`/api/billing/subscriptions/${id}`, dto);
     return response.data;
   },
 
   cancelSubscription: async (id: string, immediately = false) => {
-    const response = await apiClient.post(`/api/billing/subscriptions/${id}/cancel`, { immediately });
+    const response = await apiClient.post(`/api/billing/subscriptions/${id}/cancel`, {
+      immediately,
+    });
     return response.data;
   },
 
@@ -991,9 +999,7 @@ export const billingApi = {
   },
 
   getDailyMetrics: async (date?: string) => {
-    const url = date
-      ? `/api/billing/analytics/daily?date=${date}`
-      : '/api/billing/analytics/daily';
+    const url = date ? `/api/billing/analytics/daily?date=${date}` : '/api/billing/analytics/daily';
     const response = await apiClient.get(url);
     return response.data;
   },
@@ -1098,7 +1104,9 @@ export const llmSettingsApi = {
 
   // Toggle an LLM API key active/inactive
   toggleKey: async (provider: string, isActive: boolean) => {
-    const response = await apiClient.patch(`/api/users/me/llm/keys/${provider}/toggle`, { isActive });
+    const response = await apiClient.patch(`/api/users/me/llm/keys/${provider}/toggle`, {
+      isActive,
+    });
     return response.data;
   },
 
@@ -1153,7 +1161,10 @@ export const teamsApi = {
     return response.data;
   },
 
-  updateTeam: async (teamId: string, dto: { name?: string; description?: string; avatarUrl?: string; settings?: any }) => {
+  updateTeam: async (
+    teamId: string,
+    dto: { name?: string; description?: string; avatarUrl?: string; settings?: any },
+  ) => {
     const response = await apiClient.patch(`/api/teams/${teamId}`, dto);
     return response.data;
   },
@@ -1164,7 +1175,10 @@ export const teamsApi = {
   },
 
   transferOwnership: async (teamId: string, newOwnerId: string, confirmPassword: string) => {
-    const response = await apiClient.post(`/api/teams/${teamId}/transfer`, { newOwnerId, confirmPassword });
+    const response = await apiClient.post(`/api/teams/${teamId}/transfer`, {
+      newOwnerId,
+      confirmPassword,
+    });
     return response.data;
   },
 
@@ -1195,7 +1209,9 @@ export const teamsApi = {
   },
 
   updateMemberRole: async (teamId: string, memberId: string, role: string) => {
-    const response = await apiClient.patch(`/api/teams/${teamId}/members/${memberId}/role`, { role });
+    const response = await apiClient.patch(`/api/teams/${teamId}/members/${memberId}/role`, {
+      role,
+    });
     return response.data;
   },
 
@@ -1217,12 +1233,19 @@ export const teamsApi = {
   },
 
   inviteMember: async (teamId: string, email: string, role: string, message?: string) => {
-    const response = await apiClient.post(`/api/teams/${teamId}/invitations`, { email, role, message });
+    const response = await apiClient.post(`/api/teams/${teamId}/invitations`, {
+      email,
+      role,
+      message,
+    });
     return response.data;
   },
 
   bulkInvite: async (teamId: string, emails: string[], role: string) => {
-    const response = await apiClient.post(`/api/teams/${teamId}/invitations/bulk`, { emails, role });
+    const response = await apiClient.post(`/api/teams/${teamId}/invitations/bulk`, {
+      emails,
+      role,
+    });
     return response.data;
   },
 
@@ -1232,7 +1255,9 @@ export const teamsApi = {
   },
 
   resendInvitation: async (teamId: string, invitationId: string) => {
-    const response = await apiClient.post(`/api/teams/${teamId}/invitations/${invitationId}/resend`);
+    const response = await apiClient.post(
+      `/api/teams/${teamId}/invitations/${invitationId}/resend`,
+    );
     return response.data;
   },
 
@@ -1257,13 +1282,16 @@ export const teamsApi = {
     return response.data;
   },
 
-  connectGitProvider: async (teamId: string, dto: {
-    provider: string;
-    code: string;
-    redirectUri: string;
-    organizationId?: string;
-    isDefault?: boolean;
-  }) => {
+  connectGitProvider: async (
+    teamId: string,
+    dto: {
+      provider: string;
+      code: string;
+      redirectUri: string;
+      organizationId?: string;
+      isDefault?: boolean;
+    },
+  ) => {
     const response = await apiClient.post(`/api/teams/${teamId}/git-connections`, dto);
     return response.data;
   },
@@ -1274,18 +1302,24 @@ export const teamsApi = {
   },
 
   setDefaultConnection: async (teamId: string, connectionId: string) => {
-    const response = await apiClient.post(`/api/teams/${teamId}/git-connections/${connectionId}/set-default`);
+    const response = await apiClient.post(
+      `/api/teams/${teamId}/git-connections/${connectionId}/set-default`,
+    );
     return response.data;
   },
 
   validateConnection: async (teamId: string, connectionId: string) => {
-    const response = await apiClient.post(`/api/teams/${teamId}/git-connections/${connectionId}/validate`);
+    const response = await apiClient.post(
+      `/api/teams/${teamId}/git-connections/${connectionId}/validate`,
+    );
     return response.data;
   },
 
   // OAuth
   getOAuthUrl: async (provider: string, redirectUri: string, state: string) => {
-    const response = await apiClient.get(`/api/teams/oauth/${provider}/url?redirectUri=${encodeURIComponent(redirectUri)}&state=${state}`);
+    const response = await apiClient.get(
+      `/api/teams/oauth/${provider}/url?redirectUri=${encodeURIComponent(redirectUri)}&state=${state}`,
+    );
     return response.data;
   },
 
@@ -1358,7 +1392,59 @@ export const githubApi = {
   // Get file content
   getFileContent: async (owner: string, repo: string, path: string, branch?: string) => {
     const params = branch ? `?branch=${branch}` : '';
-    const response = await apiClient.get(`/api/git/repos/${owner}/${repo}/contents/${path}${params}`);
+    const response = await apiClient.get(
+      `/api/git/repos/${owner}/${repo}/contents/${path}${params}`,
+    );
+    return response.data;
+  },
+};
+
+// Google OAuth API
+export const googleApi = {
+  // Get Google OAuth URL for connect flow
+  getAuthUrl: async (userId?: string) => {
+    const params = userId ? `?userId=${userId}` : '';
+    const response = await apiClient.get(`/api/auth/google/auth-url${params}`);
+    return response.data;
+  },
+
+  // Get Google connection status
+  getConnectionStatus: async () => {
+    const response = await apiClient.get('/api/auth/google/status');
+    return response.data;
+  },
+
+  // Disconnect Google
+  disconnect: async () => {
+    const response = await apiClient.delete('/api/auth/google');
+    return response.data;
+  },
+};
+
+// GitLab OAuth API
+export const gitlabApi = {
+  // Get GitLab OAuth URL for connect flow
+  getAuthUrl: async (userId?: string) => {
+    const params = userId ? `?userId=${userId}` : '';
+    const response = await apiClient.get(`/api/auth/gitlab/auth-url${params}`);
+    return response.data;
+  },
+
+  // Get GitLab connection status
+  getConnectionStatus: async () => {
+    const response = await apiClient.get('/api/auth/gitlab/status');
+    return response.data;
+  },
+
+  // Disconnect GitLab
+  disconnect: async () => {
+    const response = await apiClient.delete('/api/auth/gitlab');
+    return response.data;
+  },
+
+  // List GitLab projects
+  listProjects: async () => {
+    const response = await apiClient.get('/api/git/gitlab/projects');
     return response.data;
   },
 };

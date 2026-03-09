@@ -1,29 +1,44 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-import { Credential, CredentialDocument, CredentialProvider as SchemaCredentialProvider, CredentialStatus } from './schemas/credential.schema';
+import { ENCRYPTION_DEFAULTS } from '../../config/defaults';
+import {
+  Credential,
+  CredentialDocument,
+  CredentialProvider as SchemaCredentialProvider,
+  CredentialStatus,
+} from './schemas/credential.schema';
 import {
   CredentialProvider,
   StoreCredentialDto,
   DEFAULT_GITIGNORE_SECRETS,
   GitIgnoreEntry,
 } from './dto/security.dto';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import { CREDENTIAL_REPOSITORY } from '../../providers/repository-tokens';
 
 @Injectable()
 export class CredentialManagerService {
   private readonly logger = new Logger(CredentialManagerService.name);
   private readonly encryptionKey: Buffer;
-  private readonly algorithm = 'aes-256-gcm';
+  private readonly algorithm = ENCRYPTION_DEFAULTS.algorithm;
 
   constructor(
-    @InjectModel(Credential.name) private credentialModel: Model<CredentialDocument>,
+    @Inject(CREDENTIAL_REPOSITORY)
+    private readonly credentialRepo: IRepository<CredentialDocument>,
     private readonly configService: ConfigService,
   ) {
-    const key = this.configService.get<string>('ENCRYPTION_KEY') || 'default-key-for-development-only!';
-    const salt = this.configService.get<string>('ENCRYPTION_SALT') || 'default-salt-dev-16';
-    this.encryptionKey = crypto.scryptSync(key, salt, 32);
+    const key =
+      this.configService.get<string>('ENCRYPTION_KEY') ||
+      'default-key-for-development-only!';
+    const salt =
+      this.configService.get<string>('ENCRYPTION_SALT') ||
+      'default-salt-dev-16';
+    this.encryptionKey = crypto.scryptSync(
+      key,
+      salt,
+      ENCRYPTION_DEFAULTS.keyLength,
+    );
   }
 
   async storeCredential(
@@ -32,63 +47,61 @@ export class CredentialManagerService {
   ): Promise<{ id: string; provider: CredentialProvider }> {
     const encryptedToken = this.encrypt(dto.token);
 
-    const credential = new this.credentialModel({
+    const saved = await this.credentialRepo.create({
       userId,
       provider: dto.provider,
       name: dto.name || `${dto.provider} API Key`,
       encryptedToken,
       status: CredentialStatus.ACTIVE,
       scopes: dto.scope || [],
-    });
+    } as any);
 
-    const saved = await credential.save();
+    this.logger.log(
+      `Stored credential ${(saved as any)._id} for provider ${dto.provider}`,
+    );
 
-    this.logger.log(`Stored credential ${saved._id} for provider ${dto.provider}`);
-
-    return { id: saved._id.toString(), provider: dto.provider };
+    return { id: (saved as any)._id.toString(), provider: dto.provider };
   }
 
   async getCredential(
     userId: string,
     provider: CredentialProvider,
   ): Promise<string | null> {
-    const credential = await this.credentialModel
-      .findOne({
-        userId,
-        provider,
-        status: CredentialStatus.ACTIVE,
-      })
-      .exec();
+    const credential = await this.credentialRepo.findOne({
+      userId,
+      provider,
+      status: CredentialStatus.ACTIVE,
+    });
 
     if (!credential) return null;
 
     if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
       this.logger.warn(`Credential for ${provider} has expired`);
-      await this.credentialModel
-        .findByIdAndUpdate(credential._id, { status: CredentialStatus.EXPIRED })
-        .exec();
+      await this.credentialRepo.update((credential as any)._id.toString(), {
+        status: CredentialStatus.EXPIRED,
+      });
       return null;
     }
 
-    await this.credentialModel
-      .findByIdAndUpdate(credential._id, { lastUsedAt: new Date() })
-      .exec();
+    await this.credentialRepo.update((credential as any)._id.toString(), {
+      lastUsedAt: new Date(),
+    });
 
     return this.decrypt(credential.encryptedToken);
   }
 
   async getCredentialById(credentialId: string): Promise<string | null> {
     try {
-      const credential = await this.credentialModel.findById(credentialId).exec();
+      const credential = await this.credentialRepo.findById(credentialId);
       if (!credential) return null;
 
       if (credential.tokenExpiresAt && credential.tokenExpiresAt < new Date()) {
         return null;
       }
 
-      await this.credentialModel
-        .findByIdAndUpdate(credentialId, { lastUsedAt: new Date() })
-        .exec();
+      await this.credentialRepo.update(credentialId, {
+        lastUsedAt: new Date(),
+      });
 
       return this.decrypt(credential.encryptedToken);
     } catch {
@@ -106,13 +119,13 @@ export class CredentialManagerService {
       expiresAt?: Date;
     }>
   > {
-    const credentials = await this.credentialModel
-      .find({ userId })
-      .select('-encryptedToken -encryptedRefreshToken')
-      .exec();
+    const credentials = await this.credentialRepo.find(
+      { userId },
+      { select: '-encryptedToken -encryptedRefreshToken' },
+    );
 
     return credentials.map((cred) => ({
-      id: cred._id.toString(),
+      id: (cred as any)._id.toString(),
       provider: cred.provider as unknown as CredentialProvider,
       tokenType: 'api_key',
       createdAt: cred.createdAt || new Date(),
@@ -121,11 +134,15 @@ export class CredentialManagerService {
     }));
   }
 
-  async deleteCredential(userId: string, credentialId: string): Promise<boolean> {
+  async deleteCredential(
+    userId: string,
+    credentialId: string,
+  ): Promise<boolean> {
     try {
-      const result = await this.credentialModel
-        .findOneAndDelete({ _id: credentialId, userId })
-        .exec();
+      const result = await this.credentialRepo.findOneAndDelete({
+        _id: credentialId,
+        userId,
+      });
 
       if (result) {
         this.logger.log(`Deleted credential ${credentialId}`);
@@ -143,15 +160,13 @@ export class CredentialManagerService {
     newToken: string,
   ): Promise<boolean> {
     try {
-      const result = await this.credentialModel
-        .findOneAndUpdate(
-          { _id: credentialId, userId },
-          {
-            encryptedToken: this.encrypt(newToken),
-            updatedAt: new Date(),
-          },
-        )
-        .exec();
+      const result = await this.credentialRepo.findOneAndUpdate(
+        { _id: credentialId, userId },
+        {
+          encryptedToken: this.encrypt(newToken),
+          updatedAt: new Date(),
+        },
+      );
 
       if (result) {
         this.logger.log(`Rotated credential ${credentialId}`);
@@ -165,11 +180,13 @@ export class CredentialManagerService {
 
   async shouldRotate(credentialId: string): Promise<boolean> {
     try {
-      const credential = await this.credentialModel.findById(credentialId).exec();
+      const credential = await this.credentialRepo.findById(credentialId);
       if (!credential) return false;
 
-      const rotationInterval = (credential.rotationDays || 90) * 24 * 60 * 60 * 1000;
-      const lastRotation = credential.updatedAt || credential.createdAt || new Date();
+      const rotationInterval =
+        (credential.rotationDays || 90) * 24 * 60 * 60 * 1000;
+      const lastRotation =
+        credential.updatedAt || credential.createdAt || new Date();
       return Date.now() - lastRotation.getTime() > rotationInterval;
     } catch {
       return false;
@@ -201,7 +218,10 @@ export class CredentialManagerService {
     }
   }
 
-  ensureGitignore(projectPath: string, additionalSecrets?: string[]): GitIgnoreEntry[] {
+  ensureGitignore(
+    projectPath: string,
+    additionalSecrets?: string[],
+  ): GitIgnoreEntry[] {
     const entries = [...DEFAULT_GITIGNORE_SECRETS];
 
     if (additionalSecrets) {
@@ -233,8 +253,12 @@ export class CredentialManagerService {
   }
 
   private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(this.algorithm, this.encryptionKey, iv);
+    const iv = crypto.randomBytes(ENCRYPTION_DEFAULTS.ivLength);
+    const cipher = crypto.createCipheriv(
+      this.algorithm,
+      this.encryptionKey,
+      iv,
+    );
 
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -250,7 +274,11 @@ export class CredentialManagerService {
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
 
-    const decipher = crypto.createDecipheriv(this.algorithm, this.encryptionKey, iv);
+    const decipher = crypto.createDecipheriv(
+      this.algorithm,
+      this.encryptionKey,
+      iv,
+    );
     decipher.setAuthTag(authTag);
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
@@ -292,11 +320,14 @@ export class CredentialManagerService {
     error?: string;
   }> {
     try {
-      const response = await fetch('https://console.neon.tech/api/v2/projects', {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        'https://console.neon.tech/api/v2/projects',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         return { valid: false, error: 'Invalid Neon token' };

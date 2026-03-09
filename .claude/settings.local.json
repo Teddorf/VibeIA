@@ -35,7 +35,9 @@
       "Read(.claude/update-docs-config.json)",
       "Edit(.claude/update-docs-config.json)",
       "Write(.claude/update-docs-config.json)",
-      "SlashCommand(/context_check)"
+      "SlashCommand(/context_check)",
+      "Bash(node -e:*)",
+      "Bash(git merge-base:*)"
     ],
     "deny": [],
     "ask": []

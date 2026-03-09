@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { documentationApi } from '@/lib/api-client';
+import { splitLines } from '@/lib/platform';
 
 type DocumentationType = 'readme' | 'architecture' | 'changelog' | 'adr' | 'diagram';
 type DiagramType = 'sequence' | 'flowchart' | 'erd' | 'class';
@@ -99,8 +100,8 @@ export function DocumentationGenerator({ projectId }: { projectId?: string }) {
         context: adrContext,
         decision: adrDecision,
         consequences: {
-          positive: adrPositive.split('\n').filter((s) => s.trim()),
-          negative: adrNegative.split('\n').filter((s) => s.trim()),
+          positive: splitLines(adrPositive).filter((s) => s.trim()),
+          negative: splitLines(adrNegative).filter((s) => s.trim()),
         },
       });
       setGeneratedContent(result.content);
@@ -115,17 +116,21 @@ export function DocumentationGenerator({ projectId }: { projectId?: string }) {
     setLoading(true);
     try {
       // Parse entities (format: "name:type" per line)
-      const entities = diagramEntities.split('\n').filter((s) => s.trim()).map((line) => {
-        const [name, type] = line.split(':').map((s) => s.trim());
-        return { name, type: type || 'service' };
-      });
+      const entities = splitLines(diagramEntities)
+        .filter((s) => s.trim())
+        .map((line) => {
+          const [name, type] = line.split(':').map((s) => s.trim());
+          return { name, type: type || 'service' };
+        });
 
       // Parse connections (format: "from->to:label" per line)
-      const relationships = diagramConnections.split('\n').filter((s) => s.trim()).map((line) => {
-        const [connection, label] = line.split(':').map((s) => s.trim());
-        const [from, to] = connection.split('->').map((s) => s.trim());
-        return { from, to, label };
-      });
+      const relationships = splitLines(diagramConnections)
+        .filter((s) => s.trim())
+        .map((line) => {
+          const [connection, label] = line.split(':').map((s) => s.trim());
+          const [from, to] = connection.split('->').map((s) => s.trim());
+          return { from, to, label };
+        });
 
       const result = await documentationApi.generateDiagram({
         projectId: projectId || 'temp',
@@ -164,22 +169,24 @@ export function DocumentationGenerator({ projectId }: { projectId?: string }) {
     <div className="bg-white rounded-lg shadow-md">
       <div className="border-b">
         <div className="flex">
-          {(['readme', 'architecture', 'changelog', 'adr', 'diagram'] as DocumentationType[]).map((tab) => (
-            <button
-              key={tab}
-              className={`px-4 py-3 text-sm font-medium capitalize ${
-                activeTab === tab
-                  ? 'border-b-2 border-blue-500 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-              onClick={() => {
-                setActiveTab(tab);
-                setGeneratedContent(null);
-              }}
-            >
-              {tab === 'adr' ? 'ADR' : tab}
-            </button>
-          ))}
+          {(['readme', 'architecture', 'changelog', 'adr', 'diagram'] as DocumentationType[]).map(
+            (tab) => (
+              <button
+                key={tab}
+                className={`px-4 py-3 text-sm font-medium capitalize ${
+                  activeTab === tab
+                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+                onClick={() => {
+                  setActiveTab(tab);
+                  setGeneratedContent(null);
+                }}
+              >
+                {tab === 'adr' ? 'ADR' : tab}
+              </button>
+            ),
+          )}
         </div>
       </div>
 

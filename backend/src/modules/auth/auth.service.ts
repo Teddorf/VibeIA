@@ -1,8 +1,18 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService, CreateUserDto } from '../users/users.service';
 import { UserDocument } from '../users/user.schema';
-import { LoginDto, RegisterDto, TokenResponse, JwtPayload } from './dto/auth.dto';
+import { ACCESS_TOKEN_EXPIRY, REFRESH_TOKEN_EXPIRY } from './auth.constants';
+import {
+  LoginDto,
+  RegisterDto,
+  TokenResponse,
+  JwtPayload,
+} from './dto/auth.dto';
 
 // Re-export for backward compatibility
 export { LoginDto, RegisterDto } from './dto/auth.dto';
@@ -13,7 +23,7 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
-  ) { }
+  ) {}
 
   async register(registerDto: RegisterDto): Promise<TokenResponse> {
     // Validate input
@@ -62,7 +72,10 @@ export class AuthService {
     }
 
     // Validate password
-    const isPasswordValid = await this.usersService.validatePassword(password, user.password);
+    const isPasswordValid = await this.usersService.validatePassword(
+      password,
+      user.password,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -74,9 +87,13 @@ export class AuthService {
     return this.generateTokens(user);
   }
 
-  async refreshTokens(userId: string, refreshToken: string): Promise<TokenResponse> {
+  async refreshTokens(
+    userId: string,
+    refreshToken: string,
+  ): Promise<TokenResponse> {
     // IDOR Prevention: First verify the token exists and get its owner
-    const tokenOwner = await this.usersService.findRefreshTokenOwner(refreshToken);
+    const tokenOwner =
+      await this.usersService.findRefreshTokenOwner(refreshToken);
 
     if (!tokenOwner) {
       throw new UnauthorizedException('Invalid refresh token');
@@ -88,7 +105,10 @@ export class AuthService {
     }
 
     // Validate refresh token (additional validation)
-    const isValid = await this.usersService.validateRefreshToken(userId, refreshToken);
+    const isValid = await this.usersService.validateRefreshToken(
+      userId,
+      refreshToken,
+    );
     if (!isValid) {
       throw new UnauthorizedException('Invalid refresh token');
     }
@@ -124,15 +144,18 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: '15m',
+      expiresIn: ACCESS_TOKEN_EXPIRY,
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: '7d',
+      expiresIn: REFRESH_TOKEN_EXPIRY,
     });
 
     // Store refresh token hash
-    await this.usersService.updateRefreshToken(user._id.toString(), refreshToken);
+    await this.usersService.updateRefreshToken(
+      user._id.toString(),
+      refreshToken,
+    );
 
     return {
       accessToken,
@@ -234,7 +257,8 @@ export class AuthService {
   }
 
   private generateSecurePassword(): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    const chars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
     let password = '';
     for (let i = 0; i < 32; i++) {
       password += chars.charAt(Math.floor(Math.random() * chars.length));

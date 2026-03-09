@@ -1,9 +1,11 @@
 ﻿'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { projectsApi, executionApi } from '@/lib/api-client';
+import { PlanEditor, Plan } from './PlanEditor';
+import { Edit2, ArrowLeft } from 'lucide-react';
 
 type WizardData = {
   stage1?: { projectName: string; description: string };
@@ -14,16 +16,27 @@ type WizardData = {
 export function Stage4ExecutionPreview({
   wizardData,
   onBack,
-  onStartExecution
+  onStartExecution,
 }: {
   wizardData: WizardData;
   onBack: () => void;
   onStartExecution: (projectId: string, planId: string) => void;
 }) {
   const { stage1, stage2, stage3 } = wizardData;
-  const plan = stage3?.plan;
+  const autoExecute = (wizardData as any).autoExecute === true;
+  const [plan, setPlan] = useState(stage3?.plan);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const autoStartedRef = useRef(false);
+
+  // Auto-execute: skip preview and start immediately
+  useEffect(() => {
+    if (autoExecute && !autoStartedRef.current && stage1 && plan) {
+      autoStartedRef.current = true;
+      handleStart();
+    }
+  }, [autoExecute]);
 
   const handleStart = async () => {
     if (!stage1 || !plan) return;
@@ -33,10 +46,7 @@ export function Stage4ExecutionPreview({
 
     try {
       // 1. Create Project (userId is now taken from auth token on backend)
-      const project = await projectsApi.create(
-        stage1.projectName,
-        stage1.description
-      );
+      const project = await projectsApi.create(stage1.projectName, stage1.description);
 
       // 2. Start Execution
       // Note: In a real app, we would associate the plan with the project here if not already done
@@ -45,7 +55,6 @@ export function Stage4ExecutionPreview({
 
       // 3. Navigate to Execution View (handled by parent)
       onStartExecution(project._id, plan._id);
-
     } catch (err: any) {
       console.error('Failed to start execution:', err);
       setError(err.message || 'Failed to start execution. Please try again.');
@@ -54,13 +63,42 @@ export function Stage4ExecutionPreview({
     }
   };
 
+  const handleSavePlan = (updatedPlan: Plan) => {
+    setPlan({
+      ...plan,
+      ...updatedPlan,
+    });
+    setIsEditMode(false);
+  };
+
+  // Edit mode view
+  if (isEditMode && plan) {
+    return (
+      <Card className="w-full max-w-4xl mx-auto">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-2xl">Editar Plan</CardTitle>
+              <CardDescription>Modifica las fases y tareas del plan</CardDescription>
+            </div>
+            <Button variant="outline" onClick={() => setIsEditMode(false)}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Volver a Vista Previa
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <PlanEditor plan={plan} onSave={handleSavePlan} />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
         <CardTitle className="text-3xl">Stage 4: Ready to Execute</CardTitle>
-        <CardDescription>
-          Review your project plan before we start building
-        </CardDescription>
+        <CardDescription>Review your project plan before we start building</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Project Overview */}
@@ -73,14 +111,15 @@ export function Stage4ExecutionPreview({
         <div className="border rounded-lg p-4">
           <h4 className="font-semibold mb-3">📋 Business Requirements</h4>
           <div className="grid gap-2 text-sm">
-            {stage2 && Object.entries(stage2).map(([key, value]) => (
-              <div key={key} className="flex gap-2">
-                <span className="font-medium text-muted-foreground min-w-[150px]">
-                  {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
-                </span>
-                <span>{value}</span>
-              </div>
-            ))}
+            {stage2 &&
+              Object.entries(stage2).map(([key, value]) => (
+                <div key={key} className="flex gap-2">
+                  <span className="font-medium text-muted-foreground min-w-[150px]">
+                    {key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}:
+                  </span>
+                  <span>{value}</span>
+                </div>
+              ))}
           </div>
         </div>
 
@@ -88,7 +127,7 @@ export function Stage4ExecutionPreview({
         <div className="border rounded-lg p-4">
           <h4 className="font-semibold mb-3">🏗️ Architecture Patterns</h4>
           <div className="flex flex-wrap gap-2">
-            {stage3?.selectedArchetypes.map(archetype => (
+            {stage3?.selectedArchetypes.map((archetype) => (
               <span
                 key={archetype}
                 className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium"
@@ -104,9 +143,15 @@ export function Stage4ExecutionPreview({
           <div className="border rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold">📅 Execution Plan</h4>
-              <span className="text-sm font-medium text-primary">
-                Total: {plan.estimatedTime} min (~{Math.round(plan.estimatedTime / 60)} hours)
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-primary">
+                  Total: {plan.estimatedTime} min (~{Math.round(plan.estimatedTime / 60)} hours)
+                </span>
+                <Button variant="outline" size="sm" onClick={() => setIsEditMode(true)}>
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  Editar Plan
+                </Button>
+              </div>
             </div>
             <div className="space-y-3">
               {plan.phases.map((phase: any, idx: number) => (
@@ -125,7 +170,9 @@ export function Stage4ExecutionPreview({
 
         {/* What Happens Next */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-semibold text-blue-900 mb-2">🚀 What happens when you click Start?</h4>
+          <h4 className="font-semibold text-blue-900 mb-2">
+            🚀 What happens when you click Start?
+          </h4>
           <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
             <li>We'll create a new Git repository for your project</li>
             <li>Generate code for each task using AI (Claude/GPT-4)</li>

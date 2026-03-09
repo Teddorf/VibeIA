@@ -16,8 +16,9 @@ import {
   UpdateLLMPreferencesDto,
   LLM_PROVIDERS_INFO,
 } from './users.service';
+import { LLM_DEFAULTS } from '../../config/defaults';
 
-@Controller('users')
+@Controller('api/users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -34,7 +35,9 @@ export class UsersController {
       return null;
     }
 
-    const hasLLMConfigured = await this.usersService.hasLLMConfigured(req.user.userId);
+    const hasLLMConfigured = await this.usersService.hasLLMConfigured(
+      req.user.userId,
+    );
 
     return {
       id: user._id,
@@ -53,10 +56,7 @@ export class UsersController {
    * Update current user's profile
    */
   @Patch('me/profile')
-  async updateMyProfile(
-    @Request() req: any,
-    @Body() dto: { name?: string },
-  ) {
+  async updateMyProfile(@Request() req: any, @Body() dto: { name?: string }) {
     const user = await this.usersService.update(req.user.userId, dto);
     return {
       id: user._id,
@@ -92,8 +92,12 @@ export class UsersController {
   @Get('me/llm/keys')
   async getMyLLMKeys(@Request() req: any) {
     const keys = await this.usersService.getLLMApiKeysStatus(req.user.userId);
-    const preferences = await this.usersService.getLLMPreferences(req.user.userId);
-    const hasAnyConfigured = await this.usersService.hasLLMConfigured(req.user.userId);
+    const preferences = await this.usersService.getLLMPreferences(
+      req.user.userId,
+    );
+    const hasAnyConfigured = await this.usersService.hasLLMConfigured(
+      req.user.userId,
+    );
 
     return {
       keys,
@@ -115,7 +119,10 @@ export class UsersController {
    * Remove an LLM API key
    */
   @Delete('me/llm/keys/:provider')
-  async removeMyLLMKey(@Request() req: any, @Param('provider') provider: string) {
+  async removeMyLLMKey(
+    @Request() req: any,
+    @Param('provider') provider: string,
+  ) {
     await this.usersService.removeLLMApiKey(req.user.userId, provider);
     return { success: true, message: `API key for ${provider} removed` };
   }
@@ -129,7 +136,11 @@ export class UsersController {
     @Param('provider') provider: string,
     @Body('isActive') isActive: boolean,
   ) {
-    await this.usersService.toggleLLMApiKey(req.user.userId, provider, isActive);
+    await this.usersService.toggleLLMApiKey(
+      req.user.userId,
+      provider,
+      isActive,
+    );
     return { success: true, isActive };
   }
 
@@ -176,8 +187,8 @@ export class UsersController {
           const Anthropic = require('@anthropic-ai/sdk').default;
           const anthropic = new Anthropic({ apiKey });
           await anthropic.messages.create({
-            model: 'claude-3-haiku-20240307',
-            max_tokens: 10,
+            model: LLM_DEFAULTS.anthropic.validationModel,
+            max_tokens: LLM_DEFAULTS.anthropic.maxTokensValidation,
             messages: [{ role: 'user', content: 'Hi' }],
           });
           break;
@@ -186,8 +197,8 @@ export class UsersController {
           const OpenAI = require('openai').default;
           const openai = new OpenAI({ apiKey });
           await openai.chat.completions.create({
-            model: 'gpt-3.5-turbo',
-            max_tokens: 10,
+            model: LLM_DEFAULTS.openai.validationModel,
+            max_tokens: LLM_DEFAULTS.openai.maxTokensValidation,
             messages: [{ role: 'user', content: 'Hi' }],
           });
           break;
@@ -195,8 +206,20 @@ export class UsersController {
         case 'gemini':
           const { GoogleGenerativeAI } = require('@google/generative-ai');
           const genAI = new GoogleGenerativeAI(apiKey);
-          const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-          await model.generateContent('Hi');
+          // Use gemini-2.0-flash (current model) with fallback to gemini-pro
+          let geminiModel;
+          try {
+            geminiModel = genAI.getGenerativeModel({
+              model: LLM_DEFAULTS.gemini.planModel,
+            });
+            await geminiModel.generateContent('Hi');
+          } catch {
+            // Fallback to gemini-pro if flash not available
+            geminiModel = genAI.getGenerativeModel({
+              model: LLM_DEFAULTS.gemini.fallbackModel,
+            });
+            await geminiModel.generateContent('Hi');
+          }
           break;
 
         default:
@@ -217,7 +240,9 @@ export class UsersController {
    */
   @Get('me/llm/setup-required')
   async checkSetupRequired(@Request() req: any) {
-    const hasConfigured = await this.usersService.hasLLMConfigured(req.user.userId);
+    const hasConfigured = await this.usersService.hasLLMConfigured(
+      req.user.userId,
+    );
     return {
       setupRequired: !hasConfigured,
       message: hasConfigured

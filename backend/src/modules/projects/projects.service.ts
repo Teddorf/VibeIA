@@ -1,27 +1,37 @@
-import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import {
+  Injectable,
+  UnauthorizedException,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+} from '@nestjs/common';
 import { Project, ProjectDocument } from '../../schemas/project.schema';
 import { GitService } from '../git/git.service';
 import { CodebaseAnalysisService } from '../codebase-analysis/codebase-analysis.service';
 import { UsersService } from '../users/users.service';
-import { ImportProjectDto, ImportedProjectMetadata } from './dto/import-project.dto';
+import {
+  ImportProjectDto,
+  ImportedProjectMetadata,
+} from './dto/import-project.dto';
+import { IRepository } from '../../providers/interfaces/database-provider.interface';
+import { PROJECT_REPOSITORY } from '../../providers/repository-tokens';
 
 @Injectable()
 export class ProjectsService {
   constructor(
-    @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
+    @Inject(PROJECT_REPOSITORY)
+    private readonly projectRepo: IRepository<Project>,
     private gitService: GitService,
     private codebaseAnalysisService: CodebaseAnalysisService,
     private usersService: UsersService,
-  ) { }
+  ) {}
 
   async createProject(userId: string, name: string, description: string) {
     // 1. Create GitHub Repository
     const repo = await this.gitService.createRepository(name, description);
 
     // 2. Save Project to DB
-    const project = new this.projectModel({
+    return this.projectRepo.create({
       name,
       description,
       ownerId: userId,
@@ -29,14 +39,12 @@ export class ProjectsService {
       githubRepoId: repo.id.toString(),
       status: 'active',
     });
-
-    return project.save();
   }
 
   async importFromGitHub(
     userId: string,
     importDto: ImportProjectDto,
-  ): Promise<ProjectDocument> {
+  ): Promise<Project> {
     // 1. Verify user has GitHub connected
     const accessToken = await this.usersService.getGitHubAccessToken(userId);
     if (!accessToken) {
@@ -54,7 +62,7 @@ export class ProjectsService {
     }
 
     // 3. Check if project already exists
-    const existingProject = await this.projectModel.findOne({
+    const existingProject = await this.projectRepo.findOne({
       ownerId: userId,
       'metadata.githubOwner': owner,
       githubRepoId: { $exists: true },
@@ -93,7 +101,7 @@ export class ProjectsService {
     };
 
     // 7. Create project in DB
-    const project = new this.projectModel({
+    return this.projectRepo.create({
       name: importDto.name || repoDetails.name,
       description: importDto.description || repoDetails.description || '',
       ownerId: userId,
@@ -101,14 +109,11 @@ export class ProjectsService {
       githubRepoId: repoDetails.id.toString(),
       status: 'active',
       metadata,
-    });
-
-    return project.save();
+    } as Partial<Project>);
   }
 
-  async resyncProject(projectId: string, userId: string): Promise<ProjectDocument> {
-    // Find the project
-    const project = await this.projectModel.findById(projectId);
+  async resyncProject(projectId: string, userId: string): Promise<Project> {
+    const project = await this.projectRepo.findById(projectId);
     if (!project) {
       throw new NotFoundException('Project not found');
     }
@@ -117,23 +122,19 @@ export class ProjectsService {
       throw new UnauthorizedException('Not authorized to sync this project');
     }
 
-    // Check if it's an imported project
     if (!project.metadata?.imported) {
       throw new BadRequestException('Only imported projects can be resynced');
     }
 
-    // Get user's GitHub token
     const accessToken = await this.usersService.getGitHubAccessToken(userId);
     if (!accessToken) {
       throw new UnauthorizedException('GitHub not connected');
     }
 
-    // Get owner from metadata
     const owner = project.metadata.githubOwner;
     const repoName = project.name;
     const branch = project.metadata.originalBranch;
 
-    // Re-analyze the codebase
     this.codebaseAnalysisService.clearCache(owner, repoName);
     const analysis = await this.codebaseAnalysisService.analyzeRepository(
       owner,
@@ -142,22 +143,27 @@ export class ProjectsService {
       branch,
     );
 
-    // Update project metadata
-    project.metadata = {
-      ...project.metadata,
-      analysis,
-      lastSyncedAt: new Date(),
-    };
+    const updatedProject = await this.projectRepo.update(projectId, {
+      metadata: {
+        ...project.metadata,
+        analysis,
+        lastSyncedAt: new Date(),
+      },
+    });
 
-    return project.save();
+    if (!updatedProject) {
+      throw new NotFoundException('Project not found during update');
+    }
+
+    return updatedProject;
   }
 
   async findAll(userId: string) {
-    return this.projectModel.find({ ownerId: userId }).exec();
+    return this.projectRepo.find({ ownerId: userId });
   }
 
   async findOne(id: string, userId: string) {
-    const project = await this.projectModel.findById(id).exec();
+    const project = await this.projectRepo.findById(id);
     if (!project) {
       throw new NotFoundException('Project not found');
     }
@@ -170,16 +176,18 @@ export class ProjectsService {
   }
 
   async findImportedProjects(userId: string) {
-    return this.projectModel
-      .find({
-        ownerId: userId,
-        'metadata.imported': true,
-      })
-      .exec();
+    return this.projectRepo.find({
+      ownerId: userId,
+      'metadata.imported': true,
+    });
   }
 
-  async update(id: string, userId: string, updateData: Partial<Project>): Promise<ProjectDocument> {
-    const project = await this.projectModel.findById(id);
+  async update(
+    id: string,
+    userId: string,
+    updateData: Partial<Project>,
+  ): Promise<Project> {
+    const project = await this.projectRepo.findById(id);
     if (!project) {
       throw new NotFoundException('Project not found');
     }
@@ -188,21 +196,23 @@ export class ProjectsService {
       throw new UnauthorizedException('Not authorized to update this project');
     }
 
-    // Only allow updating certain fields
     const allowedUpdates = ['name', 'description', 'status'];
-    const filteredData: Partial<Project> = {};
+    const filteredData: Record<string, any> = {};
     for (const key of allowedUpdates) {
-      if (updateData[key] !== undefined) {
-        filteredData[key] = updateData[key];
+      if ((updateData as any)[key] !== undefined) {
+        filteredData[key] = (updateData as any)[key];
       }
     }
 
-    Object.assign(project, filteredData);
-    return project.save();
+    const updated = await this.projectRepo.update(id, filteredData);
+    if (!updated) {
+      throw new NotFoundException('Project not found during update');
+    }
+    return updated;
   }
 
   async delete(id: string, userId: string): Promise<void> {
-    const project = await this.projectModel.findById(id);
+    const project = await this.projectRepo.findById(id);
     if (!project) {
       throw new NotFoundException('Project not found');
     }
@@ -211,6 +221,6 @@ export class ProjectsService {
       throw new UnauthorizedException('Not authorized to delete this project');
     }
 
-    await this.projectModel.findByIdAndDelete(id);
+    await this.projectRepo.delete(id);
   }
 }

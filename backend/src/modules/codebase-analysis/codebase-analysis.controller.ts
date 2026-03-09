@@ -9,10 +9,13 @@ import {
 } from '@nestjs/common';
 import { CodebaseAnalysisService } from './codebase-analysis.service';
 import { UsersService } from '../users/users.service';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 import { CodebaseAnalysis } from './dto/analysis-result.dto';
 
-@Controller('codebase-analysis')
+@Controller('api/codebase-analysis')
 export class CodebaseAnalysisController {
   constructor(
     private readonly analysisService: CodebaseAnalysisService,
@@ -44,7 +47,12 @@ export class CodebaseAnalysisController {
     @Query('branch') branch?: string,
   ): Promise<CodebaseAnalysis> {
     const accessToken = await this.getAccessToken(user.userId);
-    return this.analysisService.analyzeRepository(owner, repo, accessToken, branch);
+    return this.analysisService.analyzeRepository(
+      owner,
+      repo,
+      accessToken,
+      branch,
+    );
   }
 
   /**
@@ -61,7 +69,12 @@ export class CodebaseAnalysisController {
   ): Promise<CodebaseAnalysis> {
     const accessToken = await this.getAccessToken(user.userId);
     // This will return cached if available, or analyze if not
-    return this.analysisService.analyzeRepository(owner, repo, accessToken, branch);
+    return this.analysisService.analyzeRepository(
+      owner,
+      repo,
+      accessToken,
+      branch,
+    );
   }
 
   /**

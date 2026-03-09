@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { splitLines } from '../../platform';
+import { QUALITY_GATE_DEFAULTS, LINT_DEFAULTS } from '../../config/defaults';
 
 export interface QualityCheckResult {
   passed: boolean;
@@ -25,16 +27,11 @@ export interface QualityGateResult {
 
 @Injectable()
 export class QualityGatesService {
-  private readonly thresholds = {
-    lint: { minScore: 80 },
-    security: { minScore: 90 },
-    test: { minScore: 70 },
-    coverage: { minScore: 60 },
-  };
+  private readonly thresholds = QUALITY_GATE_DEFAULTS;
 
   async runAllChecks(
     files: { path: string; content: string }[],
-    options?: { skipTests?: boolean }
+    options?: { skipTests?: boolean },
   ): Promise<QualityGateResult> {
     const checks: QualityCheckResult[] = [];
 
@@ -53,11 +50,12 @@ export class QualityGatesService {
     }
 
     // Calculate overall result
-    const blockers = checks.flatMap(c =>
-      c.issues.filter(i => i.severity === 'error')
+    const blockers = checks.flatMap((c) =>
+      c.issues.filter((i) => i.severity === 'error'),
     );
-    const overallScore = checks.reduce((sum, c) => sum + c.score, 0) / checks.length;
-    const passed = checks.every(c => c.passed) && blockers.length === 0;
+    const overallScore =
+      checks.reduce((sum, c) => sum + c.score, 0) / checks.length;
+    const passed = checks.every((c) => c.passed) && blockers.length === 0;
 
     return {
       passed,
@@ -67,17 +65,22 @@ export class QualityGatesService {
     };
   }
 
-  async runLintCheck(files: { path: string; content: string }[]): Promise<QualityCheckResult> {
+  async runLintCheck(
+    files: { path: string; content: string }[],
+  ): Promise<QualityCheckResult> {
     const issues: QualityIssue[] = [];
 
     for (const file of files) {
       // Check for common lint issues
-      const lines = file.content.split('\n');
+      const lines = splitLines(file.content);
 
       lines.forEach((line, idx) => {
         // Check for console.log statements (except in test files)
         if (!file.path.includes('.test.') && !file.path.includes('.spec.')) {
-          if (line.includes('console.log(') || line.includes('console.error(')) {
+          if (
+            line.includes('console.log(') ||
+            line.includes('console.error(')
+          ) {
             issues.push({
               severity: 'warning',
               file: file.path,
@@ -100,12 +103,12 @@ export class QualityGatesService {
         }
 
         // Check for very long lines
-        if (line.length > 120) {
+        if (line.length > LINT_DEFAULTS.maxLineLength) {
           issues.push({
             severity: 'warning',
             file: file.path,
             line: idx + 1,
-            message: `Line exceeds 120 characters (${line.length})`,
+            message: `Line exceeds ${LINT_DEFAULTS.maxLineLength} characters (${line.length})`,
             rule: 'max-line-length',
           });
         }
@@ -123,12 +126,18 @@ export class QualityGatesService {
       });
 
       // TypeScript/JavaScript specific checks
-      if (file.path.endsWith('.ts') || file.path.endsWith('.tsx') ||
-          file.path.endsWith('.js') || file.path.endsWith('.jsx')) {
-
+      if (
+        file.path.endsWith('.ts') ||
+        file.path.endsWith('.tsx') ||
+        file.path.endsWith('.js') ||
+        file.path.endsWith('.jsx')
+      ) {
         // Check for 'any' type usage
         const anyMatches = file.content.match(/:\s*any\b/g);
-        if (anyMatches && anyMatches.length > 3) {
+        if (
+          anyMatches &&
+          anyMatches.length > LINT_DEFAULTS.maxAnyTypeOccurrences
+        ) {
           issues.push({
             severity: 'warning',
             file: file.path,
@@ -149,9 +158,9 @@ export class QualityGatesService {
       }
     }
 
-    const errorCount = issues.filter(i => i.severity === 'error').length;
-    const warningCount = issues.filter(i => i.severity === 'warning').length;
-    const score = Math.max(0, 100 - (errorCount * 20) - (warningCount * 5));
+    const errorCount = issues.filter((i) => i.severity === 'error').length;
+    const warningCount = issues.filter((i) => i.severity === 'warning').length;
+    const score = Math.max(0, 100 - errorCount * 20 - warningCount * 5);
     const passed = score >= this.thresholds.lint.minScore && errorCount === 0;
 
     return {
@@ -163,17 +172,28 @@ export class QualityGatesService {
     };
   }
 
-  async runSecurityCheck(files: { path: string; content: string }[]): Promise<QualityCheckResult> {
+  async runSecurityCheck(
+    files: { path: string; content: string }[],
+  ): Promise<QualityCheckResult> {
     const issues: QualityIssue[] = [];
 
     for (const file of files) {
       // Check for hardcoded secrets
       const secretPatterns = [
         { pattern: /['"]sk-[a-zA-Z0-9]{32,}['"]/, name: 'OpenAI API Key' },
-        { pattern: /['"]ghp_[a-zA-Z0-9]{36}['"]/, name: 'GitHub Personal Access Token' },
+        {
+          pattern: /['"]ghp_[a-zA-Z0-9]{36}['"]/,
+          name: 'GitHub Personal Access Token',
+        },
         { pattern: /['"]AKIA[0-9A-Z]{16}['"]/, name: 'AWS Access Key' },
-        { pattern: /password\s*[=:]\s*['"][^'"]{4,}['"]/, name: 'Hardcoded Password' },
-        { pattern: /api[_-]?key\s*[=:]\s*['"][^'"]{8,}['"]/, name: 'Hardcoded API Key' },
+        {
+          pattern: /password\s*[=:]\s*['"][^'"]{4,}['"]/,
+          name: 'Hardcoded Password',
+        },
+        {
+          pattern: /api[_-]?key\s*[=:]\s*['"][^'"]{8,}['"]/,
+          name: 'Hardcoded API Key',
+        },
       ];
 
       for (const { pattern, name } of secretPatterns) {
@@ -188,12 +208,15 @@ export class QualityGatesService {
       }
 
       // Check for SQL injection vulnerabilities
-      if (/query\s*\(\s*[`'"].*\$\{/.test(file.content) ||
-          /execute\s*\(\s*[`'"].*\+/.test(file.content)) {
+      if (
+        /query\s*\(\s*[`'"].*\$\{/.test(file.content) ||
+        /execute\s*\(\s*[`'"].*\+/.test(file.content)
+      ) {
         issues.push({
           severity: 'error',
           file: file.path,
-          message: 'Potential SQL injection vulnerability - use parameterized queries',
+          message:
+            'Potential SQL injection vulnerability - use parameterized queries',
           rule: 'sql-injection',
         });
       }
@@ -203,7 +226,8 @@ export class QualityGatesService {
         issues.push({
           severity: 'warning',
           file: file.path,
-          message: 'dangerouslySetInnerHTML usage - ensure content is sanitized',
+          message:
+            'dangerouslySetInnerHTML usage - ensure content is sanitized',
           rule: 'xss-vulnerability',
         });
       }
@@ -219,12 +243,17 @@ export class QualityGatesService {
       }
 
       // Check for insecure crypto
-      if (file.content.includes('Math.random()') &&
-          (file.path.includes('auth') || file.path.includes('token') || file.path.includes('crypto'))) {
+      if (
+        file.content.includes('Math.random()') &&
+        (file.path.includes('auth') ||
+          file.path.includes('token') ||
+          file.path.includes('crypto'))
+      ) {
         issues.push({
           severity: 'warning',
           file: file.path,
-          message: 'Math.random() used in security context - use crypto.randomBytes instead',
+          message:
+            'Math.random() used in security context - use crypto.randomBytes instead',
           rule: 'insecure-random',
         });
       }
@@ -234,16 +263,18 @@ export class QualityGatesService {
         issues.push({
           severity: 'warning',
           file: file.path,
-          message: 'Potential open redirect vulnerability - validate redirect URLs',
+          message:
+            'Potential open redirect vulnerability - validate redirect URLs',
           rule: 'open-redirect',
         });
       }
     }
 
-    const errorCount = issues.filter(i => i.severity === 'error').length;
-    const warningCount = issues.filter(i => i.severity === 'warning').length;
-    const score = Math.max(0, 100 - (errorCount * 30) - (warningCount * 10));
-    const passed = score >= this.thresholds.security.minScore && errorCount === 0;
+    const errorCount = issues.filter((i) => i.severity === 'error').length;
+    const warningCount = issues.filter((i) => i.severity === 'warning').length;
+    const score = Math.max(0, 100 - errorCount * 30 - warningCount * 10);
+    const passed =
+      score >= this.thresholds.security.minScore && errorCount === 0;
 
     return {
       passed,
@@ -254,25 +285,32 @@ export class QualityGatesService {
     };
   }
 
-  async runTestCheck(files: { path: string; content: string }[]): Promise<QualityCheckResult> {
+  async runTestCheck(
+    files: { path: string; content: string }[],
+  ): Promise<QualityCheckResult> {
     const issues: QualityIssue[] = [];
 
     // Check for test coverage by analyzing if test files exist
-    const sourceFiles = files.filter(f =>
-      (f.path.endsWith('.ts') || f.path.endsWith('.tsx')) &&
-      !f.path.includes('.test.') && !f.path.includes('.spec.') &&
-      !f.path.includes('index.')
+    const sourceFiles = files.filter(
+      (f) =>
+        (f.path.endsWith('.ts') || f.path.endsWith('.tsx')) &&
+        !f.path.includes('.test.') &&
+        !f.path.includes('.spec.') &&
+        !f.path.includes('index.'),
     );
 
-    const testFiles = files.filter(f =>
-      f.path.includes('.test.') || f.path.includes('.spec.')
+    const testFiles = files.filter(
+      (f) => f.path.includes('.test.') || f.path.includes('.spec.'),
     );
 
     // Analyze test quality
     for (const testFile of testFiles) {
       // Check for proper test structure
-      if (!testFile.content.includes('describe(') && !testFile.content.includes('it(') &&
-          !testFile.content.includes('test(')) {
+      if (
+        !testFile.content.includes('describe(') &&
+        !testFile.content.includes('it(') &&
+        !testFile.content.includes('test(')
+      ) {
         issues.push({
           severity: 'warning',
           file: testFile.path,
@@ -282,7 +320,10 @@ export class QualityGatesService {
       }
 
       // Check for assertions
-      if (!testFile.content.includes('expect(') && !testFile.content.includes('assert')) {
+      if (
+        !testFile.content.includes('expect(') &&
+        !testFile.content.includes('assert')
+      ) {
         issues.push({
           severity: 'error',
           file: testFile.path,
@@ -313,9 +354,10 @@ export class QualityGatesService {
     }
 
     // Calculate test coverage ratio
-    const coverageRatio = sourceFiles.length > 0
-      ? (testFiles.length / sourceFiles.length) * 100
-      : 100;
+    const coverageRatio =
+      sourceFiles.length > 0
+        ? (testFiles.length / sourceFiles.length) * 100
+        : 100;
 
     if (coverageRatio < 50 && sourceFiles.length > 0) {
       issues.push({
@@ -326,9 +368,12 @@ export class QualityGatesService {
       });
     }
 
-    const errorCount = issues.filter(i => i.severity === 'error').length;
-    const warningCount = issues.filter(i => i.severity === 'warning').length;
-    const score = Math.max(0, Math.min(100, coverageRatio - (errorCount * 20) - (warningCount * 5)));
+    const errorCount = issues.filter((i) => i.severity === 'error').length;
+    const warningCount = issues.filter((i) => i.severity === 'warning').length;
+    const score = Math.max(
+      0,
+      Math.min(100, coverageRatio - errorCount * 20 - warningCount * 5),
+    );
     const passed = score >= this.thresholds.test.minScore && errorCount === 0;
 
     return {
@@ -361,7 +406,9 @@ export class QualityGatesService {
       lines.push('───────────────────────────────────────────────────────────');
       lines.push('BLOCKING ISSUES:');
       for (const blocker of result.blockers) {
-        lines.push(`  ❌ [${blocker.file}${blocker.line ? `:${blocker.line}` : ''}] ${blocker.message}`);
+        lines.push(
+          `  ❌ [${blocker.file}${blocker.line ? `:${blocker.line}` : ''}] ${blocker.message}`,
+        );
       }
     }
 

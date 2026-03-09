@@ -6,6 +6,8 @@ import { GitModule } from '../git/git.module';
 import { CodebaseAnalysisModule } from '../codebase-analysis/codebase-analysis.module';
 import { UsersModule } from '../users/users.module';
 import { ProjectsController } from './projects.controller';
+import { createRepositoryProvider } from '../../providers/repository-providers.factory';
+import { PROJECT_REPOSITORY } from '../../providers/repository-tokens';
 
 @Module({
   imports: [
@@ -15,7 +17,10 @@ import { ProjectsController } from './projects.controller';
     UsersModule,
   ],
   controllers: [ProjectsController],
-  providers: [ProjectsService],
+  providers: [
+    ProjectsService,
+    createRepositoryProvider(PROJECT_REPOSITORY, Project.name),
+  ],
   exports: [ProjectsService],
 })
 export class ProjectsModule {}

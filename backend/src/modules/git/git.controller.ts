@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { GitService } from './git.service';
 import { UsersService } from '../users/users.service';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 import {
   ListReposResponse,
   RepositoryDetails,
@@ -16,7 +19,7 @@ import {
   BranchInfo,
 } from './dto/github.dto';
 
-@Controller('git')
+@Controller('api/git')
 export class GitController {
   constructor(
     private readonly gitService: GitService,
@@ -41,7 +44,9 @@ export class GitController {
    * List all repositories for the authenticated user
    */
   @Get('repos')
-  async listRepos(@CurrentUser() user: CurrentUserData): Promise<ListReposResponse> {
+  async listRepos(
+    @CurrentUser() user: CurrentUserData,
+  ): Promise<ListReposResponse> {
     const accessToken = await this.getAccessToken(user.userId);
     return this.gitService.listUserRepos(accessToken);
   }
@@ -124,6 +129,12 @@ export class GitController {
     @Query('branch') branch?: string,
   ): Promise<FileContent> {
     const accessToken = await this.getAccessToken(user.userId);
-    return this.gitService.getFileContent(owner, repo, path, accessToken, branch);
+    return this.gitService.getFileContent(
+      owner,
+      repo,
+      path,
+      accessToken,
+      branch,
+    );
   }
 }

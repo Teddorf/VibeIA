@@ -4,13 +4,14 @@
 
 ## 🚀 URLs de Producción
 
-| Servicio | URL | Estado |
-|----------|-----|--------|
-| **Frontend** | https://frontend-delta-drab-99.vercel.app | ✅ Live |
-| **Backend API** | https://vibeia.onrender.com | ✅ Live |
-| **Database** | MongoDB Atlas (cluster0.31tgodn.mongodb.net) | ✅ Conectado |
+| Servicio        | URL                                          | Estado       |
+| --------------- | -------------------------------------------- | ------------ |
+| **Frontend**    | https://frontend-delta-drab-99.vercel.app    | ✅ Live      |
+| **Backend API** | https://vibeia.onrender.com                  | ✅ Live      |
+| **Database**    | MongoDB Atlas (cluster0.31tgodn.mongodb.net) | ✅ Conectado |
 
 ### Links Rápidos
+
 - **Login**: https://frontend-delta-drab-99.vercel.app/login
 - **Register**: https://frontend-delta-drab-99.vercel.app/register
 - **Dashboard**: https://frontend-delta-drab-99.vercel.app/dashboard
@@ -25,6 +26,7 @@
 ## Stack Tecnológico
 
 ### Backend
+
 - **Framework**: NestJS 11 (Node.js)
 - **Lenguaje**: TypeScript 5.7
 - **Base de datos**: MongoDB Atlas (cloud)
@@ -36,7 +38,8 @@
 - **Hosting**: Render (free tier)
 
 ### Frontend
-- **Framework**: Next.js 15.1.3 (React 19, App Router)
+
+- **Framework**: Next.js 16.x (React 19, App Router)
 - **Lenguaje**: TypeScript 5
 - **Estilos**: Tailwind CSS v3.4.18, shadcn/ui (Radix)
 - **Estado**: React Context API (AuthContext)
@@ -46,6 +49,7 @@
 - **Hosting**: Vercel
 
 ### Infraestructura de Producción
+
 - **Frontend**: Vercel (gratis, CDN global)
 - **Backend**: Render (free tier, 750 hrs/mes)
 - **Database**: MongoDB Atlas (free tier, 512MB)
@@ -78,10 +82,10 @@ VibeIA/
 │           ├── error-handling/# Manejo de errores
 │           └── events/        # WebSocket gateway
 │
-├── frontend/                   # App Next.js
+├── vibeia/                     # App Next.js (Frontend)
 │   └── src/
 │       ├── app/               # App Router pages
-│       │   ├── (auth)/        # Login/Register
+│       │   ├── (auth)/        # Login/Register/OAuth callback
 │       │   ├── dashboard/     # Dashboard principal
 │       │   ├── new-project/   # Crear proyecto
 │       │   └── projects/      # Detalle proyecto
@@ -101,29 +105,44 @@ VibeIA/
 ## Módulos Principales
 
 ### Auth Module (`backend/src/modules/auth/`)
+
 - Autenticación JWT con access + refresh tokens
 - Password hashing con bcrypt
 - Guards globales con decorador `@Public()` para opt-out
 - Role-based access control con `@Roles()`
+- OAuth multi-proveedor (GitHub, Google, GitLab) con popup flow
 
 **Endpoints** (Base: `https://vibeia.onrender.com`):
+
 - `POST /api/auth/register` - Registro
 - `POST /api/auth/login` - Login
 - `POST /api/auth/refresh` - Refresh token
 - `GET /api/auth/me` - Usuario actual
 
+**OAuth Endpoints**:
+
+- `GET /api/auth/github` - Iniciar OAuth GitHub
+- `GET /api/auth/github/callback` - Callback GitHub
+- `GET /api/auth/google` - Iniciar OAuth Google
+- `GET /api/auth/google/callback` - Callback Google
+- `GET /api/auth/gitlab` - Iniciar OAuth GitLab
+- `GET /api/auth/gitlab/callback` - Callback GitLab
+
 ### Plans Module (`backend/src/modules/plans/`)
+
 - Generación de planes ultra-granulares vía LLM
 - Tareas de ~10 minutos con dependencias
 - Fases con estimación de tiempo
 
 **Endpoints**:
+
 - `POST /api/plans/generate` - Generar plan desde wizard
 - `GET /api/plans` - Listar planes (filtro projectId)
 - `GET /api/plans/:id` - Detalle de plan
 - `PATCH /api/plans/:id` - Actualizar estado
 
 ### Execution Module (`backend/src/modules/execution/`)
+
 - Ejecución fase por fase, tarea por tarea
 - Estados: running, paused, completed, failed
 - Pause/resume con razón de pausa
@@ -131,43 +150,51 @@ VibeIA/
 - Eventos WebSocket en tiempo real
 
 **Endpoints**:
+
 - `POST /api/execution/:planId/start` - Iniciar ejecución
 - `GET /api/execution/:planId/status` - Estado actual
 - `POST /api/execution/:planId/pause` - Pausar
 - `POST /api/execution/:planId/resume` - Reanudar
 
 ### LLM Module (`backend/src/modules/llm/`)
+
 - Orquestador multi-proveedor con fallback automático
 - Proveedores: Anthropic (primario), Gemini, OpenAI
 - Generación de planes y código
 
 ### Quality Gates (`backend/src/modules/quality-gates/`)
+
 - **Lint**: console statements, debugger, TODO, any types
 - **Security**: secrets hardcoded, SQL injection, XSS, eval
 - **Tests**: estructura, assertions, .only/.skip, coverage
 
 ### Recommendations (`backend/src/modules/recommendations/`)
+
 - Recomendación de base de datos (Neon, Supabase, PlanetScale, MongoDB Atlas)
 - Recomendación de deploy (Vercel, Netlify, Railway, Render, Fly.io)
 - Cálculo de costos por fase (MVP, Growth, Scale)
 
 ### Setup (`backend/src/modules/setup/`)
+
 - Setup automatizado de Neon, Vercel, Railway
 - Orquestación con rollback automático
 - Generación de archivo .env
 
 ### Documentation (`backend/src/modules/documentation/`)
+
 - Generación de README, ADRs, Changelog
 - Diagramas Mermaid (secuencia, flujo, ERD, clases)
 - OpenAPI 3.0.3 docs
 
 ### Teams Module (`backend/src/modules/teams/`)
+
 - CRUD de equipos
 - Gestión de miembros
 - Sistema de invitaciones
 - Conexiones Git (GitHub, GitLab, Bitbucket)
 
 ### Security Module (`backend/src/modules/security/`)
+
 - Escaneo de secretos en código
 - Detección de vulnerabilidades
 - Validación de headers de seguridad
@@ -182,44 +209,51 @@ El sistema utiliza las siguientes colecciones en MongoDB Atlas. Las colecciones 
 
 #### Core Collections
 
-| Colección | Schema | Descripción |
-|-----------|--------|-------------|
-| `users` | `backend/src/schemas/user.schema.ts` | Usuarios del sistema |
-| `projects` | `backend/src/schemas/project.schema.ts` | Proyectos de usuarios |
-| `plans` | `backend/src/schemas/plan.schema.ts` | Planes de ejecución generados |
+| Colección  | Schema                                     | Descripción                   |
+| ---------- | ------------------------------------------ | ----------------------------- |
+| `users`    | `backend/src/modules/users/user.schema.ts` | Usuarios del sistema          |
+| `projects` | `backend/src/schemas/project.schema.ts`    | Proyectos de usuarios         |
+| `plans`    | `backend/src/schemas/plan.schema.ts`       | Planes de ejecución generados |
 
 #### Teams Module Collections
 
-| Colección | Schema | Descripción |
-|-----------|--------|-------------|
-| `teams` | `backend/src/modules/teams/schemas/team.schema.ts` | Equipos de trabajo |
-| `teammembers` | `backend/src/modules/teams/schemas/team-member.schema.ts` | Miembros de equipos |
-| `teaminvitations` | `backend/src/modules/teams/schemas/team-invitation.schema.ts` | Invitaciones pendientes |
-| `gitconnections` | `backend/src/modules/teams/schemas/git-connection.schema.ts` | Conexiones a Git providers |
-| `teamactivities` | `backend/src/modules/teams/schemas/team-activity.schema.ts` | Log de actividad |
+| Colección         | Schema                                                        | Descripción                |
+| ----------------- | ------------------------------------------------------------- | -------------------------- |
+| `teams`           | `backend/src/modules/teams/schemas/team.schema.ts`            | Equipos de trabajo         |
+| `teammembers`     | `backend/src/modules/teams/schemas/team-member.schema.ts`     | Miembros de equipos        |
+| `teaminvitations` | `backend/src/modules/teams/schemas/team-invitation.schema.ts` | Invitaciones pendientes    |
+| `gitconnections`  | `backend/src/modules/teams/schemas/git-connection.schema.ts`  | Conexiones a Git providers |
+| `teamactivities`  | `backend/src/modules/teams/schemas/team-activity.schema.ts`   | Log de actividad           |
 
 #### Setup Module Collections
 
-| Colección | Schema | Descripción |
-|-----------|--------|-------------|
-| `setupstates` | `backend/src/modules/setup/schemas/setup-state.schema.ts` | Estado de setups de infraestructura |
+| Colección         | Schema                                                        | Descripción                               |
+| ----------------- | ------------------------------------------------------------- | ----------------------------------------- |
+| `setupstates`     | `backend/src/modules/setup/schemas/setup-state.schema.ts`     | Estado de setups de infraestructura       |
 | `rollbackactions` | `backend/src/modules/setup/schemas/rollback-action.schema.ts` | Acciones de rollback para deshacer setups |
 
 #### Security Module Collections
 
-| Colección | Schema | Descripción |
-|-----------|--------|-------------|
+| Colección     | Schema                                                      | Descripción                                 |
+| ------------- | ----------------------------------------------------------- | ------------------------------------------- |
 | `credentials` | `backend/src/modules/security/schemas/credential.schema.ts` | Credenciales encriptadas (API keys, tokens) |
-| `workspaces` | `backend/src/modules/security/schemas/workspace.schema.ts` | Workspaces aislados para ejecución |
+| `workspaces`  | `backend/src/modules/security/schemas/workspace.schema.ts`  | Workspaces aislados para ejecución          |
 
 ### User
+
 ```typescript
 {
   email: string (unique)
   name: string
   password: string (bcrypt)
+  // OAuth providers
   githubId?: string
   githubAccessToken?: string
+  googleId?: string
+  googleAccessToken?: string
+  gitlabId?: string
+  gitlabAccessToken?: string
+  // General
   projects: string[]
   refreshTokens?: string[]
   isActive: boolean
@@ -228,6 +262,7 @@ El sistema utiliza las siguientes colecciones en MongoDB Atlas. Las colecciones 
 ```
 
 ### Project
+
 ```typescript
 {
   name: string
@@ -241,6 +276,7 @@ El sistema utiliza las siguientes colecciones en MongoDB Atlas. Las colecciones 
 ```
 
 ### Plan
+
 ```typescript
 {
   projectId: string
@@ -267,6 +303,7 @@ El sistema utiliza las siguientes colecciones en MongoDB Atlas. Las colecciones 
 ```
 
 ### Team
+
 ```typescript
 {
   name: string
@@ -281,6 +318,7 @@ El sistema utiliza las siguientes colecciones en MongoDB Atlas. Las colecciones 
 ```
 
 ### Credential
+
 ```typescript
 {
   userId: string
@@ -295,6 +333,7 @@ El sistema utiliza las siguientes colecciones en MongoDB Atlas. Las colecciones 
 ```
 
 ### SetupState
+
 ```typescript
 {
   setupId: string (unique)
@@ -313,10 +352,12 @@ El sistema utiliza las siguientes colecciones en MongoDB Atlas. Las colecciones 
 ## WebSocket Events (Socket.io `/execution`)
 
 **Suscripción**:
+
 - `subscribe_execution { planId }`
 - `unsubscribe_execution { planId }`
 
 **Eventos recibidos**:
+
 - `status_update` - Cambio de estado con progreso
 - `task_started` - Tarea iniciada
 - `task_completed` - Tarea completada
@@ -338,7 +379,7 @@ npm run test           # Tests unitarios
 npm run test:cov       # Coverage
 
 # Frontend (desarrollo local)
-cd frontend
+cd vibeia
 npm install
 npm run dev            # http://localhost:3000
 npm run build          # Build producción
@@ -352,6 +393,7 @@ docker-compose down    # Detener servicios
 ## Variables de Entorno en Producción
 
 ### Backend (Render)
+
 ```bash
 NODE_ENV=production
 PORT=10000
@@ -368,6 +410,7 @@ GITHUB_TOKEN=ghp_...
 ```
 
 ### Frontend (Vercel)
+
 ```bash
 NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 ```
@@ -390,6 +433,7 @@ NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 ```
 
 ### Render Service Config
+
 - **Service ID**: `srv-d4ro4echg0os73d4pho0`
 - **Root Directory**: `backend`
 - **Dockerfile Path**: `./Dockerfile`
@@ -397,13 +441,15 @@ NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 - **Port**: 10000
 
 ### Vercel Config
-- **Root Directory**: `frontend`
+
+- **Root Directory**: `vibeia`
 - **Framework**: Next.js (auto-detectado)
 - **Build Command**: `npm run build`
 
 ## Convenciones de Código
 
 ### Nomenclatura
+
 - **Servicios**: PascalCase + "Service" (`PlansService`)
 - **Controladores**: PascalCase + "Controller" (`PlansController`)
 - **Decoradores**: camelCase con @ (`@Public()`, `@Roles()`)
@@ -411,6 +457,7 @@ NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 - **Eventos**: snake_case (`status_update`, `task_started`)
 
 ### Archivos
+
 - `*.controller.ts` - Controladores HTTP
 - `*.service.ts` - Lógica de negocio
 - `*.schema.ts` - Esquemas MongoDB
@@ -419,6 +466,7 @@ NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 - `*.test.tsx` - Tests de componentes
 
 ### Testing
+
 - Tests unitarios junto al código fuente
 - Mocks para servicios externos (LLM, Git, DB)
 - React Testing Library para componentes
@@ -426,20 +474,20 @@ NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 
 ## Estado de Implementación
 
-| Fase | Estado | Descripción |
-|------|--------|-------------|
-| Phase 1 | ✅ | Core Platform & Wizard (4 stages) |
-| Phase 2 | ✅ | Execution Engine & Git Integration |
-| Phase 3 | ✅ | Manual Tasks & Quality Gates |
-| Phase 4 | ✅ | Auth, Real-time Updates & Testing |
-| Phase 5 | ✅ | Dashboard & Project Management |
-| Phase 6 | ✅ | Infrastructure Recommendations |
-| Phase 7 | ✅ | Automated Documentation System |
-| Phase 8 | ✅ | Automated Setup System |
-| Phase 9 | ✅ | Error Handling & Rollback System |
-| Phase 10 | ✅ | Security & Billing Modules |
-| Phase 11 | ✅ | Teams & Collaboration |
-| Deployment | ✅ | Producción en Vercel + Render + MongoDB Atlas |
+| Fase       | Estado | Descripción                                   |
+| ---------- | ------ | --------------------------------------------- |
+| Phase 1    | ✅     | Core Platform & Wizard (4 stages)             |
+| Phase 2    | ✅     | Execution Engine & Git Integration            |
+| Phase 3    | ✅     | Manual Tasks & Quality Gates                  |
+| Phase 4    | ✅     | Auth, Real-time Updates & Testing             |
+| Phase 5    | ✅     | Dashboard & Project Management                |
+| Phase 6    | ✅     | Infrastructure Recommendations                |
+| Phase 7    | ✅     | Automated Documentation System                |
+| Phase 8    | ✅     | Automated Setup System                        |
+| Phase 9    | ✅     | Error Handling & Rollback System              |
+| Phase 10   | ✅     | Security & Billing Modules                    |
+| Phase 11   | ✅     | Teams & Collaboration                         |
+| Deployment | ✅     | Producción en Vercel + Render + MongoDB Atlas |
 
 ## Flujo de Usuario
 
@@ -457,6 +505,7 @@ NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 ## Notas para Desarrollo
 
 ### Al agregar un nuevo módulo:
+
 1. Crear carpeta en `backend/src/modules/`
 2. Crear controller, service, module, tests
 3. Importar en `app.module.ts`
@@ -465,11 +514,13 @@ NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 6. Push a GitHub → auto-deploy en Render
 
 ### Al modificar modelos:
+
 1. Actualizar schema en `backend/src/modules/*/`
 2. Actualizar sección "Modelos de Datos" aquí
 3. Verificar que los tests pasen
 
 ### Al agregar features frontend:
+
 1. Crear componente en directorio apropiado
 2. Agregar a `lib/api-client.ts` si requiere API
 3. Agregar tests en `__tests__/`
@@ -479,23 +530,27 @@ NEXT_PUBLIC_API_URL=https://vibeia.onrender.com
 ### Troubleshooting Deployment
 
 **Backend no responde:**
+
 1. Verificar logs en Render Dashboard
 2. El free tier se duerme después de 15 min - esperar ~30s
 3. Verificar que MONGO_URI esté correctamente configurado
 
 **CORS errors:**
+
 1. Verificar que `FRONTEND_URL` en Render coincida con URL de Vercel
 2. Redeploy backend después de cambiar variables
 
 **MongoDB connection failed:**
+
 1. Verificar Network Access en MongoDB Atlas (0.0.0.0/0)
 2. Verificar usuario/contraseña en connection string
 
 ---
 
-**Última actualización**: Deployment completo a producción (Vercel + Render + MongoDB Atlas)
+**Última actualización**: 2025-12-15 - OAuth multi-provider (GitHub, Google, GitLab) con popup flow y postMessage
 
 **Próximos pasos sugeridos**:
+
 - Configurar dominio personalizado
 - Integración con más proveedores cloud
 - Sistema de templates de proyectos
