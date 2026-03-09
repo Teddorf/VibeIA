@@ -14,9 +14,18 @@ jest.mock('@/contexts/AuthContext', () => ({
   useAuth: jest.fn(),
 }));
 
+// Mock OAuthButtons
+jest.mock('@/components/auth/OAuthButtons', () => ({
+  OAuthButtons: () => <div data-testid="oauth-buttons">OAuth Buttons</div>,
+}));
+
 describe('RegisterPage', () => {
   const mockPush = jest.fn();
   const mockRegister = jest.fn();
+  const mockInitFromStorage = jest.fn();
+
+  // Strong password that meets all requirements
+  const strongPassword = 'MyStr0ng!Pass';
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -24,6 +33,7 @@ describe('RegisterPage', () => {
     (useAuth as jest.Mock).mockReturnValue({
       register: mockRegister,
       isAuthenticated: false,
+      initFromStorage: mockInitFromStorage,
     });
   });
 
@@ -35,13 +45,15 @@ describe('RegisterPage', () => {
     expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
+    // Button text is "Crear Cuenta" (Spanish)
+    expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeInTheDocument();
   });
 
   it('shows link to login page', () => {
     render(<RegisterPage />);
 
-    const loginLink = screen.getByRole('link', { name: /sign in/i });
+    // Link text is "Iniciar sesión" (Spanish)
+    const loginLink = screen.getByRole('link', { name: /iniciar sesi/i });
     expect(loginLink).toHaveAttribute('href', '/login');
   });
 
@@ -53,12 +65,12 @@ describe('RegisterPage', () => {
 
     await user.type(screen.getByLabelText(/full name/i), 'Test User');
     await user.type(screen.getByLabelText(/^email$/i), 'test@test.com');
-    await user.type(screen.getByLabelText(/^password$/i), 'password123');
-    await user.type(screen.getByLabelText(/confirm password/i), 'password123');
-    await user.click(screen.getByRole('button', { name: /create account/i }));
+    await user.type(screen.getByLabelText(/^password$/i), strongPassword);
+    await user.type(screen.getByLabelText(/confirm password/i), strongPassword);
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }));
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith('test@test.com', 'password123', 'Test User');
+      expect(mockRegister).toHaveBeenCalledWith('test@test.com', strongPassword, 'Test User');
     });
   });
 
@@ -69,9 +81,9 @@ describe('RegisterPage', () => {
 
     await user.type(screen.getByLabelText(/full name/i), 'Test User');
     await user.type(screen.getByLabelText(/^email$/i), 'test@test.com');
-    await user.type(screen.getByLabelText(/^password$/i), 'password123');
+    await user.type(screen.getByLabelText(/^password$/i), strongPassword);
     await user.type(screen.getByLabelText(/confirm password/i), 'differentpassword');
-    await user.click(screen.getByRole('button', { name: /create account/i }));
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Passwords do not match')).toBeInTheDocument();
@@ -87,12 +99,12 @@ describe('RegisterPage', () => {
 
     await user.type(screen.getByLabelText(/full name/i), 'Test User');
     await user.type(screen.getByLabelText(/^email$/i), 'test@test.com');
-    await user.type(screen.getByLabelText(/^password$/i), 'short');
-    await user.type(screen.getByLabelText(/confirm password/i), 'short');
-    await user.click(screen.getByRole('button', { name: /create account/i }));
+    await user.type(screen.getByLabelText(/^password$/i), 'Short1!');
+    await user.type(screen.getByLabelText(/confirm password/i), 'Short1!');
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Password must be at least 8 characters')).toBeInTheDocument();
+      expect(screen.getByText('Password must be at least 12 characters')).toBeInTheDocument();
     });
 
     expect(mockRegister).not.toHaveBeenCalled();
@@ -106,11 +118,12 @@ describe('RegisterPage', () => {
 
     await user.type(screen.getByLabelText(/full name/i), 'Test User');
     await user.type(screen.getByLabelText(/^email$/i), 'test@test.com');
-    await user.type(screen.getByLabelText(/^password$/i), 'password123');
-    await user.type(screen.getByLabelText(/confirm password/i), 'password123');
-    await user.click(screen.getByRole('button', { name: /create account/i }));
+    await user.type(screen.getByLabelText(/^password$/i), strongPassword);
+    await user.type(screen.getByLabelText(/confirm password/i), strongPassword);
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }));
 
-    expect(screen.getByText(/creating account/i)).toBeInTheDocument();
+    // Loading text is "Creando cuenta..." (Spanish)
+    expect(screen.getByText(/creando cuenta/i)).toBeInTheDocument();
   });
 
   it('shows error on registration failure', async () => {
@@ -121,9 +134,9 @@ describe('RegisterPage', () => {
 
     await user.type(screen.getByLabelText(/full name/i), 'Test User');
     await user.type(screen.getByLabelText(/^email$/i), 'existing@test.com');
-    await user.type(screen.getByLabelText(/^password$/i), 'password123');
-    await user.type(screen.getByLabelText(/confirm password/i), 'password123');
-    await user.click(screen.getByRole('button', { name: /create account/i }));
+    await user.type(screen.getByLabelText(/^password$/i), strongPassword);
+    await user.type(screen.getByLabelText(/confirm password/i), strongPassword);
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Email already exists')).toBeInTheDocument();
@@ -138,9 +151,9 @@ describe('RegisterPage', () => {
 
     await user.type(screen.getByLabelText(/full name/i), 'Test User');
     await user.type(screen.getByLabelText(/^email$/i), 'test@test.com');
-    await user.type(screen.getByLabelText(/^password$/i), 'password123');
-    await user.type(screen.getByLabelText(/confirm password/i), 'password123');
-    await user.click(screen.getByRole('button', { name: /create account/i }));
+    await user.type(screen.getByLabelText(/^password$/i), strongPassword);
+    await user.type(screen.getByLabelText(/confirm password/i), strongPassword);
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Registration failed. Please try again.')).toBeInTheDocument();
@@ -151,6 +164,7 @@ describe('RegisterPage', () => {
     (useAuth as jest.Mock).mockReturnValue({
       register: mockRegister,
       isAuthenticated: true,
+      initFromStorage: mockInitFromStorage,
     });
 
     render(<RegisterPage />);
@@ -166,9 +180,9 @@ describe('RegisterPage', () => {
 
     await user.type(screen.getByLabelText(/full name/i), 'Test User');
     await user.type(screen.getByLabelText(/^email$/i), 'test@test.com');
-    await user.type(screen.getByLabelText(/^password$/i), 'password123');
-    await user.type(screen.getByLabelText(/confirm password/i), 'password123');
-    await user.click(screen.getByRole('button', { name: /create account/i }));
+    await user.type(screen.getByLabelText(/^password$/i), strongPassword);
+    await user.type(screen.getByLabelText(/confirm password/i), strongPassword);
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }));
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/');

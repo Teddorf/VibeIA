@@ -95,8 +95,8 @@ describe('Header', () => {
     const dashboardLink = screen.getByRole('link', { name: 'Dashboard' });
     expect(dashboardLink).toBeInTheDocument();
 
-    // Spanish text: "Nuevo Proyecto"
-    expect(screen.getByRole('link', { name: /nuevo proyecto/i })).toBeInTheDocument();
+    // Navigation links
+    expect(screen.getByRole('link', { name: /new project/i })).toBeInTheDocument();
   });
 
   it('shows VibeCoding logo', () => {

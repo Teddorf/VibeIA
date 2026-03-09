@@ -143,7 +143,8 @@ describe('VerifyEmailPage', () => {
 
       // Assert
       await waitFor(() => {
-        expect(screen.getByText(/token inválido o expirado/i)).toBeInTheDocument();
+        // Error message comes from the API response data
+        expect(screen.getByText('Invalid or expired token')).toBeInTheDocument();
         expect(screen.getByTestId('error-icon')).toBeInTheDocument();
       });
     });
@@ -163,7 +164,8 @@ describe('VerifyEmailPage', () => {
 
       // Assert
       await waitFor(() => {
-        expect(screen.getByText(/enlace ha expirado/i)).toBeInTheDocument();
+        // Error message comes from the API response data
+        expect(screen.getByText('Token expired')).toBeInTheDocument();
       });
     });
 
@@ -182,7 +184,8 @@ describe('VerifyEmailPage', () => {
 
       // Assert
       await waitFor(() => {
-        expect(screen.getByText(/email ya verificado/i)).toBeInTheDocument();
+        // Error message comes from the API response data
+        expect(screen.getByText('Email already verified')).toBeInTheDocument();
       });
     });
 
@@ -223,7 +226,7 @@ describe('VerifyEmailPage', () => {
       // Arrange
       (useParams as jest.Mock).mockReturnValue({ token: 'token' });
       (authApi.verifyEmail as jest.Mock).mockImplementation(
-        () => new Promise(() => {}) // Never resolves
+        () => new Promise(() => {}), // Never resolves
       );
 
       // Act
@@ -237,9 +240,7 @@ describe('VerifyEmailPage', () => {
     it('should show spinner during verification', () => {
       // Arrange
       (useParams as jest.Mock).mockReturnValue({ token: 'token' });
-      (authApi.verifyEmail as jest.Mock).mockImplementation(
-        () => new Promise(() => {})
-      );
+      (authApi.verifyEmail as jest.Mock).mockImplementation(() => new Promise(() => {}));
 
       // Act
       render(<VerifyEmailPage />);

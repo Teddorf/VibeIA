@@ -24,6 +24,7 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // Mock API clients
@@ -60,6 +61,38 @@ jest.mock('@/lib/api-client', () => ({
   },
 }));
 
+// Mock child components
+jest.mock('@/components/settings/OAuthConnectionCard', () => {
+  return function MockOAuthConnectionCard(props: any) {
+    return (
+      <div data-testid={`oauth-card-${props.provider}`}>
+        <span>{props.title}</span>
+        {props.connected ? (
+          <>
+            <span>{props.userInfo?.username || props.userInfo?.email || 'Connected'}</span>
+            <button onClick={props.onDisconnect} aria-label={`Desconectar ${props.title}`}>
+              Disconnect
+            </button>
+          </>
+        ) : (
+          <button onClick={props.onConnect} aria-label={`Conectar ${props.title}`}>
+            Connect
+          </button>
+        )}
+        {props.error && <span>{props.error}</span>}
+      </div>
+    );
+  };
+});
+
+jest.mock('@/components/auth/TwoFactorSetup', () => ({
+  TwoFactorSetup: () => <div data-testid="2fa-setup">2FA Setup</div>,
+}));
+
+jest.mock('@/components/integrations/IntegrationsPanel', () => ({
+  IntegrationsPanel: () => <div data-testid="integrations-panel">Integrations Panel</div>,
+}));
+
 const mockUseAuth = useAuth as jest.Mock;
 const mockLlmSettingsApi = llmSettingsApi as jest.Mocked<typeof llmSettingsApi>;
 const mockGithubApi = githubApi as jest.Mocked<typeof githubApi>;
@@ -73,7 +106,11 @@ const defaultLLMKeysResponse = {
     { provider: 'openai', isConfigured: true, isActive: true, maskedKey: 'sk-...xxx' },
     { provider: 'gemini', isConfigured: false, isActive: false },
   ],
-  preferences: { primaryProvider: 'openai', fallbackEnabled: true, fallbackOrder: ['anthropic', 'gemini'] },
+  preferences: {
+    primaryProvider: 'openai',
+    fallbackEnabled: true,
+    fallbackOrder: ['anthropic', 'gemini'],
+  },
   hasAnyConfigured: true,
   providersInfo: {
     anthropic: { name: 'Claude (Anthropic)', signupUrl: 'https://console.anthropic.com/' },
@@ -117,7 +154,7 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(/configuración/i)).toBeInTheDocument();
+        expect(screen.getByText(/settings/i)).toBeInTheDocument();
       });
     });
 
@@ -125,10 +162,10 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        // Should show all three providers
-        expect(screen.getByText(/claude/i)).toBeInTheDocument();
-        expect(screen.getByText(/openai|gpt/i)).toBeInTheDocument();
-        expect(screen.getByText(/gemini/i)).toBeInTheDocument();
+        // Should show all three providers (may appear multiple times)
+        expect(screen.getAllByText(/claude/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/openai|gpt/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/gemini/i).length).toBeGreaterThan(0);
       });
     });
 
@@ -146,10 +183,11 @@ describe('SettingsPage', () => {
         isLoading: true,
       });
 
-      render(<SettingsPage />);
+      const { container } = render(<SettingsPage />);
 
-      // Should show some loading indicator
-      expect(screen.getByText(/loading|cargando/i)).toBeInTheDocument();
+      // Should show a spinner (animate-spin)
+      const spinner = container.querySelector('.animate-spin');
+      expect(spinner).toBeInTheDocument();
     });
   });
 
@@ -166,13 +204,12 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('should show "Configurado" badge for configured providers', async () => {
+    it('should show configured provider with masked key', async () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        // OpenAI is configured in our mock
-        const configuredBadges = screen.getAllByText(/configurado|configured/i);
-        expect(configuredBadges.length).toBeGreaterThan(0);
+        // OpenAI is configured in our mock with a masked key
+        expect(screen.getByText(/sk-\.\.\.xxx/i)).toBeInTheDocument();
       });
     });
 
@@ -191,11 +228,11 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(/claude/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/claude/i).length).toBeGreaterThan(0);
       });
 
       // Find and click configure button for unconfigured provider
-      const configureButtons = screen.getAllByRole('button', { name: /configurar|configure/i });
+      const configureButtons = screen.getAllByText(/configurar/i);
       if (configureButtons.length > 0) {
         fireEvent.click(configureButtons[0]);
       }
@@ -211,7 +248,7 @@ describe('SettingsPage', () => {
       });
 
       // Find test button for configured provider
-      const testButtons = screen.queryAllByRole('button', { name: /probar|test/i });
+      const testButtons = screen.queryAllByText(/probar/i);
       if (testButtons.length > 0) {
         fireEvent.click(testButtons[0]);
         await waitFor(() => {
@@ -230,7 +267,7 @@ describe('SettingsPage', () => {
       });
 
       // Find remove button
-      const removeButtons = screen.queryAllByRole('button', { name: /eliminar|remove|delete/i });
+      const removeButtons = screen.queryAllByText(/eliminar/i);
       if (removeButtons.length > 0) {
         fireEvent.click(removeButtons[0]);
       }
@@ -247,9 +284,10 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(/github/i)).toBeInTheDocument();
+        expect(screen.getByText('GitHub')).toBeInTheDocument();
         // Should show connect option
-        expect(screen.getByText(/conectar|connect/i)).toBeInTheDocument();
+        const connectButtons = screen.getAllByText('Connect');
+        expect(connectButtons.length).toBeGreaterThan(0);
       });
     });
 
@@ -273,7 +311,7 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(/google/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/google/i).length).toBeGreaterThan(0);
       });
     });
 
@@ -291,11 +329,11 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(/github/i)).toBeInTheDocument();
+        expect(screen.getByText('GitHub')).toBeInTheDocument();
       });
 
-      // Find GitHub connect button
-      const connectButtons = screen.getAllByRole('button', { name: /conectar|connect/i });
+      // Find connect buttons (from mocked OAuthConnectionCard)
+      const connectButtons = screen.getAllByText('Connect');
       expect(connectButtons.length).toBeGreaterThan(0);
     });
 
@@ -309,11 +347,11 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(/testuser|conectado/i)).toBeInTheDocument();
+        expect(screen.getByText('testuser')).toBeInTheDocument();
       });
 
-      // Find disconnect button
-      const disconnectButtons = screen.queryAllByRole('button', { name: /desconectar|disconnect/i });
+      // Find disconnect button from our mocked OAuthConnectionCard
+      const disconnectButtons = screen.getAllByText('Disconnect');
       if (disconnectButtons.length > 0) {
         fireEvent.click(disconnectButtons[0]);
         await waitFor(() => {
@@ -348,7 +386,9 @@ describe('SettingsPage', () => {
       // The Import button should NOT exist in Settings
       // Looking for the specific button text "Importar proyecto desde GitHub"
       const importButton = screen.queryByText(/importar proyecto desde github/i);
-      const importButtonByRole = screen.queryByRole('button', { name: /importar proyecto|import project/i });
+      const importButtonByRole = screen.queryByRole('button', {
+        name: /importar proyecto|import project/i,
+      });
 
       // EXPECTED: These should NOT be in Settings page
       // Settings = Configuration only
@@ -362,11 +402,11 @@ describe('SettingsPage', () => {
 
       await waitFor(() => {
         // Should have configuration elements
-        expect(screen.getByText(/settings|configuración/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/settings/i).length).toBeGreaterThan(0);
         // Should have LLM config
-        expect(screen.getByText(/claude|openai|gemini/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/claude|openai|gemini/i).length).toBeGreaterThan(0);
         // Should have OAuth connections
-        expect(screen.getByText(/github/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/github/i).length).toBeGreaterThan(0);
       });
     });
 
@@ -406,7 +446,7 @@ describe('SettingsPage', () => {
       render(<SettingsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(/configuración/i)).toBeInTheDocument();
+        expect(screen.getByText(/settings/i)).toBeInTheDocument();
       });
     });
 

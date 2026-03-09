@@ -14,9 +14,15 @@ jest.mock('@/contexts/AuthContext', () => ({
   useAuth: jest.fn(),
 }));
 
+// Mock OAuthButtons
+jest.mock('@/components/auth/OAuthButtons', () => ({
+  OAuthButtons: () => <div data-testid="oauth-buttons">OAuth Buttons</div>,
+}));
+
 describe('LoginPage', () => {
   const mockPush = jest.fn();
   const mockLogin = jest.fn();
+  const mockInitFromStorage = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -24,6 +30,7 @@ describe('LoginPage', () => {
     (useAuth as jest.Mock).mockReturnValue({
       login: mockLogin,
       isAuthenticated: false,
+      initFromStorage: mockInitFromStorage,
     });
   });
 
@@ -33,7 +40,8 @@ describe('LoginPage', () => {
     expect(screen.getByText('Welcome Back')).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    // Button text is "Iniciar Sesion" (Spanish)
+    expect(screen.getByRole('button', { name: /iniciar sesion/i })).toBeInTheDocument();
   });
 
   it('shows link to register page', () => {
@@ -51,7 +59,7 @@ describe('LoginPage', () => {
 
     await user.type(screen.getByLabelText(/email/i), 'test@test.com');
     await user.type(screen.getByLabelText(/password/i), 'password123');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /iniciar sesion/i }));
 
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledWith('test@test.com', 'password123');
@@ -66,9 +74,10 @@ describe('LoginPage', () => {
 
     await user.type(screen.getByLabelText(/email/i), 'test@test.com');
     await user.type(screen.getByLabelText(/password/i), 'password123');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /iniciar sesion/i }));
 
-    expect(screen.getByText(/signing in/i)).toBeInTheDocument();
+    // Loading text is "Iniciando sesion..." (Spanish)
+    expect(screen.getByText(/iniciando sesion/i)).toBeInTheDocument();
   });
 
   it('shows error on login failure', async () => {
@@ -79,7 +88,7 @@ describe('LoginPage', () => {
 
     await user.type(screen.getByLabelText(/email/i), 'test@test.com');
     await user.type(screen.getByLabelText(/password/i), 'wrongpassword');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /iniciar sesion/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Invalid credentials')).toBeInTheDocument();
@@ -94,7 +103,7 @@ describe('LoginPage', () => {
 
     await user.type(screen.getByLabelText(/email/i), 'test@test.com');
     await user.type(screen.getByLabelText(/password/i), 'password');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /iniciar sesion/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Invalid email or password')).toBeInTheDocument();
@@ -105,6 +114,7 @@ describe('LoginPage', () => {
     (useAuth as jest.Mock).mockReturnValue({
       login: mockLogin,
       isAuthenticated: true,
+      initFromStorage: mockInitFromStorage,
     });
 
     render(<LoginPage />);
@@ -120,7 +130,7 @@ describe('LoginPage', () => {
 
     await user.type(screen.getByLabelText(/email/i), 'test@test.com');
     await user.type(screen.getByLabelText(/password/i), 'password123');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /iniciar sesion/i }));
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/');

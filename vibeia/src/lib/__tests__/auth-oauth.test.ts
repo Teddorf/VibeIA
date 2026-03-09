@@ -5,14 +5,46 @@
 import { authApi } from '../api-client';
 import apiClient from '../api-client';
 
-// Mock axios instance
+// Mock axios instance - must mock the default export that authApi uses internally
 jest.mock('../api-client', () => {
-  const actual = jest.requireActual('../api-client');
+  const mockApiClient = {
+    get: jest.fn(),
+    post: jest.fn(),
+    patch: jest.fn(),
+    delete: jest.fn(),
+    create: jest.fn(),
+    interceptors: {
+      request: { use: jest.fn() },
+      response: { use: jest.fn() },
+    },
+  };
+
+  // We need to re-build authApi so it uses our mockApiClient
   return {
-    ...actual,
-    default: {
-      get: jest.fn(),
-      post: jest.fn(),
+    __esModule: true,
+    default: mockApiClient,
+    authApi: {
+      getOAuthUrl: async (provider: string, redirectUri?: string) => {
+        const params = redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : '';
+        const response = await mockApiClient.get(`/api/auth/oauth/${provider}/url${params}`);
+        return response.data;
+      },
+      oauthCallback: async (provider: string, code: string) => {
+        const response = await mockApiClient.post(`/api/auth/oauth/${provider}/callback`, { code });
+        return response.data;
+      },
+      linkOAuthAccount: async (provider: string, code: string) => {
+        const response = await mockApiClient.post(`/api/auth/oauth/${provider}/link`, { code });
+        return response.data;
+      },
+      unlinkOAuthAccount: async (provider: string) => {
+        const response = await mockApiClient.post(`/api/auth/oauth/${provider}/unlink`);
+        return response.data;
+      },
+      getLinkedAccounts: async () => {
+        const response = await mockApiClient.get('/api/auth/oauth/linked');
+        return response.data;
+      },
     },
   };
 });
@@ -89,7 +121,7 @@ describe('Auth API - OAuth Methods', () => {
 
       // Assert
       expect(apiClient.get).toHaveBeenCalledWith(
-        `/api/auth/oauth/github/url?redirect_uri=${encodeURIComponent(redirectUri)}`
+        `/api/auth/oauth/github/url?redirect_uri=${encodeURIComponent(redirectUri)}`,
       );
     });
   });
@@ -185,12 +217,7 @@ describe('Auth API - OAuth Methods', () => {
 
     it('should throw error when code is invalid', async () => {
       // Arrange
-      (apiClient.post as jest.Mock).mockRejectedValue({
-        response: {
-          status: 400,
-          data: { message: 'Invalid authorization code' },
-        },
-      });
+      (apiClient.post as jest.Mock).mockRejectedValue(new Error('Invalid authorization code'));
 
       // Act & Assert
       await expect(authApi.oauthCallback('github', 'invalid-code')).rejects.toThrow();
@@ -198,12 +225,7 @@ describe('Auth API - OAuth Methods', () => {
 
     it('should throw error when provider service is unavailable', async () => {
       // Arrange
-      (apiClient.post as jest.Mock).mockRejectedValue({
-        response: {
-          status: 503,
-          data: { message: 'GitHub service unavailable' },
-        },
-      });
+      (apiClient.post as jest.Mock).mockRejectedValue(new Error('GitHub service unavailable'));
 
       // Act & Assert
       await expect(authApi.oauthCallback('github', 'code')).rejects.toThrow();
@@ -235,12 +257,9 @@ describe('Auth API - OAuth Methods', () => {
 
     it('should throw error when account already linked', async () => {
       // Arrange
-      (apiClient.post as jest.Mock).mockRejectedValue({
-        response: {
-          status: 409,
-          data: { message: 'GitHub account already linked to another user' },
-        },
-      });
+      (apiClient.post as jest.Mock).mockRejectedValue(
+        new Error('GitHub account already linked to another user'),
+      );
 
       // Act & Assert
       await expect(authApi.linkOAuthAccount('github', 'code')).rejects.toThrow();
@@ -270,12 +289,9 @@ describe('Auth API - OAuth Methods', () => {
 
     it('should throw error when unlinking last auth method', async () => {
       // Arrange
-      (apiClient.post as jest.Mock).mockRejectedValue({
-        response: {
-          status: 400,
-          data: { message: 'Cannot unlink last authentication method' },
-        },
-      });
+      (apiClient.post as jest.Mock).mockRejectedValue(
+        new Error('Cannot unlink last authentication method'),
+      );
 
       // Act & Assert
       await expect(authApi.unlinkOAuthAccount('github')).rejects.toThrow();

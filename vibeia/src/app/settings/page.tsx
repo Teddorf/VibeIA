@@ -79,6 +79,9 @@ export default function SettingsPage() {
   const [gitlabLoading, setGitlabLoading] = useState(false);
   const [gitlabError, setGitlabError] = useState<string | null>(null);
 
+  // Tabs state - must be before any conditional return to maintain hooks order
+  const [activeTab, setActiveTab] = useState<'general' | 'security' | 'integrations'>('general');
+
   // Form state
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -314,8 +317,6 @@ export default function SettingsPage() {
       </div>
     );
   }
-
-  const [activeTab, setActiveTab] = useState<'general' | 'security' | 'integrations'>('general');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
