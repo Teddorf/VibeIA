@@ -160,8 +160,9 @@ describe('DashboardStats', () => {
       // Act
       render(<DashboardStats stats={statsWithTrend} showTrends />);
 
-      // Assert
-      expect(screen.getByTestId('trend-positive')).toBeInTheDocument();
+      // Assert - two positive trends exist (totalProjects: 10, completedTasks: 15)
+      const positiveElements = screen.getAllByTestId('trend-positive');
+      expect(positiveElements.length).toBeGreaterThan(0);
       expect(screen.getByText('+10%')).toBeInTheDocument();
     });
 

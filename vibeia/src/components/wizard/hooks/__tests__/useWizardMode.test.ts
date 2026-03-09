@@ -32,7 +32,7 @@ Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 // Mock API client
 jest.mock('@/lib/api-client', () => ({
   authApi: {
-    getMe: jest.fn(),
+    getProfile: jest.fn(),
   },
 }));
 
@@ -42,7 +42,7 @@ describe('useWizardMode', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     localStorageMock.clear();
-    (authApi.getMe as jest.Mock).mockResolvedValue({ experienceLevel: null });
+    (authApi.getProfile as jest.Mock).mockResolvedValue({ experienceLevel: null });
   });
 
   // ==========================================
@@ -56,7 +56,7 @@ describe('useWizardMode', () => {
     });
 
     it('should return isLoading as true initially when fetching user', () => {
-      (authApi.getMe as jest.Mock).mockImplementation(
+      (authApi.getProfile as jest.Mock).mockImplementation(
         () => new Promise(() => {}), // Never resolves
       );
 
@@ -66,7 +66,7 @@ describe('useWizardMode', () => {
     });
 
     it('should set isLoading to false after user data is fetched', async () => {
-      (authApi.getMe as jest.Mock).mockResolvedValue({ experienceLevel: 'beginner' });
+      (authApi.getProfile as jest.Mock).mockResolvedValue({ experienceLevel: 'beginner' });
 
       const { result } = renderHook(() => useWizardMode());
 
@@ -117,7 +117,7 @@ describe('useWizardMode', () => {
   // ==========================================
   describe('Nivel de experiencia', () => {
     it('should fetch user experience level from API', async () => {
-      (authApi.getMe as jest.Mock).mockResolvedValue({ experienceLevel: 'beginner' });
+      (authApi.getProfile as jest.Mock).mockResolvedValue({ experienceLevel: 'beginner' });
 
       const { result } = renderHook(() => useWizardMode());
 
@@ -127,7 +127,7 @@ describe('useWizardMode', () => {
     });
 
     it('should return null userExperience if API fails', async () => {
-      (authApi.getMe as jest.Mock).mockRejectedValue(new Error('API Error'));
+      (authApi.getProfile as jest.Mock).mockRejectedValue(new Error('API Error'));
 
       const { result } = renderHook(() => useWizardMode());
 
@@ -138,7 +138,7 @@ describe('useWizardMode', () => {
     });
 
     it('should suggest guided mode for beginner users', async () => {
-      (authApi.getMe as jest.Mock).mockResolvedValue({ experienceLevel: 'beginner' });
+      (authApi.getProfile as jest.Mock).mockResolvedValue({ experienceLevel: 'beginner' });
 
       const { result } = renderHook(() => useWizardMode());
 
@@ -148,7 +148,7 @@ describe('useWizardMode', () => {
     });
 
     it('should suggest standard mode for intermediate users', async () => {
-      (authApi.getMe as jest.Mock).mockResolvedValue({ experienceLevel: 'intermediate' });
+      (authApi.getProfile as jest.Mock).mockResolvedValue({ experienceLevel: 'intermediate' });
 
       const { result } = renderHook(() => useWizardMode());
 
@@ -158,7 +158,7 @@ describe('useWizardMode', () => {
     });
 
     it('should suggest expert mode for advanced users', async () => {
-      (authApi.getMe as jest.Mock).mockResolvedValue({ experienceLevel: 'advanced' });
+      (authApi.getProfile as jest.Mock).mockResolvedValue({ experienceLevel: 'advanced' });
 
       const { result } = renderHook(() => useWizardMode());
 
@@ -168,7 +168,7 @@ describe('useWizardMode', () => {
     });
 
     it('should suggest standard mode when no experience level', async () => {
-      (authApi.getMe as jest.Mock).mockResolvedValue({ experienceLevel: null });
+      (authApi.getProfile as jest.Mock).mockResolvedValue({ experienceLevel: null });
 
       const { result } = renderHook(() => useWizardMode());
 
